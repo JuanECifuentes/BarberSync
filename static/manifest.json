@@ -1,0 +1,22 @@
+{
+    "name": "BarberSync",
+    "short_name": "BarberSync",
+    "description": "Gestión integral de barberías",
+    "start_url": "/app/schedule/",
+    "display": "standalone",
+    "background_color": "#1a1a1c",
+    "theme_color": "#ff2301",
+    "orientation": "portrait",
+    "icons": [
+        {
+            "src": "/static/img/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/static/img/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

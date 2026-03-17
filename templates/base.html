@@ -1,0 +1,174 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#ff2301">
+    <meta name="description" content="BarberSync – Gestión integral de barberías">
+    <link rel="manifest" href="{% static 'manifest.json' %}">
+    <title>{% block title %}BarberSync{% endblock %}</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Roboto:wght@500;700;900&display=swap" rel="stylesheet">
+
+    <!-- TailwindCSS CDN (replace with build in production) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            DEFAULT: '#ff2301',
+                            50:  '#fff1f0',
+                            100: '#ffe0dc',
+                            200: '#ffc7c0',
+                            300: '#ffa093',
+                            400: '#ff6b56',
+                            500: '#ff2301',
+                            600: '#e01e00',
+                            700: '#b81800',
+                            800: '#971600',
+                            900: '#7d1600',
+                        },
+                        neutral: {
+                            DEFAULT: '#59595D',
+                            50:  '#f7f7f8',
+                            100: '#eeeef0',
+                            200: '#d9d9dd',
+                            300: '#b8b8be',
+                            400: '#91919a',
+                            500: '#59595D',
+                            600: '#5e5e63',
+                            700: '#4a4a4f',
+                            800: '#3d3d41',
+                            900: '#2a2a2d',
+                            950: '#1a1a1c',
+                        }
+                    },
+                    fontFamily: {
+                        heading: ['Roboto', 'sans-serif'],
+                        body: ['Poppins', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+
+    <!-- FullCalendar (scheduling pages) -->
+    {% block extra_head %}{% endblock %}
+
+    <style>
+        /* Global noise/grain texture */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            pointer-events: none;
+            opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            background-repeat: repeat;
+            background-size: 256px 256px;
+        }
+
+        /* Button micro-interactions */
+        .btn-primary {
+            @apply bg-brand text-white font-body font-semibold px-6 py-3 rounded-lg
+                   transition-all duration-200 ease-out
+                   hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand/30
+                   active:translate-y-0 active:shadow-md
+                   focus:outline-none focus:ring-2 focus:ring-brand/50 focus:ring-offset-2;
+        }
+        .btn-secondary {
+            @apply bg-neutral-900 text-white font-body font-medium px-6 py-3 rounded-lg
+                   border border-neutral-700
+                   transition-all duration-200 ease-out
+                   hover:-translate-y-0.5 hover:bg-neutral-800 hover:shadow-lg
+                   active:translate-y-0
+                   focus:outline-none focus:ring-2 focus:ring-neutral-500 focus:ring-offset-2;
+        }
+        .btn-ghost {
+            @apply text-neutral-400 font-body font-medium px-4 py-2 rounded-lg
+                   transition-all duration-200 ease-out
+                   hover:text-white hover:bg-neutral-800
+                   focus:outline-none focus:ring-2 focus:ring-neutral-500;
+        }
+
+        /* Card style */
+        .card {
+            @apply bg-neutral-900 border border-neutral-800 rounded-xl p-5
+                   transition-all duration-200 ease-out;
+        }
+        .card-hover {
+            @apply hover:-translate-y-0.5 hover:shadow-lg hover:border-neutral-700;
+        }
+
+        /* Typography defaults */
+        h1, h2, h3, h4 { font-family: 'Roboto', sans-serif; }
+        body, p, span, a, li, td, th, input, select, textarea, button {
+            font-family: 'Poppins', sans-serif;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1a1a1c; }
+        ::-webkit-scrollbar-thumb { background: #59595D; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #ff2301; }
+    </style>
+
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body class="h-full bg-neutral-950 text-white font-body antialiased">
+
+    {% if user.is_authenticated and not is_booking_page %}
+    <div class="flex h-full">
+        <!-- Sidebar -->
+        {% include "components/sidebar.html" %}
+
+        <!-- Main content area -->
+        <div class="flex-1 flex flex-col min-h-0 lg:ml-64">
+            <!-- Top navbar -->
+            {% include "components/navbar.html" %}
+
+            <!-- Page content -->
+            <main class="flex-1 overflow-y-auto p-4 lg:p-6">
+                {% if messages %}
+                <div class="mb-4 space-y-2">
+                    {% for message in messages %}
+                    <div class="p-3 rounded-lg text-sm font-medium
+                        {% if message.tags == 'success' %}bg-green-900/50 text-green-300 border border-green-800
+                        {% elif message.tags == 'error' %}bg-red-900/50 text-red-300 border border-red-800
+                        {% else %}bg-neutral-800 text-neutral-300 border border-neutral-700{% endif %}">
+                        {{ message }}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+    {% else %}
+    <!-- Public / unauthenticated layout -->
+    <main class="min-h-full">
+        {% block public_content %}{% endblock %}
+    </main>
+    {% endif %}
+
+    <!-- PWA Service Worker registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('{% static "sw.js" %}')
+                .catch(err => console.log('SW registration failed:', err));
+        }
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

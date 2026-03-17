@@ -1,0 +1,24 @@
+# Django core
+Django>=5.1,<5.2
+psycopg[binary]>=3.1
+
+# Auth & social login
+django-allauth[socialaccount]>=65.0
+
+# Task queue (async reminders)
+django-q2>=1.7
+
+# Environment config
+django-environ>=0.11
+
+# Image handling (barber/product photos)
+Pillow>=10.0
+
+# PWA support
+django-pwa>=1.1
+
+# CORS (for booking API)
+django-cors-headers>=4.3
+
+# Email
+django-anymail[mailgun]>=11.0

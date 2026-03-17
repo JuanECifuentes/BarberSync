@@ -1,0 +1,12 @@
+Hola {{ recipient_name }},
+
+Te recordamos que tienes una cita mañana en {{ barbershop_name }}.
+
+Detalles:
+- Barbero: {{ barber_name }}
+- Servicios: {{ service_names }}
+- Fecha y hora: {{ start_time|date:"d/m/Y" }} a las {{ start_time|time:"h:i A" }}
+
+¡Te esperamos!
+
+– BarberSync

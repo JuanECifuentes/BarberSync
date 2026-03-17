@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Ventas – BarberSync{% endblock %}
+{% block page_title %}Historial de Ventas{% endblock %}
+
+{% block content %}
+<div class="space-y-3">
+    {% for sale in sales %}
+    <div class="card flex items-center justify-between">
+        <div>
+            <p class="text-sm font-medium text-white">Venta #{{ sale.pk }}</p>
+            <p class="text-xs text-neutral-500">
+                {{ sale.completed_at|date:"d/m/Y H:i" }} · {{ sale.get_sale_type_display }}
+                {% if sale.barber %} · {{ sale.barber }}{% endif %}
+            </p>
+        </div>
+        <span class="font-heading font-bold text-brand">${{ sale.total|floatformat:0 }}</span>
+    </div>
+    {% empty %}
+    <div class="text-center py-12 text-neutral-500">No hay ventas registradas.</div>
+    {% endfor %}
+
+    {% if page_obj.has_other_pages %}
+    <div class="flex justify-center gap-2 pt-4">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}" class="btn-ghost text-sm">Anterior</a>
+        {% endif %}
+        <span class="px-3 py-2 text-sm text-neutral-400">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}" class="btn-ghost text-sm">Siguiente</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,359 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Reservar – {{ barbershop.name }}{% endblock %}
+
+{% block public_content %}
+<div class="min-h-screen bg-neutral-950 flex flex-col" x-data="bookingApp()" x-init="init()">
+
+    <!-- Header -->
+    <header class="bg-neutral-900 border-b border-neutral-800">
+        <div class="max-w-lg mx-auto px-4 py-4 flex items-center gap-3">
+            <div class="w-10 h-10 bg-brand rounded-xl flex items-center justify-center">
+                <span class="text-white font-heading font-bold text-xl">B</span>
+            </div>
+            <div>
+                <h1 class="font-heading font-bold text-white text-lg">{{ barbershop.name }}</h1>
+                <p class="text-xs text-neutral-400">{{ barbershop.organization.name }}</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Steps -->
+    <div class="max-w-lg mx-auto w-full px-4 pt-6 pb-32">
+
+        <!-- Progress indicator -->
+        <div class="flex items-center justify-center gap-2 mb-8">
+            <template x-for="i in 4">
+                <div class="h-1.5 rounded-full transition-all duration-300"
+                     :class="step >= i ? 'w-10 bg-brand' : 'w-6 bg-neutral-700'"></div>
+            </template>
+        </div>
+
+        <!-- Step 1: Select Barber -->
+        <div x-show="step === 1" x-transition>
+            <h2 class="font-heading font-bold text-xl text-white mb-1">Elige tu barbero</h2>
+            <p class="text-sm text-neutral-400 mb-6">Selecciona quién te atenderá</p>
+
+            <div class="space-y-3">
+                {% for barber in barbers %}
+                <button @click="selectBarber({{ barber.pk }}, '{{ barber }}')"
+                        class="card card-hover w-full text-left flex items-center gap-4 cursor-pointer"
+                        :class="selectedBarber?.id === {{ barber.pk }} ? 'border-brand ring-1 ring-brand' : ''">
+                    <div class="w-14 h-14 rounded-xl bg-neutral-800 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                        {% if barber.photo %}
+                        <img src="{{ barber.photo.url }}" class="w-full h-full object-cover" alt="{{ barber }}">
+                        {% else %}
+                        <span class="text-xl font-heading font-bold text-neutral-500">{{ barber|first }}</span>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <p class="font-medium text-white">{{ barber }}</p>
+                        {% if barber.bio %}
+                        <p class="text-xs text-neutral-400 line-clamp-1">{{ barber.bio }}</p>
+                        {% endif %}
+                    </div>
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Step 2: Select Services -->
+        <div x-show="step === 2" x-transition>
+            <h2 class="font-heading font-bold text-xl text-white mb-1">Elige tus servicios</h2>
+            <p class="text-sm text-neutral-400 mb-6">Puedes seleccionar uno o varios</p>
+
+            <div class="space-y-3">
+                <template x-for="svc in barberServices" :key="svc.id">
+                    <button @click="toggleService(svc)"
+                            class="card card-hover w-full text-left flex items-center justify-between cursor-pointer"
+                            :class="selectedServices.find(s => s.id === svc.id) ? 'border-brand ring-1 ring-brand' : ''">
+                        <div>
+                            <p class="font-medium text-white" x-text="svc.name"></p>
+                            <p class="text-xs text-neutral-400">
+                                <span x-text="svc.duration"></span> min
+                            </p>
+                        </div>
+                        <span class="font-heading font-bold text-brand text-lg" x-text="'$' + svc.price"></span>
+                    </button>
+                </template>
+            </div>
+
+            <div x-show="selectedServices.length > 0"
+                 class="mt-4 p-3 bg-brand/10 border border-brand/20 rounded-xl text-sm">
+                <div class="flex justify-between text-neutral-300">
+                    <span>Duración total:</span>
+                    <span class="font-medium text-white" x-text="totalDuration + ' min'"></span>
+                </div>
+                <div class="flex justify-between text-neutral-300 mt-1">
+                    <span>Total:</span>
+                    <span class="font-heading font-bold text-brand text-lg" x-text="'$' + totalPrice"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3: Select Date & Time -->
+        <div x-show="step === 3" x-transition>
+            <h2 class="font-heading font-bold text-xl text-white mb-1">Fecha y hora</h2>
+            <p class="text-sm text-neutral-400 mb-6">Elige un horario disponible</p>
+
+            <!-- Date picker -->
+            <div class="flex gap-2 overflow-x-auto pb-3 mb-4 -mx-1 px-1 scrollbar-hide">
+                <template x-for="d in availableDates" :key="d.iso">
+                    <button @click="selectDate(d.iso)"
+                            class="flex-shrink-0 flex flex-col items-center px-4 py-3 rounded-xl border transition-all duration-200"
+                            :class="selectedDate === d.iso
+                                ? 'bg-brand border-brand text-white'
+                                : 'bg-neutral-900 border-neutral-700 text-neutral-300 hover:border-neutral-500'">
+                        <span class="text-xs font-medium uppercase" x-text="d.dayName"></span>
+                        <span class="text-xl font-heading font-bold mt-0.5" x-text="d.dayNum"></span>
+                        <span class="text-xs" x-text="d.month"></span>
+                    </button>
+                </template>
+            </div>
+
+            <!-- Time slots -->
+            <div x-show="loadingSlots" class="flex justify-center py-8">
+                <div class="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>
+            </div>
+
+            <div x-show="!loadingSlots && timeSlots.length > 0" class="grid grid-cols-3 gap-2">
+                <template x-for="slot in timeSlots" :key="slot.start">
+                    <button @click="selectedSlot = slot"
+                            class="px-3 py-2.5 rounded-lg text-sm font-medium text-center transition-all duration-200"
+                            :class="selectedSlot?.start === slot.start
+                                ? 'bg-brand text-white'
+                                : 'bg-neutral-900 border border-neutral-700 text-neutral-300 hover:border-brand hover:text-white'">
+                        <span x-text="formatTime(slot.start)"></span>
+                    </button>
+                </template>
+            </div>
+
+            <div x-show="!loadingSlots && timeSlots.length === 0 && selectedDate"
+                 class="text-center py-8 text-neutral-500">
+                No hay horarios disponibles para esta fecha.
+            </div>
+        </div>
+
+        <!-- Step 4: Confirm -->
+        <div x-show="step === 4" x-transition>
+            <h2 class="font-heading font-bold text-xl text-white mb-1">Confirma tu reserva</h2>
+            <p class="text-sm text-neutral-400 mb-6">Revisa los detalles antes de confirmar</p>
+
+            <div class="card space-y-3">
+                <div class="flex justify-between text-sm">
+                    <span class="text-neutral-400">Barbero</span>
+                    <span class="text-white font-medium" x-text="selectedBarber?.name"></span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-neutral-400">Servicios</span>
+                    <span class="text-white text-right" x-text="selectedServices.map(s => s.name).join(', ')"></span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-neutral-400">Fecha</span>
+                    <span class="text-white font-medium" x-text="selectedDate"></span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-neutral-400">Hora</span>
+                    <span class="text-white font-medium" x-text="selectedSlot ? formatTime(selectedSlot.start) : ''"></span>
+                </div>
+                <hr class="border-neutral-800">
+                <div class="flex justify-between text-sm">
+                    <span class="text-neutral-400">Pago</span>
+                    <span class="text-white">En el local</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-neutral-400">Total</span>
+                    <span class="font-heading font-bold text-brand text-xl" x-text="'$' + totalPrice"></span>
+                </div>
+            </div>
+
+            {% if not user.is_authenticated %}
+            <div class="mt-6 p-4 bg-amber-900/30 border border-amber-700/50 rounded-xl text-sm text-amber-200">
+                Debes iniciar sesión con Google para confirmar tu reserva.
+            </div>
+            <a href="{% url 'socialaccount_login' %}?process=login&provider=google&next={{ request.path }}"
+               class="btn-primary w-full mt-4 text-center block">
+                Iniciar sesión con Google
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Bottom action bar (mobile-friendly) -->
+    <div class="fixed bottom-0 inset-x-0 bg-neutral-900/95 backdrop-blur-md border-t border-neutral-800 p-4 safe-area-pb">
+        <div class="max-w-lg mx-auto flex gap-3">
+            <button x-show="step > 1" @click="step--" class="btn-secondary flex-shrink-0">
+                Atrás
+            </button>
+            <button x-show="step < 4"
+                    @click="nextStep()"
+                    :disabled="!canAdvance"
+                    class="btn-primary flex-1 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0">
+                Continuar
+            </button>
+            <button x-show="step === 4 && {{ user.is_authenticated|yesno:'true,false' }}"
+                    @click="confirmBooking()"
+                    :disabled="booking"
+                    class="btn-primary flex-1 disabled:opacity-60">
+                <span x-show="!booking">Confirmar reserva</span>
+                <span x-show="booking" class="flex items-center justify-center gap-2">
+                    <div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Reservando...
+                </span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Alpine.js -->
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+
+<script>
+function bookingApp() {
+    return {
+        step: 1,
+        selectedBarber: null,
+        barberServices: [],
+        selectedServices: [],
+        availableDates: [],
+        selectedDate: null,
+        timeSlots: [],
+        selectedSlot: null,
+        loadingSlots: false,
+        booking: false,
+
+        get totalDuration() {
+            return this.selectedServices.reduce((sum, s) => sum + s.duration, 0);
+        },
+        get totalPrice() {
+            return this.selectedServices.reduce((sum, s) => sum + parseFloat(s.price), 0).toFixed(0);
+        },
+        get canAdvance() {
+            if (this.step === 1) return this.selectedBarber !== null;
+            if (this.step === 2) return this.selectedServices.length > 0;
+            if (this.step === 3) return this.selectedSlot !== null;
+            return true;
+        },
+
+        init() {},
+
+        selectBarber(id, name) {
+            this.selectedBarber = { id, name };
+            this.selectedServices = [];
+            this.fetchBarberServices();
+        },
+
+        async fetchBarberServices() {
+            const res = await fetch(`/book/{{ barbershop.booking_uid }}/api/barbers/`);
+            const data = await res.json();
+            const barber = data.barbers.find(b => b.id === this.selectedBarber.id);
+            this.barberServices = barber ? barber.services : [];
+        },
+
+        toggleService(svc) {
+            const idx = this.selectedServices.findIndex(s => s.id === svc.id);
+            if (idx >= 0) {
+                this.selectedServices.splice(idx, 1);
+            } else {
+                this.selectedServices.push(svc);
+            }
+        },
+
+        nextStep() {
+            if (!this.canAdvance) return;
+            this.step++;
+            if (this.step === 3) this.fetchSlots();
+        },
+
+        async fetchSlots() {
+            this.loadingSlots = true;
+            const params = new URLSearchParams({
+                barber_id: this.selectedBarber.id,
+                date: this.selectedDate || new Date().toISOString().split('T')[0],
+                duration: this.totalDuration,
+            });
+            const res = await fetch(`/book/{{ barbershop.booking_uid }}/api/slots/?${params}`);
+            const data = await res.json();
+
+            this.timeSlots = data.slots || [];
+            this.loadingSlots = false;
+
+            // Build available dates for date picker
+            if (data.available_dates) {
+                const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+                const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+                this.availableDates = data.available_dates.map(iso => {
+                    const d = new Date(iso + 'T12:00:00');
+                    return {
+                        iso,
+                        dayName: days[d.getDay()],
+                        dayNum: d.getDate(),
+                        month: months[d.getMonth()],
+                    };
+                });
+                if (!this.selectedDate && this.availableDates.length > 0) {
+                    this.selectedDate = this.availableDates[0].iso;
+                }
+            }
+        },
+
+        async selectDate(iso) {
+            this.selectedDate = iso;
+            this.selectedSlot = null;
+            await this.fetchSlots();
+        },
+
+        formatTime(isoStr) {
+            const d = new Date(isoStr);
+            return d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', hour12: true });
+        },
+
+        async confirmBooking() {
+            this.booking = true;
+            try {
+                const res = await fetch(`/book/{{ barbershop.booking_uid }}/api/book/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}',
+                    },
+                    body: JSON.stringify({
+                        barber_id: this.selectedBarber.id,
+                        start_time: this.selectedSlot.start,
+                        service_ids: this.selectedServices.map(s => s.id),
+                    }),
+                });
+                const data = await res.json();
+
+                if (res.ok) {
+                    document.querySelector('[x-data]').__x.$data.step = 5;
+                    // Show success screen (replace content)
+                    document.querySelector('.max-w-lg').innerHTML = `
+                        <div class="text-center py-16 space-y-4">
+                            <div class="w-20 h-20 mx-auto bg-green-900/50 rounded-full flex items-center justify-center">
+                                <svg class="w-10 h-10 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                </svg>
+                            </div>
+                            <h2 class="font-heading font-bold text-2xl text-white">${data.message}</h2>
+                            <p class="text-neutral-400">
+                                Tu cita con <strong class="text-white">${data.barber}</strong><br>
+                                está confirmada. Te enviaremos un recordatorio.
+                            </p>
+                            <a href="/book/{{ barbershop.booking_uid }}/"
+                               class="btn-primary inline-block mt-4">Hacer otra reserva</a>
+                        </div>
+                    `;
+                } else {
+                    alert(data.error || 'Error al crear la reserva');
+                }
+            } catch (e) {
+                alert('Error de conexión');
+            }
+            this.booking = false;
+        },
+    };
+}
+</script>
+{% endblock %}

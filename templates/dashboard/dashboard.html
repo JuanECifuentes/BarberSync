@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Dashboard – BarberSync{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- KPI Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+        <div class="card">
+            <p class="text-xs text-neutral-400 uppercase tracking-wider">Ingresos totales</p>
+            <p class="mt-1 text-2xl font-heading font-bold text-white">${{ metrics.total_revenue|floatformat:0|default:"0" }}</p>
+        </div>
+        <div class="card">
+            <p class="text-xs text-neutral-400 uppercase tracking-wider">Citas completadas</p>
+            <p class="mt-1 text-2xl font-heading font-bold text-white">{{ metrics.total_appointments|default:"0" }}</p>
+        </div>
+        <div class="card">
+            <p class="text-xs text-neutral-400 uppercase tracking-wider">Venta de productos</p>
+            <p class="mt-1 text-2xl font-heading font-bold text-brand">${{ metrics.product_revenue|floatformat:0|default:"0" }}</p>
+        </div>
+        <div class="card">
+            <p class="text-xs text-neutral-400 uppercase tracking-wider">Ticket promedio</p>
+            <p class="mt-1 text-2xl font-heading font-bold text-white">${{ metrics.avg_ticket|floatformat:0|default:"0" }}</p>
+        </div>
+    </div>
+
+    <!-- Charts row -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Revenue by month -->
+        <div class="card">
+            <h3 class="font-heading font-bold text-white mb-4">Ingresos mensuales</h3>
+            <canvas id="revenueChart" height="200"></canvas>
+        </div>
+
+        <!-- Revenue by barber -->
+        <div class="card">
+            <h3 class="font-heading font-bold text-white mb-4">Ingresos por barbero</h3>
+            <canvas id="barberChart" height="200"></canvas>
+        </div>
+    </div>
+
+    {% if org_metrics %}
+    <!-- Organization-level (owners only) -->
+    <div class="card">
+        <h3 class="font-heading font-bold text-white mb-4">Vista global – {{ current_organization.name }}</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div class="bg-neutral-800 rounded-lg p-4">
+                <p class="text-xs text-neutral-400">Ingresos totales (todas las sucursales)</p>
+                <p class="text-xl font-heading font-bold text-brand">${{ org_metrics.total_revenue|floatformat:0 }}</p>
+            </div>
+            {% for shop in org_metrics.per_barbershop %}
+            <div class="bg-neutral-800 rounded-lg p-4">
+                <p class="text-xs text-neutral-400">{{ shop.barbershop__name }}</p>
+                <p class="text-lg font-heading font-bold text-white">${{ shop.revenue|floatformat:0 }}</p>
+                <p class="text-xs text-neutral-500">{{ shop.count }} ventas</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Revenue by month chart
+    const monthlyData = {{ revenue_by_month|safe }};
+    if (monthlyData && monthlyData.length > 0) {
+        new Chart(document.getElementById('revenueChart'), {
+            type: 'bar',
+            data: {
+                labels: monthlyData.map(d => {
+                    const date = new Date(d.month);
+                    return date.toLocaleDateString('es', { month: 'short', year: '2-digit' });
+                }),
+                datasets: [{
+                    label: 'Ingresos',
+                    data: monthlyData.map(d => parseFloat(d.revenue)),
+                    backgroundColor: '#ff230133',
+                    borderColor: '#ff2301',
+                    borderWidth: 2,
+                    borderRadius: 6,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: {
+                        ticks: { color: '#91919a', callback: v => '$' + v.toLocaleString() },
+                        grid: { color: '#2a2a2d' },
+                    },
+                    x: {
+                        ticks: { color: '#91919a' },
+                        grid: { display: false },
+                    }
+                }
+            }
+        });
+    }
+
+    // Revenue by barber chart
+    const barberData = {{ revenue_by_barber|safe }};
+    if (barberData && barberData.length > 0) {
+        const colors = ['#ff2301', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+        new Chart(document.getElementById('barberChart'), {
+            type: 'doughnut',
+            data: {
+                labels: barberData.map(d =>
+                    `${d.barber__membership__user__first_name || ''} ${d.barber__membership__user__last_name || ''}`.trim()
+                ),
+                datasets: [{
+                    data: barberData.map(d => parseFloat(d.revenue)),
+                    backgroundColor: colors.slice(0, barberData.length),
+                    borderWidth: 0,
+                }]
+            },
+            options: {
+                responsive: true,
+                cutout: '65%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { color: '#b8b8be', padding: 16, usePointStyle: true },
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

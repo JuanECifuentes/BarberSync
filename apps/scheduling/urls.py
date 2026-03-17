@@ -1,0 +1,17 @@
+from django.urls import path
+
+from . import views
+
+app_name = "scheduling"
+
+urlpatterns = [
+    # Pages
+    path("", views.CalendarView.as_view(), name="calendar"),
+    path("services/", views.ServiceListView.as_view(), name="services"),
+
+    # APIs
+    path("api/events/", views.CalendarEventsAPI.as_view(), name="api_events"),
+    path("api/slots/", views.AvailableSlotsAPI.as_view(), name="api_slots"),
+    path("api/appointments/create/", views.AppointmentCreateAPI.as_view(), name="api_appointment_create"),
+    path("api/appointments/<int:pk>/action/", views.AppointmentActionAPI.as_view(), name="api_appointment_action"),
+]

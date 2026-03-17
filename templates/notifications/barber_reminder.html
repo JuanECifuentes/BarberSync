@@ -1,0 +1,9 @@
+Hola {{ recipient_name }},
+
+Tienes una cita en 1 hora.
+
+Cliente: {{ appointment.client.name }}
+Servicios: {{ service_names }}
+Hora: {{ start_time|time:"h:i A" }}
+
+– BarberSync

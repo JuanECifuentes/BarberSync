@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Clientes – BarberSync{% endblock %}
+{% block page_title %}Clientes{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+
+    <!-- Search bar -->
+    <form method="get" class="flex gap-2">
+        <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Buscar por nombre, email o teléfono..."
+               class="flex-1 px-4 py-2.5 bg-neutral-900 border border-neutral-700 rounded-lg text-white text-sm
+                      placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+        <button type="submit" class="btn-primary text-sm px-4">Buscar</button>
+    </form>
+
+    <!-- Client list -->
+    <div class="space-y-2">
+        {% for client in clients %}
+        <a href="{% url 'clients:detail' client.pk %}"
+           class="card card-hover flex items-center justify-between group cursor-pointer block">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center">
+                    <span class="text-sm font-heading font-bold text-neutral-400">{{ client.name|first|upper }}</span>
+                </div>
+                <div>
+                    <p class="font-medium text-white group-hover:text-brand transition-colors">{{ client.name }}</p>
+                    <p class="text-xs text-neutral-500">{{ client.email|default:client.phone|default:"Sin contacto" }}</p>
+                </div>
+            </div>
+            <div class="text-right">
+                <p class="text-sm text-neutral-400">{{ client.appointment_count }} cita{{ client.appointment_count|pluralize:"s" }}</p>
+            </div>
+        </a>
+        {% empty %}
+        <div class="text-center py-12 text-neutral-500">
+            <p class="text-lg">No se encontraron clientes</p>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div class="flex justify-center gap-2 pt-4">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}&q={{ request.GET.q }}"
+           class="btn-ghost text-sm">Anterior</a>
+        {% endif %}
+        <span class="px-3 py-2 text-sm text-neutral-400">
+            Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+        </span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}&q={{ request.GET.q }}"
+           class="btn-ghost text-sm">Siguiente</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
