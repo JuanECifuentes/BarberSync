@@ -136,7 +136,7 @@ class Barbershop(models.Model):
         return f"{self.name} ({self.organization.name})"
 
     def get_booking_url(self):
-        return f"/book/{self.booking_uid}/"
+        return f"/book/{self.slug}-{self.booking_uid}/"
 
 
 # ─────────────────────────────────────────────

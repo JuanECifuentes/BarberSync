@@ -44,7 +44,7 @@
                         {% if barber.photo %}
                         <img src="{{ barber.photo.url }}" class="w-full h-full object-cover" alt="{{ barber }}">
                         {% else %}
-                        <span class="text-xl font-heading font-bold text-neutral-500">{{ barber|first }}</span>
+                        <span class="text-xl font-heading font-bold text-neutral-500">{{ barber.display_name|first|upper }}</span>
                         {% endif %}
                     </div>
                     <div>
@@ -172,7 +172,7 @@
             <div class="mt-6 p-4 bg-amber-900/30 border border-amber-700/50 rounded-xl text-sm text-amber-200">
                 Debes iniciar sesión con Google para confirmar tu reserva.
             </div>
-            <a href="{% url 'socialaccount_login' %}?process=login&provider=google&next={{ request.path }}"
+            <a href="{% url 'google_login' %}?next={{ request.path }}"
                class="btn-primary w-full mt-4 text-center block">
                 Iniciar sesión con Google
             </a>
@@ -245,7 +245,7 @@ function bookingApp() {
         },
 
         async fetchBarberServices() {
-            const res = await fetch(`/book/{{ barbershop.booking_uid }}/api/barbers/`);
+            const res = await fetch(`/book/{{ barbershop.slug }}-{{ barbershop.booking_uid }}/api/barbers/`);
             const data = await res.json();
             const barber = data.barbers.find(b => b.id === this.selectedBarber.id);
             this.barberServices = barber ? barber.services : [];
@@ -273,7 +273,7 @@ function bookingApp() {
                 date: this.selectedDate || new Date().toISOString().split('T')[0],
                 duration: this.totalDuration,
             });
-            const res = await fetch(`/book/{{ barbershop.booking_uid }}/api/slots/?${params}`);
+            const res = await fetch(`/book/{{ barbershop.slug }}-{{ barbershop.booking_uid }}/api/slots/?${params}`);
             const data = await res.json();
 
             this.timeSlots = data.slots || [];
@@ -312,7 +312,7 @@ function bookingApp() {
         async confirmBooking() {
             this.booking = true;
             try {
-                const res = await fetch(`/book/{{ barbershop.booking_uid }}/api/book/`, {
+                const res = await fetch(`/book/{{ barbershop.slug }}-{{ barbershop.booking_uid }}/api/book/`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -341,7 +341,7 @@ function bookingApp() {
                                 Tu cita con <strong class="text-white">${data.barber}</strong><br>
                                 está confirmada. Te enviaremos un recordatorio.
                             </p>
-                            <a href="/book/{{ barbershop.booking_uid }}/"
+                            <a href="/book/{{ barbershop.slug }}-{{ barbershop.booking_uid }}/"
                                class="btn-primary inline-block mt-4">Hacer otra reserva</a>
                         </div>
                     `;

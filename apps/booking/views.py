@@ -1,7 +1,7 @@
 """
 Public booking views – client-facing.
 
-Each barbershop has a unique booking URL: /book/<uuid>/
+Each barbershop has a unique booking URL: /book/<slug>-<uuid>/
 Clients authenticate via Google (allauth) to reserve.
 """
 
@@ -20,10 +20,15 @@ from apps.scheduling import services as svc
 from apps.scheduling.models import BarberService, Service
 
 
+def _get_barbershop(booking_uid):
+    """Resolve a barbershop from its booking UUID string."""
+    return get_object_or_404(Barbershop, booking_uid=booking_uid, is_active=True)
+
+
 class BookingPageView(TemplateView):
     """
     Public booking page for a barbershop.
-    URL: /book/<uuid:booking_uid>/
+    URL: /book/<slug>-<uuid:booking_uid>/
     """
 
     template_name = "booking/public_booking.html"
@@ -31,7 +36,7 @@ class BookingPageView(TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         uid = self.kwargs["booking_uid"]
-        barbershop = get_object_or_404(Barbershop, booking_uid=uid, is_active=True)
+        barbershop = _get_barbershop(uid)
 
         barbers = BarberProfile.objects.filter(
             membership__barbershop=barbershop,
@@ -43,6 +48,7 @@ class BookingPageView(TemplateView):
         ctx["barbershop"] = barbershop
         ctx["barbers"] = barbers
         ctx["services"] = services
+        ctx["is_booking_page"] = True
         return ctx
 
 
@@ -50,7 +56,10 @@ class BookingBarbersAPI(View):
     """Returns barbers + their services for a barbershop."""
 
     def get(self, request, booking_uid):
-        barbershop = get_object_or_404(Barbershop, booking_uid=booking_uid, is_active=True)
+        print(f"DEBUG: BookingBarbersAPI called for booking_uid: {booking_uid}")
+        barbershop = _get_barbershop(booking_uid)
+
+        print(f"DEBUG: Barbershop found: {barbershop}")
 
         barbers = BarberProfile.objects.filter(
             membership__barbershop=barbershop,
@@ -85,7 +94,7 @@ class BookingSlotsAPI(View):
     """Returns available time slots for a barber on a date."""
 
     def get(self, request, booking_uid):
-        barbershop = get_object_or_404(Barbershop, booking_uid=booking_uid, is_active=True)
+        barbershop = _get_barbershop(booking_uid)
         barber_id = request.GET.get("barber_id")
         date_str = request.GET.get("date")
         duration = int(request.GET.get("duration", 30))
@@ -132,7 +141,7 @@ class BookingCreateAPI(View):
                 status=401,
             )
 
-        barbershop = get_object_or_404(Barbershop, booking_uid=booking_uid, is_active=True)
+        barbershop = _get_barbershop(booking_uid)
 
         try:
             data = json.loads(request.body)
@@ -200,7 +209,7 @@ class MyBookingsAPI(View):
         if not request.user.is_authenticated:
             return JsonResponse([], safe=False)
 
-        barbershop = get_object_or_404(Barbershop, booking_uid=booking_uid, is_active=True)
+        barbershop = _get_barbershop(booking_uid)
 
         client = Client.objects.filter(
             organization=barbershop.organization,

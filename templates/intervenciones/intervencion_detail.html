@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}Intervención #{{ intervencion.pk }} – BarberSync{% endblock %}
+{% block page_title %}Intervención #{{ intervencion.pk }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl space-y-4" x-data="{ changing: false }">
+
+    <!-- Back link -->
+    <a href="{% url 'intervenciones:list' %}" class="btn-ghost text-sm inline-flex items-center gap-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        Volver
+    </a>
+
+    <!-- Estado badge + actions -->
+    <div class="card">
+        <div class="flex items-center justify-between flex-wrap gap-3">
+            <div>
+                <span class="inline-block px-3 py-1 rounded-full text-sm font-medium
+                    {% if intervencion.estado == 'realizada' %}bg-green-900/50 text-green-300
+                    {% elif intervencion.estado == 'pendiente' %}bg-amber-900/50 text-amber-300
+                    {% elif intervencion.estado == 'en_progreso' %}bg-blue-900/50 text-blue-300
+                    {% elif intervencion.estado == 'cancelada' %}bg-red-900/50 text-red-300
+                    {% endif %}">
+                    {{ intervencion.get_estado_display }}
+                </span>
+            </div>
+            {% if is_admin %}
+            <div class="flex gap-2">
+                {% if intervencion.estado == 'pendiente' %}
+                <button onclick="changeStatus('en_progreso')" class="btn-secondary text-xs px-3 py-1.5">
+                    Iniciar
+                </button>
+                {% endif %}
+                {% if intervencion.estado == 'en_progreso' or intervencion.estado == 'pendiente' %}
+                <button onclick="changeStatus('realizada')" class="btn-primary text-xs px-3 py-1.5">
+                    Completar
+                </button>
+                <button onclick="changeStatus('cancelada')" class="btn-ghost text-xs px-3 py-1.5 text-red-400 hover:text-red-300">
+                    Cancelar
+                </button>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Info -->
+    <div class="card space-y-3">
+        <h3 class="font-heading font-bold text-white">Detalles</h3>
+        <div class="grid grid-cols-2 gap-3 text-sm">
+            <div>
+                <span class="text-neutral-400">Cliente</span>
+                <p class="text-white font-medium">{{ intervencion.client.name }}</p>
+            </div>
+            <div>
+                <span class="text-neutral-400">Barbero</span>
+                <p class="text-white font-medium">{{ intervencion.barber }}</p>
+            </div>
+            <div>
+                <span class="text-neutral-400">Fecha</span>
+                <p class="text-white">{{ intervencion.fecha|date:"d/m/Y H:i" }}</p>
+            </div>
+            <div>
+                <span class="text-neutral-400">Fin</span>
+                <p class="text-white">{{ intervencion.fecha_fin|date:"d/m/Y H:i"|default:"–" }}</p>
+            </div>
+        </div>
+        {% if intervencion.notas %}
+        <div class="pt-2 border-t border-neutral-800">
+            <span class="text-xs text-neutral-400">Notas</span>
+            <p class="text-sm text-neutral-300 mt-1">{{ intervencion.notas }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Servicios -->
+    <div class="card">
+        <h3 class="font-heading font-bold text-white mb-3">Servicios realizados</h3>
+        <div class="space-y-2">
+            {% for svc in intervencion.servicios.all %}
+            <div class="flex items-center justify-between text-sm">
+                <span class="text-neutral-300">{{ svc.servicio.name }}</span>
+                <span class="font-heading font-bold text-brand">${{ svc.precio_cobrado }}</span>
+            </div>
+            {% empty %}
+            <p class="text-sm text-neutral-500">Sin servicios registrados</p>
+            {% endfor %}
+        </div>
+        {% if intervencion.servicios.count > 0 %}
+        <div class="mt-3 pt-3 border-t border-neutral-800 flex justify-between">
+            <span class="text-sm text-neutral-400">Total</span>
+            <span class="font-heading font-bold text-brand text-lg">${{ intervencion.total_precio }}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Productos usados -->
+    {% if intervencion.productos_usados.count > 0 %}
+    <div class="card">
+        <h3 class="font-heading font-bold text-white mb-3">Productos utilizados</h3>
+        <div class="space-y-2">
+            {% for prod in intervencion.productos_usados.all %}
+            <div class="flex items-center justify-between text-sm">
+                <span class="text-neutral-300">{{ prod.producto.name }} x{{ prod.cantidad }}</span>
+                <span class="text-neutral-400">${{ prod.subtotal }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if intervencion.appointment %}
+    <div class="card">
+        <p class="text-xs text-neutral-400">Cita de origen</p>
+        <p class="text-sm text-neutral-300 mt-1">
+            Cita #{{ intervencion.appointment.pk }} – {{ intervencion.appointment.start_time|date:"d/m/Y H:i" }}
+        </p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+async function changeStatus(estado) {
+    if (!confirm('¿Cambiar estado a ' + estado + '?')) return;
+    const res = await fetch('{% url "intervenciones:api_change_status" intervencion.pk %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}',
+        },
+        body: JSON.stringify({ estado }),
+    });
+    if (res.ok) {
+        location.reload();
+    } else {
+        const data = await res.json();
+        alert(data.error || 'Error al cambiar estado');
+    }
+}
+</script>
+{% endblock %}

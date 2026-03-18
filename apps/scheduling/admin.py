@@ -4,6 +4,9 @@ from .models import (
     Appointment,
     AppointmentService,
     BarberService,
+    Intervencion,
+    IntervencionProducto,
+    IntervencionServicio,
     ScheduleException,
     Service,
     WorkSchedule,
@@ -48,3 +51,26 @@ class AppointmentAdmin(admin.ModelAdmin):
     search_fields = ("client__name", "client__email")
     inlines = [AppointmentServiceInline]
     date_hierarchy = "start_time"
+
+
+# ─────────────────────────────────────────────
+# Intervención
+# ─────────────────────────────────────────────
+class IntervencionServicioInline(admin.TabularInline):
+    model = IntervencionServicio
+    extra = 0
+    readonly_fields = ("precio_cobrado",)
+
+
+class IntervencionProductoInline(admin.TabularInline):
+    model = IntervencionProducto
+    extra = 0
+
+
+@admin.register(Intervencion)
+class IntervencionAdmin(admin.ModelAdmin):
+    list_display = ("pk", "client", "barber", "estado", "fecha", "fecha_fin")
+    list_filter = ("estado", "barbershop", "barber")
+    search_fields = ("client__name", "client__email")
+    inlines = [IntervencionServicioInline, IntervencionProductoInline]
+    date_hierarchy = "fecha"

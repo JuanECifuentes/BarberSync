@@ -255,6 +255,56 @@ class ServiceListView(TenantViewMixin, ListView):
     def get_queryset(self):
         return super().get_queryset().filter(is_active=True)
 
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["barbershop"] = self.request.barbershop
+        return ctx
+
+
+class ServiceCreateAPI(LoginRequiredMixin, View):
+    """API for creating services."""
+
+    def post(self, request):
+        barbershop = request.barbershop
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "JSON inválido"}, status=400)
+
+        name = data.get("name", "").strip()
+        if not name:
+            return JsonResponse({"error": "Nombre requerido"}, status=400)
+
+        duration = data.get("duration_minutes", 30)
+        price = data.get("price", 0)
+
+        service = Service.objects.create(
+            barbershop=barbershop,
+            name=name,
+            description=data.get("description", ""),
+            duration_minutes=duration,
+            price=price,
+            updated_by=request.user,
+        )
+        return JsonResponse({
+            "message": "Servicio creado",
+            "id": service.pk,
+        }, status=201)
+
+
+class ServiceDeleteAPI(LoginRequiredMixin, View):
+    """Soft-delete a service."""
+
+    def post(self, request, pk):
+        barbershop = request.barbershop
+        service = Service.objects.filter(pk=pk, barbershop=barbershop).first()
+        if not service:
+            return JsonResponse({"error": "Servicio no encontrado"}, status=404)
+        service.is_active = False
+        service.updated_by = request.user
+        service.save()
+        return JsonResponse({"message": "Servicio eliminado"})
+
 
 # ─────────────────────────────────────────────
 # Helpers

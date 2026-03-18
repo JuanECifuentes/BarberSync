@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Correos electrónicos – BarberSync{% endblock %}
+{% block page_title %}Correos electrónicos{% endblock %}
+
+{% block content %}
+<div class="max-w-lg space-y-4">
+    <div class="card">
+        <h2 class="font-heading font-bold text-xl text-white mb-4">Correos vinculados</h2>
+
+        {% if emailaddresses %}
+        <div class="space-y-2 mb-4">
+            {% for emailaddress in emailaddresses %}
+            <div class="flex items-center justify-between p-3 bg-neutral-800 rounded-lg">
+                <div class="flex items-center gap-3">
+                    <span class="text-sm text-white">{{ emailaddress.email }}</span>
+                    {% if emailaddress.primary %}
+                    <span class="px-2 py-0.5 bg-brand/10 text-brand text-xs font-medium rounded">Principal</span>
+                    {% endif %}
+                    {% if emailaddress.verified %}
+                    <span class="px-2 py-0.5 bg-green-900/50 text-green-300 text-xs font-medium rounded">Verificado</span>
+                    {% else %}
+                    <span class="px-2 py-0.5 bg-amber-900/50 text-amber-300 text-xs font-medium rounded">Sin verificar</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <form method="post" action="{% url 'account_email' %}" class="flex gap-2">
+            {% csrf_token %}
+            <input type="email" name="email" placeholder="Agregar nuevo correo..."
+                   class="flex-1 px-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
+                          placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+            <button type="submit" name="action_add" class="btn-primary text-sm px-4">Agregar</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

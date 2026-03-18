@@ -7,23 +7,69 @@
 <div class="space-y-4">
 
     <!-- Header -->
-    <div class="flex items-center justify-between">
+    <div class="flex items-center justify-between flex-wrap gap-3">
         <div class="flex items-center gap-3">
+            <h2 class="font-heading font-bold text-xl text-white">Productos</h2>
             {% if low_stock_count > 0 %}
             <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-900/40 text-amber-300 rounded-full text-xs font-medium">
                 <span class="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>
-                {{ low_stock_count }} producto{{ low_stock_count|pluralize:"s" }} con stock bajo
+                {{ low_stock_count }} con stock bajo
             </span>
             {% endif %}
         </div>
+        {% if is_admin %}
+        <div class="flex gap-2">
+            <button onclick="document.getElementById('modal-category').classList.remove('hidden')" class="btn-secondary text-sm">
+                + Categoría
+            </button>
+            <button onclick="document.getElementById('modal-product').classList.remove('hidden')" class="btn-primary text-sm">
+                + Producto
+            </button>
+        </div>
+        {% endif %}
     </div>
 
-    <!-- Search -->
-    <form method="get" class="flex gap-2">
-        <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Buscar producto..."
-               class="flex-1 px-4 py-2.5 bg-neutral-900 border border-neutral-700 rounded-lg text-white text-sm
-                      placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-        <button type="submit" class="btn-primary text-sm px-4">Buscar</button>
+    <!-- Filtros por columna -->
+    <form method="get" class="card">
+        <p class="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3">Filtros</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">Nombre</label>
+                <input type="text" name="nombre" value="{{ request.GET.nombre }}" placeholder="Buscar producto..."
+                       class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
+                              placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+            </div>
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">SKU</label>
+                <input type="text" name="sku" value="{{ request.GET.sku }}" placeholder="Código SKU..."
+                       class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
+                              placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+            </div>
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">Categoría</label>
+                <select name="category"
+                        class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
+                               focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                    <option value="">Todas</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.pk }}" {% if request.GET.category == cat.pk|stringformat:"d" %}selected{% endif %}>{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">Stock</label>
+                <select name="stock_bajo"
+                        class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
+                               focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                    <option value="">Todos</option>
+                    <option value="1" {% if request.GET.stock_bajo %}selected{% endif %}>Solo stock bajo</option>
+                </select>
+            </div>
+        </div>
+        <div class="flex gap-2 mt-3">
+            <button type="submit" class="btn-primary text-sm px-4">Filtrar</button>
+            <a href="{% url 'inventory:list' %}" class="btn-ghost text-sm">Limpiar</a>
+        </div>
     </form>
 
     <!-- Products grid -->
@@ -62,15 +108,102 @@
     {% if page_obj.has_other_pages %}
     <div class="flex justify-center gap-2 pt-4">
         {% if page_obj.has_previous %}
-        <a href="?page={{ page_obj.previous_page_number }}" class="btn-ghost text-sm">Anterior</a>
+        <a href="?page={{ page_obj.previous_page_number }}&nombre={{ request.GET.nombre }}&sku={{ request.GET.sku }}&category={{ request.GET.category }}&stock_bajo={{ request.GET.stock_bajo }}" class="btn-ghost text-sm">Anterior</a>
         {% endif %}
         <span class="px-3 py-2 text-sm text-neutral-400">
             {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
         </span>
         {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}" class="btn-ghost text-sm">Siguiente</a>
+        <a href="?page={{ page_obj.next_page_number }}&nombre={{ request.GET.nombre }}&sku={{ request.GET.sku }}&category={{ request.GET.category }}&stock_bajo={{ request.GET.stock_bajo }}" class="btn-ghost text-sm">Siguiente</a>
         {% endif %}
     </div>
     {% endif %}
 </div>
+
+{% if is_admin %}
+<!-- Modal: Crear Producto -->
+<div id="modal-product" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+    <div class="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
+        <div class="flex items-center justify-between">
+            <h3 class="font-heading font-bold text-lg text-white">Nuevo Producto</h3>
+            <button onclick="document.getElementById('modal-product').classList.add('hidden')" class="text-neutral-400 hover:text-white">✕</button>
+        </div>
+        <div class="space-y-3">
+            <input id="prod-name" type="text" placeholder="Nombre del producto"
+                   class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+            <select id="prod-category"
+                    class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                <option value="">Sin categoría</option>
+                {% for cat in categories %}
+                <option value="{{ cat.pk }}">{{ cat.name }}</option>
+                {% endfor %}
+            </select>
+            <div class="grid grid-cols-2 gap-3">
+                <input id="prod-price" type="number" step="0.01" placeholder="Precio venta"
+                       class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                <input id="prod-cost" type="number" step="0.01" placeholder="Costo"
+                       class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <input id="prod-stock" type="number" placeholder="Stock inicial" value="0"
+                       class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                <input id="prod-sku" type="text" placeholder="SKU (opcional)"
+                       class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+            </div>
+        </div>
+        <button onclick="createProduct()" class="btn-primary w-full">Crear Producto</button>
+    </div>
+</div>
+
+<!-- Modal: Crear Categoría -->
+<div id="modal-category" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+    <div class="w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
+        <div class="flex items-center justify-between">
+            <h3 class="font-heading font-bold text-lg text-white">Nueva Categoría</h3>
+            <button onclick="document.getElementById('modal-category').classList.add('hidden')" class="text-neutral-400 hover:text-white">✕</button>
+        </div>
+        <input id="cat-name" type="text" placeholder="Nombre de la categoría"
+               class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+        <button onclick="createCategory()" class="btn-primary w-full">Crear Categoría</button>
+    </div>
+</div>
+
+<script>
+function getCookie(name) {
+    const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return v ? v.pop() : '';
+}
+
+async function createProduct() {
+    const name = document.getElementById('prod-name').value.trim();
+    if (!name) return alert('Nombre requerido');
+    const res = await fetch('{% url "inventory:api_product_create" %}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({
+            name,
+            category_id: document.getElementById('prod-category').value || null,
+            price: parseFloat(document.getElementById('prod-price').value) || 0,
+            cost: parseFloat(document.getElementById('prod-cost').value) || 0,
+            stock_quantity: parseInt(document.getElementById('prod-stock').value) || 0,
+            sku: document.getElementById('prod-sku').value,
+        }),
+    });
+    if (res.ok) location.reload();
+    else alert((await res.json()).error || 'Error');
+}
+
+async function createCategory() {
+    const name = document.getElementById('cat-name').value.trim();
+    if (!name) return alert('Nombre requerido');
+    const res = await fetch('{% url "inventory:api_categories" %}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({ name }),
+    });
+    if (res.ok) location.reload();
+    else alert((await res.json()).error || 'Error');
+}
+</script>
+{% endif %}
 {% endblock %}

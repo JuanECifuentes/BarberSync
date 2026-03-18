@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Cerrar sesión – BarberSync{% endblock %}
+
+{% block public_content %}
+<div class="min-h-screen flex items-center justify-center px-4 py-12">
+    <div class="w-full max-w-sm space-y-6 text-center">
+        <div class="w-16 h-16 bg-brand rounded-2xl flex items-center justify-center mx-auto
+                    shadow-lg shadow-brand/20">
+            <span class="text-white font-heading font-bold text-3xl">B</span>
+        </div>
+        <h1 class="font-heading font-bold text-2xl text-white">¿Cerrar sesión?</h1>
+        <p class="text-sm text-neutral-400">¿Estás seguro de que quieres salir?</p>
+
+        <form method="post" action="{% url 'account_logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn-primary w-full">Sí, cerrar sesión</button>
+        </form>
+        <a href="/" class="btn-ghost inline-block">Cancelar</a>
+    </div>
+</div>
+{% endblock %}

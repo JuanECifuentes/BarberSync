@@ -285,3 +285,133 @@ class AppointmentService(models.Model):
 
     def __str__(self):
         return f"{self.service.name} (${self.price_charged})"
+
+
+# ─────────────────────────────────────────────
+# Intervención (registro de servicio prestado)
+# ─────────────────────────────────────────────
+class Intervencion(TenantModel):
+    """
+    Registro de cada servicio prestado a un cliente.
+    Puede originarse de una cita (Appointment) o ser creada manualmente
+    por el administrador desde el panel.
+    """
+
+    class Estado(models.TextChoices):
+        PENDIENTE = "pendiente", "Pendiente"
+        EN_PROGRESO = "en_progreso", "En progreso"
+        REALIZADA = "realizada", "Realizada"
+        CANCELADA = "cancelada", "Cancelada"
+
+    appointment = models.OneToOneField(
+        Appointment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="intervencion",
+        help_text="Cita de origen, si aplica.",
+    )
+    barber = models.ForeignKey(
+        "accounts.BarberProfile",
+        on_delete=models.CASCADE,
+        related_name="intervenciones",
+    )
+    client = models.ForeignKey(
+        "clients.Client",
+        on_delete=models.CASCADE,
+        related_name="intervenciones",
+    )
+    estado = models.CharField(
+        "estado",
+        max_length=15,
+        choices=Estado.choices,
+        default=Estado.PENDIENTE,
+        db_index=True,
+    )
+    fecha = models.DateTimeField("fecha de intervención", db_index=True)
+    fecha_fin = models.DateTimeField("fin de intervención", null=True, blank=True)
+    notas = models.TextField("notas", blank=True)
+
+    class Meta:
+        db_table = "scheduling_intervencion"
+        verbose_name = "intervención"
+        verbose_name_plural = "intervenciones"
+        ordering = ["-fecha"]
+        indexes = [
+            models.Index(fields=["barber", "fecha"]),
+            models.Index(fields=["estado", "fecha"]),
+        ]
+
+    def __str__(self):
+        return f"Intervención #{self.pk} – {self.client} con {self.barber} @ {self.fecha:%d/%m %H:%M}"
+
+    @property
+    def total_precio(self):
+        return sum(s.precio_cobrado for s in self.servicios.all())
+
+    @property
+    def total_duracion(self):
+        return sum(s.servicio.duration_minutes for s in self.servicios.all())
+
+
+class IntervencionServicio(models.Model):
+    """Servicio individual realizado dentro de una intervención."""
+
+    intervencion = models.ForeignKey(
+        Intervencion,
+        on_delete=models.CASCADE,
+        related_name="servicios",
+    )
+    servicio = models.ForeignKey(
+        Service,
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
+    precio_cobrado = models.DecimalField(
+        "precio cobrado",
+        max_digits=10,
+        decimal_places=2,
+        help_text="Snapshot del precio al momento de la intervención.",
+    )
+
+    class Meta:
+        db_table = "scheduling_intervencion_servicio"
+        verbose_name = "servicio de intervención"
+        verbose_name_plural = "servicios de intervención"
+
+    def __str__(self):
+        return f"{self.servicio.name} (${self.precio_cobrado})"
+
+
+class IntervencionProducto(models.Model):
+    """Producto utilizado durante una intervención."""
+
+    intervencion = models.ForeignKey(
+        Intervencion,
+        on_delete=models.CASCADE,
+        related_name="productos_usados",
+    )
+    producto = models.ForeignKey(
+        "inventory.Product",
+        on_delete=models.PROTECT,
+        related_name="uso_intervenciones",
+    )
+    cantidad = models.PositiveIntegerField("cantidad", default=1)
+    precio_unitario = models.DecimalField(
+        "precio unitario",
+        max_digits=10,
+        decimal_places=2,
+        help_text="Precio unitario al momento de uso.",
+    )
+
+    class Meta:
+        db_table = "scheduling_intervencion_producto"
+        verbose_name = "producto de intervención"
+        verbose_name_plural = "productos de intervención"
+
+    def __str__(self):
+        return f"{self.producto.name} x{self.cantidad}"
+
+    @property
+    def subtotal(self):
+        return self.cantidad * self.precio_unitario

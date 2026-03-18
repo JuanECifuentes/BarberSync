@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}Nueva Intervención – BarberSync{% endblock %}
+{% block page_title %}Nueva Intervención{% endblock %}
+
+{% block content %}
+<div class="max-w-lg" x-data="intervencionForm()" x-init="init()">
+
+    <a href="{% url 'intervenciones:list' %}" class="btn-ghost text-sm inline-flex items-center gap-1 mb-4">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        Volver
+    </a>
+
+    <div class="card space-y-4">
+        <h2 class="font-heading font-bold text-xl text-white">Crear Intervención</h2>
+
+        <!-- Barbero -->
+        <div>
+            <label class="block text-sm font-medium text-neutral-300 mb-1">Barbero</label>
+            <select x-model="barberId"
+                    class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
+                           focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                <option value="">Seleccionar barbero...</option>
+                {% for barber in barbers %}
+                <option value="{{ barber.pk }}">{{ barber }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Cliente (autocomplete) -->
+        <div>
+            <label class="block text-sm font-medium text-neutral-300 mb-1">Cliente</label>
+            <div class="relative">
+                <input type="text" x-model="clientSearch" @input.debounce.300ms="searchClients()"
+                       placeholder="Buscar por nombre o email..."
+                       class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
+                              placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                <div x-show="clientResults.length > 0"
+                     class="absolute z-10 w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                    <template x-for="c in clientResults" :key="c.id">
+                        <button @click="selectClient(c)" type="button"
+                                class="w-full text-left px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors">
+                            <span x-text="c.name" class="font-medium"></span>
+                            <span class="text-neutral-500 text-xs ml-2" x-text="c.email"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+            <div x-show="selectedClient" class="mt-2 px-3 py-2 bg-brand/10 border border-brand/20 rounded-lg flex items-center justify-between">
+                <span class="text-sm text-white" x-text="selectedClient?.name"></span>
+                <button @click="selectedClient = null; clientSearch = ''" type="button" class="text-neutral-400 hover:text-white text-xs">✕</button>
+            </div>
+        </div>
+
+        <!-- Servicios -->
+        <div>
+            <label class="block text-sm font-medium text-neutral-300 mb-1">Servicios</label>
+            <div class="space-y-2">
+                {% for service in services %}
+                <label class="flex items-center justify-between p-3 bg-neutral-800 border border-neutral-700 rounded-lg cursor-pointer hover:border-neutral-600 transition-colors"
+                       :class="selectedServices.includes({{ service.pk }}) ? 'border-brand ring-1 ring-brand' : ''">
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" :checked="selectedServices.includes({{ service.pk }})"
+                               @change="toggleService({{ service.pk }})"
+                               class="w-4 h-4 rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-700">
+                        <div>
+                            <span class="text-sm text-white">{{ service.name }}</span>
+                            <span class="text-xs text-neutral-500 ml-2">{{ service.duration_minutes }} min</span>
+                        </div>
+                    </div>
+                    <span class="text-sm font-heading font-bold text-brand">${{ service.price }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Fecha -->
+        <div>
+            <label class="block text-sm font-medium text-neutral-300 mb-1">Fecha y hora</label>
+            <input type="datetime-local" x-model="fecha"
+                   class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
+                          focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+        </div>
+
+        <!-- Notas -->
+        <div>
+            <label class="block text-sm font-medium text-neutral-300 mb-1">Notas</label>
+            <textarea x-model="notas" rows="3" placeholder="Observaciones opcionales..."
+                      class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
+                             placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors resize-none"></textarea>
+        </div>
+
+        <!-- Submit -->
+        <button @click="submit()" :disabled="!canSubmit || submitting"
+                class="btn-primary w-full disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0">
+            <span x-show="!submitting">Crear Intervención</span>
+            <span x-show="submitting" class="flex items-center justify-center gap-2">
+                <div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Creando...
+            </span>
+        </button>
+
+        <div x-show="error" class="p-3 bg-red-900/40 border border-red-800 rounded-lg text-sm text-red-300" x-text="error"></div>
+    </div>
+</div>
+
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+<script>
+function intervencionForm() {
+    return {
+        barberId: '',
+        clientSearch: '',
+        clientResults: [],
+        selectedClient: null,
+        selectedServices: [],
+        fecha: new Date().toISOString().slice(0, 16),
+        notas: '',
+        submitting: false,
+        error: '',
+
+        get canSubmit() {
+            return this.barberId && this.selectedClient && this.selectedServices.length > 0;
+        },
+
+        init() {},
+
+        toggleService(id) {
+            const idx = this.selectedServices.indexOf(id);
+            if (idx >= 0) {
+                this.selectedServices.splice(idx, 1);
+            } else {
+                this.selectedServices.push(id);
+            }
+        },
+
+        async searchClients() {
+            if (this.clientSearch.length < 2) {
+                this.clientResults = [];
+                return;
+            }
+            const res = await fetch(`/app/clients/api/search/?q=${encodeURIComponent(this.clientSearch)}`);
+            this.clientResults = await res.json();
+        },
+
+        selectClient(c) {
+            this.selectedClient = c;
+            this.clientSearch = '';
+            this.clientResults = [];
+        },
+
+        async submit() {
+            this.submitting = true;
+            this.error = '';
+            try {
+                const res = await fetch('{% url "intervenciones:create" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}',
+                    },
+                    body: JSON.stringify({
+                        barber_id: parseInt(this.barberId),
+                        client_id: this.selectedClient.id,
+                        service_ids: this.selectedServices,
+                        fecha: this.fecha,
+                        notas: this.notas,
+                    }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    window.location.href = '/app/intervenciones/' + data.id + '/';
+                } else {
+                    this.error = data.error || 'Error al crear la intervención';
+                }
+            } catch (e) {
+                this.error = 'Error de conexión';
+            }
+            this.submitting = false;
+        },
+    };
+}
+</script>
+{% endblock %}

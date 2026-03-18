@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}Intervenciones – BarberSync{% endblock %}
+{% block page_title %}Intervenciones{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between flex-wrap gap-3">
+        <h2 class="font-heading font-bold text-xl text-white">Intervenciones</h2>
+        {% if is_admin %}
+        <a href="{% url 'intervenciones:create' %}" class="btn-primary text-sm">
+            + Nueva Intervención
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Filtros por columna -->
+    <form method="get" class="card">
+        <p class="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3">Filtros</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">Estado</label>
+                <select name="estado"
+                        class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
+                               focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                    <option value="">Todos</option>
+                    {% for value, label in estados %}
+                    <option value="{{ value }}" {% if request.GET.estado == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">Barbero</label>
+                <select name="barbero"
+                        class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
+                               focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                    <option value="">Todos</option>
+                    {% for barber in barbers %}
+                    <option value="{{ barber.pk }}" {% if request.GET.barbero == barber.pk|stringformat:"d" %}selected{% endif %}>{{ barber }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">Cliente</label>
+                <input type="text" name="cliente" value="{{ request.GET.cliente }}" placeholder="Nombre o email..."
+                       class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
+                              placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+            </div>
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">Desde</label>
+                <input type="date" name="fecha_desde" value="{{ request.GET.fecha_desde }}"
+                       class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
+                              focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+            </div>
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">Hasta</label>
+                <input type="date" name="fecha_hasta" value="{{ request.GET.fecha_hasta }}"
+                       class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
+                              focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+            </div>
+        </div>
+        <div class="flex gap-2 mt-3">
+            <button type="submit" class="btn-primary text-sm px-4">Filtrar</button>
+            <a href="{% url 'intervenciones:list' %}" class="btn-ghost text-sm">Limpiar</a>
+        </div>
+    </form>
+
+    <!-- Lista -->
+    <div class="space-y-2">
+        {% for intervencion in intervenciones %}
+        <a href="{% url 'intervenciones:detail' intervencion.pk %}"
+           class="card card-hover flex items-center justify-between group cursor-pointer block">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0
+                    {% if intervencion.estado == 'realizada' %}bg-green-900/50 text-green-400
+                    {% elif intervencion.estado == 'pendiente' %}bg-amber-900/50 text-amber-400
+                    {% elif intervencion.estado == 'en_progreso' %}bg-blue-900/50 text-blue-400
+                    {% elif intervencion.estado == 'cancelada' %}bg-red-900/50 text-red-400
+                    {% endif %}">
+                    <span class="text-xs font-bold">
+                        {% if intervencion.estado == 'realizada' %}✓
+                        {% elif intervencion.estado == 'pendiente' %}⏳
+                        {% elif intervencion.estado == 'en_progreso' %}▶
+                        {% elif intervencion.estado == 'cancelada' %}✕
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="min-w-0">
+                    <p class="font-medium text-white group-hover:text-brand transition-colors truncate">
+                        {{ intervencion.client.name }}
+                    </p>
+                    <p class="text-xs text-neutral-500">
+                        {{ intervencion.barber }} · {{ intervencion.fecha|date:"d/m/Y H:i" }}
+                    </p>
+                </div>
+            </div>
+            <div class="text-right flex-shrink-0 ml-3">
+                <span class="inline-block px-2 py-0.5 rounded text-xs font-medium
+                    {% if intervencion.estado == 'realizada' %}bg-green-900/50 text-green-300
+                    {% elif intervencion.estado == 'pendiente' %}bg-amber-900/50 text-amber-300
+                    {% elif intervencion.estado == 'en_progreso' %}bg-blue-900/50 text-blue-300
+                    {% elif intervencion.estado == 'cancelada' %}bg-red-900/50 text-red-300
+                    {% endif %}">
+                    {{ intervencion.get_estado_display }}
+                </span>
+            </div>
+        </a>
+        {% empty %}
+        <div class="text-center py-12 text-neutral-500">
+            <p class="text-lg">No se encontraron intervenciones</p>
+            {% if is_admin %}
+            <a href="{% url 'intervenciones:create' %}" class="text-brand text-sm mt-2 inline-block hover:underline">
+                Crear la primera intervención
+            </a>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div class="flex justify-center gap-2 pt-4">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}&estado={{ request.GET.estado }}&barbero={{ request.GET.barbero }}&cliente={{ request.GET.cliente }}&fecha_desde={{ request.GET.fecha_desde }}&fecha_hasta={{ request.GET.fecha_hasta }}"
+           class="btn-ghost text-sm">Anterior</a>
+        {% endif %}
+        <span class="px-3 py-2 text-sm text-neutral-400">
+            Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+        </span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}&estado={{ request.GET.estado }}&barbero={{ request.GET.barbero }}&cliente={{ request.GET.cliente }}&fecha_desde={{ request.GET.fecha_desde }}&fecha_hasta={{ request.GET.fecha_hasta }}"
+           class="btn-ghost text-sm">Siguiente</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

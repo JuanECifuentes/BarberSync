@@ -28,12 +28,41 @@ class ClientListView(OrganizationViewMixin, ListView):
         qs = super().get_queryset().annotate(
             appointment_count=Count("appointments"),
         )
+        # Filtros por columna
+        nombre = self.request.GET.get("nombre")
+        if nombre:
+            qs = qs.filter(name__icontains=nombre)
+
+        email = self.request.GET.get("email")
+        if email:
+            qs = qs.filter(email__icontains=email)
+
+        telefono = self.request.GET.get("telefono")
+        if telefono:
+            qs = qs.filter(phone__icontains=telefono)
+
+        origen = self.request.GET.get("origen")
+        if origen:
+            qs = qs.filter(source=origen)
+
+        # Backward compat: general search
         q = self.request.GET.get("q")
         if q:
             qs = qs.filter(
                 Q(name__icontains=q) | Q(email__icontains=q) | Q(phone__icontains=q)
             )
         return qs.order_by("-created_at")
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        # Available source values for the filter dropdown
+        ctx["sources"] = list(
+            Client.objects.filter(organization=self.request.organization)
+            .values_list("source", flat=True)
+            .distinct()
+            .order_by("source")
+        )
+        return ctx
 
 
 class ClientDetailView(OrganizationViewMixin, DetailView):
