@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </div>
                 <div><span class="text-neutral-500">Servicios:</span> ${props.services}</div>
-                <div class="text-lg font-heading font-bold text-brand">$${props.total_price}</div>
+                <div class="text-lg font-heading font-bold text-brand">$${Math.round(parseFloat(props.total_price || 0)).toLocaleString('de-DE')}</div>
                 ${props.notes ? `<div class="text-neutral-500 italic">${props.notes}</div>` : ''}
             `;
 

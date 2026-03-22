@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load currency %}
 
 {% block title %}Servicios – BarberSync{% endblock %}
 {% block page_title %}Catálogo de Servicios{% endblock %}
@@ -50,7 +51,7 @@
                     <p class="text-xs text-neutral-500 mt-1 line-clamp-2">{{ service.description }}</p>
                     {% endif %}
                 </div>
-                <span class="font-heading font-bold text-brand text-lg">${{ service.price }}</span>
+                <span class="font-heading font-bold text-brand text-lg">${{ service.price|money }}</span>
             </div>
             <div class="mt-3 flex items-center justify-between">
                 <span class="flex items-center gap-1 text-xs text-neutral-400">

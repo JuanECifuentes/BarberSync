@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load currency %}
 
 {% block title %}Inventario – BarberSync{% endblock %}
 {% block page_title %}Inventario{% endblock %}
@@ -10,6 +11,7 @@
     <div class="flex items-center justify-between flex-wrap gap-3">
         <div class="flex items-center gap-3">
             <h2 class="font-heading font-bold text-xl text-white">Productos</h2>
+            <span class="text-sm text-neutral-500">({{ total_products }})</span>
             {% if low_stock_count > 0 %}
             <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-900/40 text-amber-300 rounded-full text-xs font-medium">
                 <span class="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>
@@ -19,20 +21,38 @@
         </div>
         {% if is_admin %}
         <div class="flex gap-2">
-            <button onclick="document.getElementById('modal-category').classList.remove('hidden')" class="btn-secondary text-sm">
-                + Categoría
+            <button onclick="document.getElementById('modal-category').classList.remove('hidden')"
+                    class="btn-secondary text-sm flex items-center gap-2 group border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all">
+                <svg class="w-4 h-4 text-neutral-400 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/>
+                </svg>
+                Nueva Categor&iacute;a
             </button>
-            <button onclick="document.getElementById('modal-product').classList.remove('hidden')" class="btn-primary text-sm">
-                + Producto
+            <button onclick="openProductModal()"
+                    class="btn-primary text-sm flex items-center gap-2 border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                Nuevo Producto
             </button>
         </div>
         {% endif %}
     </div>
 
-    <!-- Filtros por columna -->
+    <!-- Filtros -->
     <form method="get" class="card">
         <p class="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3">Filtros</p>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">Sucursal</label>
+                <select name="sucursal" onchange="this.form.submit()"
+                        class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
+                               focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                    {% for s in sucursales %}
+                    <option value="{{ s.pk }}" {% if selected_sucursal.pk == s.pk %}selected{% endif %}>{{ s.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
             <div>
                 <label class="block text-xs text-neutral-400 mb-1">Nombre</label>
                 <input type="text" name="nombre" value="{{ request.GET.nombre }}" placeholder="Buscar producto..."
@@ -41,12 +61,12 @@
             </div>
             <div>
                 <label class="block text-xs text-neutral-400 mb-1">SKU</label>
-                <input type="text" name="sku" value="{{ request.GET.sku }}" placeholder="Código SKU..."
+                <input type="text" name="sku" value="{{ request.GET.sku }}" placeholder="C&oacute;digo SKU..."
                        class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
                               placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
             </div>
             <div>
-                <label class="block text-xs text-neutral-400 mb-1">Categoría</label>
+                <label class="block text-xs text-neutral-400 mb-1">Categor&iacute;a</label>
                 <select name="category"
                         class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
                                focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
@@ -67,104 +87,199 @@
             </div>
         </div>
         <div class="flex gap-2 mt-3">
-            <button type="submit" class="btn-primary text-sm px-4">Filtrar</button>
-            <a href="{% url 'inventory:list' %}" class="btn-ghost text-sm">Limpiar</a>
+            <button type="submit" class="btn-primary text-sm px-4 border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all">Filtrar</button>
+            <a href="{% url 'inventory:list' %}{% if selected_sucursal %}?sucursal={{ selected_sucursal.pk }}{% endif %}" class="btn-ghost text-sm border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all">Limpiar</a>
         </div>
     </form>
 
-    <!-- Products grid -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {% for product in products %}
-        <div class="card card-hover">
-            <div class="flex items-start justify-between">
-                <div>
-                    <p class="font-medium text-white">{{ product.name }}</p>
-                    <p class="text-xs text-neutral-500">{{ product.category.name|default:"Sin categoría" }}</p>
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- ACCORDION: Products grouped by category    -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div class="space-y-3" id="inventory-accordion">
+        {% for cat_name, group in grouped_products.items %}
+        <div class="card p-0 overflow-hidden">
+            <!-- Accordion header -->
+            <button onclick="toggleAccordion(this)"
+                    class="w-full flex items-center justify-between px-5 py-4 hover:bg-neutral-800/50 transition-colors">
+                <div class="flex items-center gap-3">
+                    <svg class="w-5 h-5 text-brand accordion-chevron transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                    <h3 class="font-heading font-bold text-white text-base">{{ cat_name }}</h3>
+                    <span class="text-xs text-neutral-500 bg-neutral-800 px-2 py-0.5 rounded-full">{{ group.products|length }}</span>
                 </div>
-                <span class="font-heading font-bold text-brand">${{ product.price }}</span>
-            </div>
-            <div class="mt-3 flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <span class="text-sm {% if product.is_low_stock %}text-amber-400{% else %}text-neutral-400{% endif %}">
-                        Stock: {{ product.stock_quantity }}
-                    </span>
-                    {% if product.is_low_stock %}
-                    <span class="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>
-                    {% endif %}
+            </button>
+
+            <!-- Accordion body (open by default) -->
+            <div class="accordion-body">
+                <div class="px-5 pb-4 space-y-2">
+                    {% for product in group.products %}
+                    <div class="flex items-center gap-4 p-4 rounded-xl bg-neutral-800/60 border border-neutral-700/50
+                                hover:shadow-lg hover:shadow-brand/5 hover:border-neutral-600 transition-all duration-200 group"
+                         id="product-row-{{ product.pk }}">
+
+                        <!-- Left: Icon + Price -->
+                        <div class="flex flex-col items-center gap-1.5 flex-shrink-0 w-16">
+                            <div class="w-10 h-10 rounded-lg bg-neutral-700/50 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                          d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                                </svg>
+                            </div>
+                            <span class="text-xs font-heading font-bold text-brand">${{ product.price|money }}</span>
+                        </div>
+
+                        <!-- Center: Name + Sucursal -->
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium font-heading text-white truncate">{{ product.name }}</p>
+                            <p class="text-xs text-neutral-500 mt-0.5 truncate">{{ selected_sucursal.name }}</p>
+                            {% if product.sku %}
+                            <p class="text-[10px] text-neutral-600 mt-0.5">SKU: {{ product.sku }}</p>
+                            {% endif %}
+                        </div>
+
+                        <!-- Right: Stock badge + Actions -->
+                        <div class="flex items-center gap-3 flex-shrink-0">
+                            <!-- Stock badge -->
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+                                         transition-all duration-150 cursor-default
+                                         {% if product.is_low_stock %}bg-amber-900/40 text-amber-300 border border-amber-800/50 hover:bg-amber-900/60
+                                         {% else %}bg-neutral-700/50 text-neutral-300 border border-neutral-600/50 hover:bg-neutral-700{% endif %}">
+                                {% if product.is_low_stock %}
+                                <span class="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse"></span>
+                                {% endif %}
+                                Stock: {{ product.stock_quantity }}
+                            </span>
+
+                            {% if is_admin %}
+                            <!-- Action buttons -->
+                            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                <button onclick="openEditModal({{ product.pk }})"
+                                        class="px-3 py-1.5 rounded-lg text-xs font-medium text-brand bg-brand/10 border border-brand/20
+                                               hover:bg-brand/20 hover:border-brand/40 transition-all duration-150">
+                                    Editar
+                                </button>
+                                <button onclick="confirmDelete({{ product.pk }}, '{{ product.name|escapejs }}')"
+                                        class="px-3 py-1.5 rounded-lg text-xs font-medium text-red-400 bg-red-900/20 border border-red-800/30
+                                               hover:bg-red-900/40 hover:border-red-700/50 transition-all duration-150">
+                                    Borrar
+                                </button>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
-                {% if product.sku %}
-                <span class="text-xs text-neutral-600">{{ product.sku }}</span>
-                {% endif %}
             </div>
         </div>
         {% empty %}
-        <div class="col-span-full text-center py-12 text-neutral-500">
+        <div class="text-center py-16 text-neutral-500">
+            <svg class="w-12 h-12 mx-auto text-neutral-700 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                      d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+            </svg>
             No hay productos registrados.
         </div>
         {% endfor %}
     </div>
-
-    <!-- Pagination -->
-    {% if page_obj.has_other_pages %}
-    <div class="flex justify-center gap-2 pt-4">
-        {% if page_obj.has_previous %}
-        <a href="?page={{ page_obj.previous_page_number }}&nombre={{ request.GET.nombre }}&sku={{ request.GET.sku }}&category={{ request.GET.category }}&stock_bajo={{ request.GET.stock_bajo }}" class="btn-ghost text-sm">Anterior</a>
-        {% endif %}
-        <span class="px-3 py-2 text-sm text-neutral-400">
-            {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
-        </span>
-        {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}&nombre={{ request.GET.nombre }}&sku={{ request.GET.sku }}&category={{ request.GET.category }}&stock_bajo={{ request.GET.stock_bajo }}" class="btn-ghost text-sm">Siguiente</a>
-        {% endif %}
-    </div>
-    {% endif %}
 </div>
 
 {% if is_admin %}
-<!-- Modal: Crear Producto -->
+<!-- ═══════════════════════════════════════════ -->
+<!-- MODAL: Crear / Editar Producto             -->
+<!-- ═══════════════════════════════════════════ -->
 <div id="modal-product" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
     <div class="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
         <div class="flex items-center justify-between">
-            <h3 class="font-heading font-bold text-lg text-white">Nuevo Producto</h3>
-            <button onclick="document.getElementById('modal-product').classList.add('hidden')" class="text-neutral-400 hover:text-white">✕</button>
+            <h3 id="modal-product-title" class="font-heading font-bold text-lg text-white">Nuevo Producto</h3>
+            <button onclick="closeProductModal()" class="text-neutral-400 hover:text-white transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
         </div>
+        <input type="hidden" id="prod-edit-id" value="">
         <div class="space-y-3">
             <input id="prod-name" type="text" placeholder="Nombre del producto"
                    class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
             <select id="prod-category"
                     class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-                <option value="">Sin categoría</option>
+                <option value="">Sin categor&iacute;a</option>
                 {% for cat in categories %}
                 <option value="{{ cat.pk }}">{{ cat.name }}</option>
                 {% endfor %}
             </select>
+            <textarea id="prod-desc" rows="2" placeholder="Descripci&oacute;n (opcional)"
+                      class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors resize-none"></textarea>
             <div class="grid grid-cols-2 gap-3">
-                <input id="prod-price" type="number" step="0.01" placeholder="Precio venta"
-                       class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-                <input id="prod-cost" type="number" step="0.01" placeholder="Costo"
-                       class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                <div>
+                    <label class="text-xs text-neutral-400 mb-1 block">Precio venta</label>
+                    <input id="prod-price" type="text" inputmode="numeric" placeholder="0"
+                           class="money-input w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                </div>
+                <div>
+                    <label class="text-xs text-neutral-400 mb-1 block">Costo</label>
+                    <input id="prod-cost" type="text" inputmode="numeric" placeholder="0"
+                           class="money-input w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                </div>
             </div>
             <div class="grid grid-cols-2 gap-3">
-                <input id="prod-stock" type="number" placeholder="Stock inicial" value="0"
-                       class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-                <input id="prod-sku" type="text" placeholder="SKU (opcional)"
+                <div>
+                    <label class="text-xs text-neutral-400 mb-1 block">Stock inicial</label>
+                    <input id="prod-stock" type="number" placeholder="0" value="0"
+                           class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                </div>
+                <div>
+                    <label class="text-xs text-neutral-400 mb-1 block">SKU (opcional)</label>
+                    <input id="prod-sku" type="text" placeholder="SKU"
+                           class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                </div>
+            </div>
+            <div>
+                <label class="text-xs text-neutral-400 mb-1 block">Alerta stock bajo</label>
+                <input id="prod-threshold" type="number" placeholder="5" value="5"
                        class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
             </div>
         </div>
-        <button onclick="createProduct()" class="btn-primary w-full">Crear Producto</button>
+        <button onclick="saveProduct()" class="btn-primary w-full" id="btn-save-product">Crear Producto</button>
     </div>
 </div>
 
-<!-- Modal: Crear Categoría -->
+<!-- MODAL: Crear Categoría -->
 <div id="modal-category" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
     <div class="w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
         <div class="flex items-center justify-between">
-            <h3 class="font-heading font-bold text-lg text-white">Nueva Categoría</h3>
-            <button onclick="document.getElementById('modal-category').classList.add('hidden')" class="text-neutral-400 hover:text-white">✕</button>
+            <h3 class="font-heading font-bold text-lg text-white">Nueva Categor&iacute;a</h3>
+            <button onclick="document.getElementById('modal-category').classList.add('hidden')" class="text-neutral-400 hover:text-white transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
         </div>
-        <input id="cat-name" type="text" placeholder="Nombre de la categoría"
+        <input id="cat-name" type="text" placeholder="Nombre de la categor&iacute;a"
                class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-        <button onclick="createCategory()" class="btn-primary w-full">Crear Categoría</button>
+        <button onclick="createCategory()" class="btn-primary w-full">Crear Categor&iacute;a</button>
+    </div>
+</div>
+
+<!-- MODAL: Confirmación de borrado -->
+<div id="modal-confirm-delete" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+    <div class="w-full max-w-sm bg-neutral-900 border border-red-900/50 rounded-xl p-6 space-y-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-red-900/30 flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+            </div>
+            <div>
+                <h3 class="font-heading font-bold text-white">Eliminar producto</h3>
+                <p class="text-xs text-neutral-400 mt-1">El producto se desactivar&aacute; y dejar&aacute; de estar visible.</p>
+            </div>
+        </div>
+        <p class="text-sm text-neutral-300">
+            ¿Eliminar <strong id="delete-product-name" class="text-brand"></strong>?
+        </p>
+        <input type="hidden" id="delete-product-id" value="">
+        <div class="flex gap-3">
+            <button onclick="document.getElementById('modal-confirm-delete').classList.add('hidden')" class="btn-secondary flex-1 text-sm">Cancelar</button>
+            <button onclick="deleteProduct()" class="flex-1 text-sm bg-red-600 text-white font-semibold px-4 py-3 rounded-lg hover:bg-red-500 transition-colors">Eliminar</button>
+        </div>
     </div>
 </div>
 
@@ -173,32 +288,153 @@ function getCookie(name) {
     const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
     return v ? v.pop() : '';
 }
+const csrfToken = getCookie('csrftoken');
+const headers = {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken};
 
-async function createProduct() {
+// ═══════════════════════════════════════
+// ACCORDION
+// ═══════════════════════════════════════
+function toggleAccordion(btn) {
+    const body = btn.nextElementSibling;
+    const chevron = btn.querySelector('.accordion-chevron');
+    if (body.style.maxHeight && body.style.maxHeight !== '0px') {
+        body.style.maxHeight = '0px';
+        body.style.opacity = '0';
+        chevron.style.transform = 'rotate(-90deg)';
+    } else {
+        body.style.maxHeight = body.scrollHeight + 'px';
+        body.style.opacity = '1';
+        chevron.style.transform = 'rotate(0deg)';
+    }
+}
+
+// Init: open all accordions
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.accordion-body').forEach(body => {
+        body.style.maxHeight = body.scrollHeight + 'px';
+        body.style.opacity = '1';
+        body.style.overflow = 'hidden';
+        body.style.transition = 'max-height 0.3s ease, opacity 0.2s ease';
+    });
+});
+
+// ═══════════════════════════════════════
+// MONEY FORMATTING (live while typing)
+// ═══════════════════════════════════════
+function formatMoneyInput(value) {
+    // Remove everything except digits
+    const digits = value.replace(/\D/g, '');
+    if (!digits) return '';
+    // Add thousand separators with dots
+    return parseInt(digits, 10).toLocaleString('de-DE');
+}
+
+function getMoneyRaw(value) {
+    // Strip dots to get raw number for submission
+    return value.replace(/\./g, '');
+}
+
+document.querySelectorAll('.money-input').forEach(input => {
+    input.addEventListener('input', function() {
+        const pos = this.selectionStart;
+        const oldLen = this.value.length;
+        this.value = formatMoneyInput(this.value);
+        const newLen = this.value.length;
+        // Adjust cursor position after formatting
+        const newPos = Math.max(0, pos + (newLen - oldLen));
+        this.setSelectionRange(newPos, newPos);
+    });
+});
+
+// ═══════════════════════════════════════
+// PRODUCT CRUD
+// ═══════════════════════════════════════
+function openProductModal() {
+    document.getElementById('prod-edit-id').value = '';
+    document.getElementById('prod-name').value = '';
+    document.getElementById('prod-category').value = '';
+    document.getElementById('prod-desc').value = '';
+    document.getElementById('prod-price').value = '';
+    document.getElementById('prod-cost').value = '';
+    document.getElementById('prod-stock').value = '0';
+    document.getElementById('prod-stock').disabled = false;
+    document.getElementById('prod-sku').value = '';
+    document.getElementById('prod-threshold').value = '5';
+    document.getElementById('modal-product-title').textContent = 'Nuevo Producto';
+    document.getElementById('btn-save-product').textContent = 'Crear Producto';
+    document.getElementById('modal-product').classList.remove('hidden');
+}
+
+async function openEditModal(id) {
+    const res = await fetch(`/app/inventory/api/products/${id}/`);
+    if (!res.ok) return alert('Error cargando producto');
+    const d = await res.json();
+
+    document.getElementById('prod-edit-id').value = id;
+    document.getElementById('prod-name').value = d.name;
+    document.getElementById('prod-category').value = d.category_id;
+    document.getElementById('prod-desc').value = d.description;
+    document.getElementById('prod-price').value = formatMoneyInput(String(Math.round(parseFloat(d.price))));
+    document.getElementById('prod-cost').value = formatMoneyInput(String(Math.round(parseFloat(d.cost))));
+    document.getElementById('prod-stock').value = d.stock_quantity;
+    document.getElementById('prod-stock').disabled = true; // Stock changes via movements
+    document.getElementById('prod-sku').value = d.sku;
+    document.getElementById('prod-threshold').value = d.low_stock_threshold;
+    document.getElementById('modal-product-title').textContent = 'Editar Producto';
+    document.getElementById('btn-save-product').textContent = 'Guardar cambios';
+    document.getElementById('modal-product').classList.remove('hidden');
+}
+
+function closeProductModal() {
+    document.getElementById('modal-product').classList.add('hidden');
+}
+
+async function saveProduct() {
+    const editId = document.getElementById('prod-edit-id').value;
     const name = document.getElementById('prod-name').value.trim();
     if (!name) return alert('Nombre requerido');
-    const res = await fetch('{% url "inventory:api_product_create" %}', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-        body: JSON.stringify({
-            name,
-            category_id: document.getElementById('prod-category').value || null,
-            price: parseFloat(document.getElementById('prod-price').value) || 0,
-            cost: parseFloat(document.getElementById('prod-cost').value) || 0,
-            stock_quantity: parseInt(document.getElementById('prod-stock').value) || 0,
-            sku: document.getElementById('prod-sku').value,
-        }),
+
+    const payload = {
+        name,
+        category_id: document.getElementById('prod-category').value || null,
+        description: document.getElementById('prod-desc').value,
+        price: parseFloat(getMoneyRaw(document.getElementById('prod-price').value)) || 0,
+        cost: parseFloat(getMoneyRaw(document.getElementById('prod-cost').value)) || 0,
+        stock_quantity: parseInt(document.getElementById('prod-stock').value) || 0,
+        sku: document.getElementById('prod-sku').value,
+        low_stock_threshold: parseInt(document.getElementById('prod-threshold').value) || 5,
+    };
+
+    const url = editId
+        ? `/app/inventory/api/products/${editId}/update/`
+        : '{% url "inventory:api_product_create" %}';
+    const res = await fetch(url, {method: 'POST', headers, body: JSON.stringify(payload)});
+    if (res.ok) location.reload();
+    else alert((await res.json()).error || 'Error');
+}
+
+// ── Delete ──
+function confirmDelete(id, name) {
+    document.getElementById('delete-product-id').value = id;
+    document.getElementById('delete-product-name').textContent = name;
+    document.getElementById('modal-confirm-delete').classList.remove('hidden');
+}
+
+async function deleteProduct() {
+    const id = document.getElementById('delete-product-id').value;
+    const res = await fetch(`/app/inventory/api/products/${id}/delete/`, {
+        method: 'POST', headers, body: '{}',
     });
     if (res.ok) location.reload();
     else alert((await res.json()).error || 'Error');
 }
 
+// ── Category ──
 async function createCategory() {
     const name = document.getElementById('cat-name').value.trim();
     if (!name) return alert('Nombre requerido');
     const res = await fetch('{% url "inventory:api_categories" %}', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        method: 'POST', headers,
         body: JSON.stringify({ name }),
     });
     if (res.ok) location.reload();

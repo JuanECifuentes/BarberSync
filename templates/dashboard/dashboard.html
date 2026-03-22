@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load currency %}
 
 {% block title %}Dashboard – BarberSync{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
@@ -15,7 +16,7 @@
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
         <div class="card">
             <p class="text-xs text-neutral-400 uppercase tracking-wider">Ingresos totales</p>
-            <p class="mt-1 text-2xl font-heading font-bold text-white">${{ metrics.total_revenue|floatformat:0|default:"0" }}</p>
+            <p class="mt-1 text-2xl font-heading font-bold text-white">${{ metrics.total_revenue|money }}</p>
         </div>
         <div class="card">
             <p class="text-xs text-neutral-400 uppercase tracking-wider">Citas completadas</p>
@@ -23,11 +24,11 @@
         </div>
         <div class="card">
             <p class="text-xs text-neutral-400 uppercase tracking-wider">Venta de productos</p>
-            <p class="mt-1 text-2xl font-heading font-bold text-brand">${{ metrics.product_revenue|floatformat:0|default:"0" }}</p>
+            <p class="mt-1 text-2xl font-heading font-bold text-brand">${{ metrics.product_revenue|money }}</p>
         </div>
         <div class="card">
             <p class="text-xs text-neutral-400 uppercase tracking-wider">Ticket promedio</p>
-            <p class="mt-1 text-2xl font-heading font-bold text-white">${{ metrics.avg_ticket|floatformat:0|default:"0" }}</p>
+            <p class="mt-1 text-2xl font-heading font-bold text-white">${{ metrics.avg_ticket|money }}</p>
         </div>
     </div>
 
@@ -53,12 +54,12 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <div class="bg-neutral-800 rounded-lg p-4">
                 <p class="text-xs text-neutral-400">Ingresos totales (todas las sucursales)</p>
-                <p class="text-xl font-heading font-bold text-brand">${{ org_metrics.total_revenue|floatformat:0 }}</p>
+                <p class="text-xl font-heading font-bold text-brand">${{ org_metrics.total_revenue|money }}</p>
             </div>
             {% for shop in org_metrics.per_barbershop %}
             <div class="bg-neutral-800 rounded-lg p-4">
                 <p class="text-xs text-neutral-400">{{ shop.barbershop__name }}</p>
-                <p class="text-lg font-heading font-bold text-white">${{ shop.revenue|floatformat:0 }}</p>
+                <p class="text-lg font-heading font-bold text-white">${{ shop.revenue|money }}</p>
                 <p class="text-xs text-neutral-500">{{ shop.count }} ventas</p>
             </div>
             {% endfor %}

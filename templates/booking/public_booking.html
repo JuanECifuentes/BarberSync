@@ -74,7 +74,7 @@
                                 <span x-text="svc.duration"></span> min
                             </p>
                         </div>
-                        <span class="font-heading font-bold text-brand text-lg" x-text="'$' + svc.price"></span>
+                        <span class="font-heading font-bold text-brand text-lg" x-text="'$' + Math.round(parseFloat(svc.price)).toLocaleString('de-DE')"></span>
                     </button>
                 </template>
             </div>
@@ -227,7 +227,8 @@ function bookingApp() {
             return this.selectedServices.reduce((sum, s) => sum + s.duration, 0);
         },
         get totalPrice() {
-            return this.selectedServices.reduce((sum, s) => sum + parseFloat(s.price), 0).toFixed(0);
+            const total = this.selectedServices.reduce((sum, s) => sum + parseFloat(s.price), 0);
+            return Math.round(total).toLocaleString('de-DE');
         },
         get canAdvance() {
             if (this.step === 1) return this.selectedBarber !== null;

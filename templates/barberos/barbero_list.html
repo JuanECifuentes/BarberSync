@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load currency %}
 
 {% block title %}Barberos – BarberSync{% endblock %}
 {% block page_title %}Barberos{% endblock %}
@@ -192,7 +193,7 @@
                                 class="bb-servicio-check rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-700">
                             <span class="text-sm text-white">{{ svc.name }}</span>
                         </span>
-                        <span class="text-xs text-neutral-500">${{ svc.price }}</span>
+                        <span class="text-xs text-neutral-500">${{ svc.price|money }}</span>
                     </label>
                     {% endfor %}
                 </div>
