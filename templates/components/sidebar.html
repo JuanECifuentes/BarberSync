@@ -135,12 +135,6 @@
             </div>
         </div>
         {% endif %}
-        {% if is_admin and current_barbershop %}
-        <div class="mt-1 px-2">
-            <p class="text-[10px] text-neutral-600 uppercase tracking-wider">Sucursal activa</p>
-            <p class="text-xs font-medium text-brand truncate">{{ current_barbershop.name|default:"Todas" }}</p>
-        </div>
-        {% endif %}
     </div>
 </aside>
 
