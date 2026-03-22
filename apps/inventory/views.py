@@ -71,11 +71,23 @@ class ProductCreateAPI(View):
     """API para crear productos desde el panel admin."""
 
     def post(self, request):
-        barbershop = request.barbershop
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
             return JsonResponse({"error": "JSON inválido"}, status=400)
+
+        # Determinar sucursal: viene del body (obligatorio)
+        barbershop_id = data.get("barbershop_id")
+        if not barbershop_id:
+            return JsonResponse({"error": "Sucursal requerida"}, status=400)
+
+        org = request.organization
+        try:
+            barbershop = Barbershop.objects.get(
+                pk=barbershop_id, organization=org, is_active=True
+            )
+        except Barbershop.DoesNotExist:
+            return JsonResponse({"error": "Sucursal no válida"}, status=400)
 
         name = data.get("name", "").strip()
         if not name:
@@ -84,7 +96,7 @@ class ProductCreateAPI(View):
         category_id = data.get("category_id")
         category = None
         if category_id:
-            category = ProductCategory.objects.filter(pk=category_id, barbershop=barbershop).first()
+            category = ProductCategory.objects.filter(pk=category_id, barbershop__organization=org).first()
 
         product = Product.objects.create(
             barbershop=barbershop,
@@ -105,9 +117,9 @@ class ProductUpdateAPI(View):
     """API para editar un producto existente."""
 
     def post(self, request, pk):
-        barbershop = request.barbershop
+        org = request.organization
         try:
-            product = Product.objects.get(pk=pk, barbershop=barbershop, is_active=True)
+            product = Product.objects.get(pk=pk, barbershop__organization=org, is_active=True)
         except Product.DoesNotExist:
             return JsonResponse({"error": "Producto no encontrado"}, status=404)
 
@@ -122,7 +134,7 @@ class ProductUpdateAPI(View):
 
         category_id = data.get("category_id")
         if category_id:
-            product.category = ProductCategory.objects.filter(pk=category_id, barbershop=barbershop).first()
+            product.category = ProductCategory.objects.filter(pk=category_id, barbershop__organization=org).first()
         elif category_id == "" or category_id is None:
             product.category = None
 
@@ -141,9 +153,9 @@ class ProductDeleteAPI(View):
     """Soft delete: sets is_active=False."""
 
     def post(self, request, pk):
-        barbershop = request.barbershop
+        org = request.organization
         try:
-            product = Product.objects.get(pk=pk, barbershop=barbershop, is_active=True)
+            product = Product.objects.get(pk=pk, barbershop__organization=org, is_active=True)
         except Product.DoesNotExist:
             return JsonResponse({"error": "Producto no encontrado"}, status=404)
 
@@ -157,13 +169,13 @@ class ProductDetailAPI(View):
     """Returns product data for the edit modal."""
 
     def get(self, request, pk):
-        barbershop = request.barbershop
+        org = request.organization
         try:
-            p = Product.objects.select_related("category").get(pk=pk, barbershop=barbershop, is_active=True)
+            p = Product.objects.get(pk=pk, barbershop__organization=org, is_active=True)
         except Product.DoesNotExist:
             return JsonResponse({"error": "Producto no encontrado"}, status=404)
 
-        return JsonResponse({
+        response = {
             "id": p.pk,
             "name": p.name,
             "description": p.description,
@@ -173,7 +185,11 @@ class ProductDetailAPI(View):
             "stock_quantity": p.stock_quantity,
             "low_stock_threshold": p.low_stock_threshold,
             "category_id": p.category_id or "",
-        })
+        }
+
+        print(response)
+
+        return JsonResponse(response)
 
 
 class CategoryCreateAPI(View):
