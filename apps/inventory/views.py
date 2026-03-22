@@ -187,8 +187,6 @@ class ProductDetailAPI(View):
             "category_id": p.category_id or "",
         }
 
-        print(response)
-
         return JsonResponse(response)
 
 

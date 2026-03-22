@@ -4,6 +4,45 @@
 {% block title %}Inventario – BarberSync{% endblock %}
 {% block page_title %}Inventario{% endblock %}
 
+{% block extra_head %}
+<style>
+    .btn-action-primary {
+        position: relative;
+        overflow: hidden;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .btn-action-primary::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: #ff2301;
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 0;
+        border-radius: inherit;
+    }
+    .btn-action-primary:not(:disabled):hover::before {
+        transform: scaleX(1);
+    }
+    .btn-action-primary:not(:disabled):hover {
+        color: #fff !important;
+        border-color: #ff2301 !important;
+        transform: scale(1.03);
+        box-shadow: 0 4px 16px rgba(255, 35, 1, 0.3);
+    }
+    .btn-action-primary > * {
+        position: relative;
+        z-index: 1;
+    }
+    .btn-action-primary span,
+    .btn-action-primary svg {
+        position: relative;
+        z-index: 1;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="space-y-4">
 
@@ -22,18 +61,18 @@
         {% if is_admin %}
         <div class="flex gap-2">
             <button onclick="document.getElementById('modal-category').classList.remove('hidden')"
-                    class="btn-secondary text-sm flex items-center gap-2 group border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all">
-                <svg class="w-4 h-4 text-neutral-400 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    class="btn-action-primary btn-secondary text-sm flex items-center gap-2 border border-neutral-700 px-4 py-2 rounded-lg transition-all">
+                <svg class="w-4 h-4 text-neutral-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/>
                 </svg>
-                Nueva Categor&iacute;a
+                <span>Nueva Categor&iacute;a</span>
             </button>
             <button onclick="openProductModal()"
-                    class="btn-primary text-sm flex items-center gap-2 border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm">
+                    class="btn-action-primary btn-primary text-sm flex items-center gap-2 border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                 </svg>
-                Nuevo Producto
+                <span>Nuevo Producto</span>
             </button>
         </div>
         {% endif %}
@@ -89,8 +128,8 @@
         </div>
         <div class="flex gap-2 mt-3">
             <button type="button" onclick="clearFilters()"
-                    class="btn-ghost text-sm border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all">
-                Limpiar filtros
+                    class="btn-action-primary btn-ghost text-sm border border-neutral-700 px-4 py-2 rounded-lg transition-all">
+                <span>Limpiar filtros</span>
             </button>
         </div>
     </div>
@@ -283,7 +322,7 @@
                        class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
             </div>
         </div>
-        <button onclick="saveProduct()" class="btn-primary w-full border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all" id="btn-save-product">Crear Producto</button>
+        <button onclick="saveProduct()" class="btn-action-primary btn-primary w-full border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm" id="btn-save-product"><span>Crear Producto</span></button>
     </div>
 </div>
 
@@ -298,7 +337,7 @@
         </div>
         <input id="cat-name" type="text" placeholder="Nombre de la categor&iacute;a"
                class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-        <button onclick="createCategory()" class="btn-primary w-full border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all">Crear Categor&iacute;a</button>
+        <button onclick="createCategory()" class="btn-action-primary btn-primary w-full border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm"><span>Crear Categor&iacute;a</span></button>
     </div>
 </div>
 
@@ -502,7 +541,7 @@ function openProductModal() {
     document.getElementById('prod-sucursal-wrapper').style.display = '';
     document.getElementById('prod-sucursal').selectedIndex = 0;
     document.getElementById('modal-product-title').textContent = 'Nuevo Producto';
-    document.getElementById('btn-save-product').textContent = 'Crear Producto';
+    document.getElementById('btn-save-product').querySelector('span').textContent = 'Crear Producto';
     document.getElementById('modal-product').classList.remove('hidden');
 }
 
@@ -523,7 +562,7 @@ async function openEditModal(id) {
     document.getElementById('prod-threshold').value = d.low_stock_threshold;
     document.getElementById('prod-sucursal-wrapper').style.display = 'none';
     document.getElementById('modal-product-title').textContent = 'Editar Producto';
-    document.getElementById('btn-save-product').textContent = 'Guardar cambios';
+    document.getElementById('btn-save-product').querySelector('span').textContent = 'Guardar cambios';
     document.getElementById('modal-product').classList.remove('hidden');
 }
 
