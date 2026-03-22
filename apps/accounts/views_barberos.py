@@ -33,8 +33,9 @@ class BarberoListView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
         barberos = BarberProfile.objects.filter(
             membership__organization=org,
             is_active=True,
-        ).select_related("membership__user", "membership__barbershop")
-
+        ).select_related(
+            "membership__user", "membership__barbershop"
+        ).prefetch_related("sucursales", "barber_services__service")
 
         if barbershop:
             barberos = barberos.filter(
@@ -68,8 +69,12 @@ class BarberoDetailAPI(LoginRequiredMixin, RoleRequiredMixin, View):
 
         user = barber.user
         sucursal_ids = list(barber.sucursales.values_list("id", flat=True))
+        sucursal_names = list(barber.sucursales.values_list("name", flat=True))
         servicio_ids = list(
             BarberService.objects.filter(barber=barber).values_list("service_id", flat=True)
+        )
+        servicio_names = list(
+            BarberService.objects.filter(barber=barber).values_list("service__name", flat=True)
         )
 
         schedules = list(
@@ -104,7 +109,9 @@ class BarberoDetailAPI(LoginRequiredMixin, RoleRequiredMixin, View):
             "lunch_end": barber.lunch_end.strftime("%H:%M") if barber.lunch_end else "",
             "is_active": barber.is_active,
             "sucursal_ids": sucursal_ids,
+            "sucursal_names": sucursal_names,
             "servicio_ids": servicio_ids,
+            "servicio_names": servicio_names,
             "schedules": schedules,
             "exceptions": exceptions,
         })
@@ -160,7 +167,6 @@ class BarberoCreateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
                 "phone": data.get("phone", ""),
                 "bio": data.get("bio", ""),
                 "instagram": data.get("instagram", ""),
-                "buffer_minutes": int(data.get("buffer_minutes", 0)),
                 "is_active": True,
             },
         )
@@ -219,20 +225,6 @@ class BarberoUpdateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
         barber.phone = data.get("phone", barber.phone)
         barber.bio = data.get("bio", barber.bio)
         barber.instagram = data.get("instagram", barber.instagram)
-        barber.buffer_minutes = int(data.get("buffer_minutes", barber.buffer_minutes))
-
-        lunch_start = data.get("lunch_start", "")
-        lunch_end = data.get("lunch_end", "")
-        if lunch_start:
-            h, m = map(int, lunch_start.split(":"))
-            barber.lunch_start = time(h, m)
-        else:
-            barber.lunch_start = None
-        if lunch_end:
-            h, m = map(int, lunch_end.split(":"))
-            barber.lunch_end = time(h, m)
-        else:
-            barber.lunch_end = None
 
         barber.save()
 
@@ -297,7 +289,7 @@ class BarberoReactivateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
 # ─── Horarios ───────────────────────────────────────
 
 class HorarioSaveAPI(LoginRequiredMixin, RoleRequiredMixin, View):
-    """Save/replace the full weekly schedule for a barber."""
+    """Save/replace the full weekly schedule for a barber, including lunch and buffer."""
     allowed_roles = ["owner", "admin"]
 
     def post(self, request, pk):
@@ -311,6 +303,22 @@ class HorarioSaveAPI(LoginRequiredMixin, RoleRequiredMixin, View):
             data = json.loads(request.body)
         except json.JSONDecodeError:
             return JsonResponse({"error": "JSON inválido"}, status=400)
+
+        # Save lunch and buffer settings
+        barber.buffer_minutes = int(data.get("buffer_minutes", barber.buffer_minutes))
+        lunch_start = data.get("lunch_start", "")
+        lunch_end = data.get("lunch_end", "")
+        if lunch_start:
+            h, m = map(int, lunch_start.split(":"))
+            barber.lunch_start = time(h, m)
+        else:
+            barber.lunch_start = None
+        if lunch_end:
+            h, m = map(int, lunch_end.split(":"))
+            barber.lunch_end = time(h, m)
+        else:
+            barber.lunch_end = None
+        barber.save(update_fields=["buffer_minutes", "lunch_start", "lunch_end"])
 
         schedules = data.get("schedules", [])
 

@@ -4,21 +4,119 @@
 {% block title %}Barberos – BarberSync{% endblock %}
 {% block page_title %}Barberos{% endblock %}
 
+{% block extra_head %}
+<!-- Flatpickr CDN -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+<style>
+    /* Custom tooltip styling */
+    [data-tooltip] {
+        position: relative;
+    }
+    [data-tooltip]::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: calc(100% + 8px);
+        left: 50%;
+        transform: translateX(-50%) scale(0.95);
+        padding: 6px 12px;
+        background: #2a2a2d;
+        border: 1px solid #4a4a4f;
+        color: #fff;
+        font-size: 11px;
+        font-family: 'Poppins', sans-serif;
+        font-weight: 500;
+        border-radius: 8px;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+        z-index: 50;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+    [data-tooltip]::before {
+        content: '';
+        position: absolute;
+        bottom: calc(100% + 2px);
+        left: 50%;
+        transform: translateX(-50%) scale(0.95);
+        border: 5px solid transparent;
+        border-top-color: #4a4a4f;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+        z-index: 50;
+    }
+    [data-tooltip]:hover::after,
+    [data-tooltip]:hover::before {
+        opacity: 1;
+        transform: translateX(-50%) scale(1);
+    }
+    /* Flatpickr dark theme overrides */
+    .flatpickr-calendar {
+        background: #2a2a2d !important;
+        border-color: #4a4a4f !important;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important;
+        border-radius: 12px !important;
+    }
+    .flatpickr-day.selected,
+    .flatpickr-day.selected:hover {
+        background: #ff2301 !important;
+        border-color: #ff2301 !important;
+    }
+    .flatpickr-day:hover {
+        background: #3d3d41 !important;
+        border-color: #3d3d41 !important;
+    }
+    .flatpickr-time input:hover,
+    .flatpickr-time input:focus {
+        background: #3d3d41 !important;
+    }
+    /* Service tags container with 2-line clamp */
+    .services-tags-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        max-height: 3.5rem;
+        overflow: hidden;
+        position: relative;
+    }
+    /* Accordion transitions */
+    .accordion-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease, opacity 0.3s ease;
+        opacity: 0;
+    }
+    .accordion-content.open {
+        max-height: 200px;
+        opacity: 1;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="space-y-4">
 
     <!-- Header -->
     <div class="flex items-center justify-between flex-wrap gap-3">
         <h2 class="font-heading font-bold text-xl text-white">Equipo de Barberos</h2>
-        <button onclick="openCreateModal()" class="btn-primary text-sm">+ Nuevo Barbero</button>
+        <button onclick="openCreateModal()" class="btn-primary text-sm border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm">+ Nuevo Barbero</button>
     </div>
 
     <!-- Barbers grid -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" id="barberos-grid">
         {% for b in barberos %}
-        <div class="card card-hover group" id="barbero-card-{{ b.pk }}">
+        <div class="card card-hover group" id="barbero-card-{{ b.pk }}"
+             data-barber-id="{{ b.pk }}"
+             data-sucursal-names="{% for s in b.sucursales.all %}{{ s.name }}{% if not forloop.last %},{% endif %}{% endfor %}"
+             data-sucursal-count="{{ b.sucursales.count }}"
+             data-service-names="{% for bs in b.barber_services.all %}{{ bs.service.name }}{% if not forloop.last %},{% endif %}{% endfor %}"
+             data-service-count="{{ b.barber_services.count }}">
             <div class="flex items-start gap-3">
-                <!-- Avatar -->
+                <!-- Left: Avatar + Info -->
                 <div class="flex-shrink-0">
                     {% if b.photo %}
                     <img src="{{ b.photo.url }}" alt="{{ b }}"
@@ -39,44 +137,54 @@
                     <p class="text-xs text-neutral-500">{{ b.phone }}</p>
                     {% endif %}
                 </div>
-            </div>
 
-            <!-- Services count & sucursales -->
-            <div class="mt-3 flex items-center justify-between">
-                <div class="flex items-center gap-3 text-xs text-neutral-400">
-                    <span class="flex items-center gap-1">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5"
-                            viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="6" cy="6" r="3"></circle>
-                            <circle cx="6" cy="18" r="3"></circle>
-                            <path d="M20 4L8.12 15.88"></path>
-                            <path d="M14.47 14.48L20 20"></path>
-                            <path d="M8.12 8.12L12 12"></path>
-                        </svg>
-                        {{ b.barber_services.count }} servicio{{ b.barber_services.count|pluralize:"s" }}
-                    </span>
-                    <span class="flex items-center gap-1">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                        </svg>
-                        {{ b.sucursales.count }} sucursal{{ b.sucursales.count|pluralize:"es" }}
-                    </span>
-                </div>
-                <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <!-- Right: Action buttons (always visible) -->
+                <div class="flex items-center gap-1 flex-shrink-0">
                     <button onclick="openScheduleModal({{ b.pk }})"
-                        class="text-xs text-neutral-400 hover:text-white transition-colors" title="Horarios">
+                        data-tooltip="Horario Semanal"
+                        class="border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-400 hover:text-white">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                                 d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                     </button>
                     <button onclick="openEditModal({{ b.pk }})"
-                        class="text-xs text-brand hover:text-brand-400 transition-colors">Editar</button>
-                    <button
-                        onclick="confirmDeactivateBarber({{ b.pk }}, '{{ b.display_name|default:b.user.get_full_name|escapejs }}')"
-                        class="text-xs text-red-400 hover:text-red-300 transition-colors">Desactivar</button>
+                        data-tooltip="Editar Barbero"
+                        class="border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-400 hover:text-white">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                    </button>
+                    <button onclick="confirmDeactivateBarber({{ b.pk }}, '{{ b.display_name|default:b.user.get_full_name|escapejs }}')"
+                        data-tooltip="Eliminar Barbero"
+                        class="border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-red-400 hover:text-red-300">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
                 </div>
+            </div>
+
+            <!-- Sucursales (1 line max) -->
+            <div class="mt-3 flex items-center gap-1.5 text-xs text-neutral-400">
+                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+                <span class="truncate line-clamp-1 sucursal-display" data-card-id="{{ b.pk }}">
+                    {% for s in b.sucursales.all %}{{ s.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                </span>
+            </div>
+
+            <!-- Services as tags (2 lines max) -->
+            <div class="mt-2 services-tags-container" data-card-id="{{ b.pk }}">
+                {% for bs in b.barber_services.all %}
+                <span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium bg-neutral-800 text-neutral-300 border border-neutral-700 hover:border-neutral-500 hover:text-white transition-colors cursor-default">
+                    {{ bs.service.name }}
+                </span>
+                {% endfor %}
             </div>
         </div>
         {% empty %}
@@ -130,7 +238,7 @@
 
         <input type="hidden" id="barber-edit-id" value="">
 
-        <!-- Tabs -->
+        <!-- Tabs (only 2 now: Info and Asignaciones) -->
         <div class="flex border-b border-neutral-800">
             <button onclick="showTab('tab-info')"
                 class="tab-btn active px-4 py-2 text-sm font-medium border-b-2 border-brand text-brand"
@@ -138,9 +246,6 @@
             <button onclick="showTab('tab-assign')"
                 class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-white"
                 data-tab="tab-assign">Asignaciones</button>
-            <button onclick="showTab('tab-time')"
-                class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-white"
-                data-tab="tab-time">Tiempo</button>
         </div>
 
         <!-- Tab: Info -->
@@ -200,31 +305,7 @@
             </div>
         </div>
 
-        <!-- Tab: Time management -->
-        <div id="tab-time" class="tab-panel hidden space-y-3">
-            <div class="grid grid-cols-2 gap-3">
-                <div>
-                    <label class="text-xs text-neutral-400 mb-1 block">Buffer entre citas (min)</label>
-                    <input id="bb-buffer" type="number" min="0" value="0"
-                        class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-                </div>
-                <div></div>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-                <div>
-                    <label class="text-xs text-neutral-400 mb-1 block">Inicio almuerzo</label>
-                    <input id="bb-lunch-start" type="time"
-                        class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-                </div>
-                <div>
-                    <label class="text-xs text-neutral-400 mb-1 block">Fin almuerzo</label>
-                    <input id="bb-lunch-end" type="time"
-                        class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-                </div>
-            </div>
-        </div>
-
-        <button onclick="saveBarber()" class="btn-primary w-full" id="btn-save-barber">Crear Barbero</button>
+        <button onclick="saveBarber()" class="btn-primary w-full border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm" id="btn-save-barber">Crear Barbero</button>
     </div>
 </div>
 
@@ -244,26 +325,53 @@
         </div>
         <input type="hidden" id="schedule-barber-id" value="">
 
+        <!-- Global time settings: Lunch & Buffer -->
+        <div class="card space-y-3">
+            <h4 class="font-heading font-bold text-sm text-white flex items-center gap-2">
+                <svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                Configuración de Tiempo
+            </h4>
+            <div class="grid grid-cols-3 gap-3">
+                <div>
+                    <label class="text-xs text-neutral-400 mb-1 block">Inicio almuerzo</label>
+                    <input id="sched-lunch-start" type="text" placeholder="--:--"
+                        class="flatpickr-time-input w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                </div>
+                <div>
+                    <label class="text-xs text-neutral-400 mb-1 block">Fin almuerzo</label>
+                    <input id="sched-lunch-end" type="text" placeholder="--:--"
+                        class="flatpickr-time-input w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                </div>
+                <div>
+                    <label class="text-xs text-neutral-400 mb-1 block">Buffer entre citas (min)</label>
+                    <input id="sched-buffer" type="number" min="0" value="0"
+                        class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                </div>
+            </div>
+        </div>
+
         <p class="text-xs text-neutral-500">Marca los días que trabaja y establece sus horas. Los días sin marcar se
             consideran libres.</p>
 
-        <!-- Weekly schedule -->
+        <!-- Weekly schedule (accordion style) -->
         <div class="space-y-2" id="schedule-days">
             <!-- Generated by JS -->
         </div>
 
-        <button onclick="saveSchedule()" class="btn-primary w-full">Guardar Horario</button>
+        <button onclick="saveSchedule()" class="btn-primary w-full border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm">Guardar Horario</button>
 
         <!-- ── Excepciones / Permisos ── -->
         <div class="border-t border-neutral-800 pt-4 mt-4">
             <div class="flex items-center justify-between mb-3">
                 <h4 class="font-heading font-bold text-sm text-white">Excepciones y Permisos</h4>
                 <button onclick="document.getElementById('exception-form').classList.toggle('hidden')"
-                    class="btn-secondary text-xs flex items-center gap-1">
+                    class="text-xs flex items-center gap-1 border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-300 hover:text-white">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                     </svg>
-                    Añadir Excepción/Permiso
+                    Añadir excepción
                 </button>
             </div>
 
@@ -285,19 +393,19 @@
                     <div>
                         <label class="text-xs text-neutral-400 mb-1 block">Descripción</label>
                         <input id="exc-desc" type="text" placeholder="Motivo"
-                            class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                            class="exc-field w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                     </div>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="text-xs text-neutral-400 mb-1 block">Inicio</label>
-                        <input id="exc-start" type="datetime-local"
-                            class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                        <input id="exc-start" type="text" placeholder="Seleccionar fecha y hora"
+                            class="exc-field exc-required flatpickr-datetime-input w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                     </div>
                     <div>
                         <label class="text-xs text-neutral-400 mb-1 block">Fin</label>
-                        <input id="exc-end" type="datetime-local"
-                            class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                        <input id="exc-end" type="text" placeholder="Seleccionar fecha y hora"
+                            class="exc-field exc-required flatpickr-datetime-input w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                     </div>
                 </div>
                 <label class="flex items-center gap-2 text-sm text-neutral-300">
@@ -305,7 +413,8 @@
                         class="rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-700">
                     Recurrente (se repite semanalmente)
                 </label>
-                <button onclick="createException()" class="btn-primary text-sm w-full">Registrar Excepción</button>
+                <button id="btn-create-exception" onclick="createException()" disabled
+                    class="btn-primary text-sm w-full opacity-50 cursor-not-allowed border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm">Registrar permisos</button>
             </div>
 
             <!-- Exceptions list -->
@@ -359,6 +468,142 @@
     const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
     const EXC_TYPES = { vacation: 'Vacaciones', sick_leave: 'Permiso médico', personal: 'Personal', lunch: 'Almuerzo', break: 'Descanso', other: 'Otro' };
 
+    // ═══════════════════════════════════════════════════
+    // CARD: Truncate sucursales & services on load
+    // ═══════════════════════════════════════════════════
+    document.addEventListener('DOMContentLoaded', () => {
+        // Truncate sucursales (1 line)
+        document.querySelectorAll('.sucursal-display').forEach(el => {
+            const card = el.closest('[data-barber-id]');
+            const count = parseInt(card.dataset.sucursalCount);
+            const names = card.dataset.sucursalNames;
+            if (count === 0) {
+                el.textContent = 'Sin sucursales';
+            } else {
+                // Check if text overflows
+                requestAnimationFrame(() => {
+                    if (el.scrollWidth > el.clientWidth && count > 1) {
+                        el.textContent = count + ' sucursales';
+                    }
+                });
+            }
+        });
+
+        // Truncate services (2 lines max)
+        document.querySelectorAll('.services-tags-container').forEach(container => {
+            const card = container.closest('[data-barber-id]');
+            const count = parseInt(card.dataset.serviceCount);
+            if (count === 0) return;
+
+            requestAnimationFrame(() => {
+                const tags = container.querySelectorAll('span');
+                const maxH = container.offsetHeight;
+                let hiddenCount = 0;
+
+                tags.forEach(tag => {
+                    if (tag.offsetTop + tag.offsetHeight > maxH + 2) {
+                        hiddenCount++;
+                        tag.style.display = 'none';
+                    }
+                });
+
+                if (hiddenCount > 0) {
+                    // Remove last visible tag to make room for "+N" tag
+                    const visible = [...tags].filter(t => t.style.display !== 'none');
+                    if (visible.length > 0) {
+                        const last = visible[visible.length - 1];
+                        last.style.display = 'none';
+                        hiddenCount++;
+                    }
+                    const moreTag = document.createElement('span');
+                    moreTag.className = 'inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium bg-brand/10 text-brand border border-brand/30 cursor-default';
+                    moreTag.textContent = `+${hiddenCount} servicios`;
+                    container.appendChild(moreTag);
+                }
+            });
+        });
+
+        // Initialize Flatpickr on time inputs in schedule modal
+        initFlatpickr();
+
+        // Exception form validation
+        initExceptionValidation();
+    });
+
+    // ═══════════════════════════════════════════════════
+    // FLATPICKR INITIALIZATION
+    // ═══════════════════════════════════════════════════
+    let fpInstances = [];
+
+    function initFlatpickr() {
+        // Time pickers for lunch
+        document.querySelectorAll('.flatpickr-time-input').forEach(el => {
+            fpInstances.push(flatpickr(el, {
+                enableTime: true,
+                noCalendar: true,
+                dateFormat: "H:i",
+                time_24hr: true,
+                locale: "es",
+                theme: "dark"
+            }));
+        });
+
+        // Datetime pickers for exceptions
+        document.querySelectorAll('.flatpickr-datetime-input').forEach(el => {
+            fpInstances.push(flatpickr(el, {
+                enableTime: true,
+                dateFormat: "Y-m-d H:i",
+                time_24hr: true,
+                locale: "es",
+                theme: "dark",
+                onChange: function() {
+                    validateExceptionForm();
+                }
+            }));
+        });
+    }
+
+    // ═══════════════════════════════════════════════════
+    // EXCEPTION FORM VALIDATION
+    // ═══════════════════════════════════════════════════
+    function initExceptionValidation() {
+        const requiredFields = document.querySelectorAll('.exc-required');
+        requiredFields.forEach(field => {
+            field.addEventListener('change', validateExceptionForm);
+            field.addEventListener('input', validateExceptionForm);
+        });
+    }
+
+    function validateExceptionForm() {
+        const startVal = document.getElementById('exc-start').value.trim();
+        const endVal = document.getElementById('exc-end').value.trim();
+        const btn = document.getElementById('btn-create-exception');
+        const allFilled = startVal && endVal;
+
+        btn.disabled = !allFilled;
+        btn.classList.toggle('opacity-50', !allFilled);
+        btn.classList.toggle('cursor-not-allowed', !allFilled);
+
+        // Red border on empty required fields when user has interacted
+        document.querySelectorAll('.exc-required').forEach(field => {
+            if (field.dataset.touched === 'true' && !field.value.trim()) {
+                field.classList.add('border-red-500');
+                field.classList.remove('border-neutral-700');
+            } else {
+                field.classList.remove('border-red-500');
+                field.classList.add('border-neutral-700');
+            }
+        });
+    }
+
+    // Mark fields as touched on first interaction
+    document.addEventListener('focusout', (e) => {
+        if (e.target.classList.contains('exc-required')) {
+            e.target.dataset.touched = 'true';
+            validateExceptionForm();
+        }
+    });
+
     // ── Tabs ──
     function showTab(tabId) {
         document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
@@ -383,9 +628,6 @@
         document.getElementById('bb-phone').value = '';
         document.getElementById('bb-bio').value = '';
         document.getElementById('bb-instagram').value = '';
-        document.getElementById('bb-buffer').value = '0';
-        document.getElementById('bb-lunch-start').value = '';
-        document.getElementById('bb-lunch-end').value = '';
         document.querySelectorAll('.bb-sucursal-check').forEach(c => c.checked = false);
         document.querySelectorAll('.bb-servicio-check').forEach(c => c.checked = false);
         document.getElementById('modal-barbero-title').textContent = 'Nuevo Barbero';
@@ -397,7 +639,7 @@
     // ── Edit Modal ──
     async function openEditModal(id) {
         const res = await fetch(`/app/barberos/api/${id}/`);
-        if (!res.ok) return alert('Error cargando datos');
+        if (!res.ok) return;
         const d = await res.json();
 
         document.getElementById('barber-edit-id').value = id;
@@ -409,9 +651,6 @@
         document.getElementById('bb-phone').value = d.phone;
         document.getElementById('bb-bio').value = d.bio;
         document.getElementById('bb-instagram').value = d.instagram;
-        document.getElementById('bb-buffer').value = d.buffer_minutes;
-        document.getElementById('bb-lunch-start').value = d.lunch_start;
-        document.getElementById('bb-lunch-end').value = d.lunch_end;
 
         document.querySelectorAll('.bb-sucursal-check').forEach(c => {
             c.checked = d.sucursal_ids.includes(parseInt(c.value));
@@ -443,9 +682,6 @@
             phone: document.getElementById('bb-phone').value.trim(),
             bio: document.getElementById('bb-bio').value.trim(),
             instagram: document.getElementById('bb-instagram').value.trim(),
-            buffer_minutes: parseInt(document.getElementById('bb-buffer').value) || 0,
-            lunch_start: document.getElementById('bb-lunch-start').value || '',
-            lunch_end: document.getElementById('bb-lunch-end').value || '',
             sucursal_ids: sucursalIds,
             servicio_ids: servicioIds,
         };
@@ -453,7 +689,15 @@
         const url = editId ? `/app/barberos/api/${editId}/update/` : '{% url "barberos:api_create" %}';
         const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
         if (res.ok) location.reload();
-        else alert((await res.json()).error || 'Error');
+        else {
+            const err = await res.json();
+            // Show inline error instead of alert
+            const btn = document.getElementById('btn-save-barber');
+            const orig = btn.textContent;
+            btn.textContent = err.error || 'Error';
+            btn.classList.add('bg-red-600');
+            setTimeout(() => { btn.textContent = orig; btn.classList.remove('bg-red-600'); }, 2000);
+        }
     }
 
     // ── Deactivate / Reactivate ──
@@ -467,13 +711,11 @@
         const id = document.getElementById('deactivate-barber-id').value;
         const res = await fetch(`/app/barberos/api/${id}/deactivate/`, { method: 'POST', headers, body: '{}' });
         if (res.ok) location.reload();
-        else alert((await res.json()).error || 'Error');
     }
 
     async function reactivateBarber(id) {
         const res = await fetch(`/app/barberos/api/${id}/reactivate/`, { method: 'POST', headers, body: '{}' });
         if (res.ok) location.reload();
-        else alert((await res.json()).error || 'Error');
     }
 
     // ═══════════════════════════════════════════════════
@@ -484,17 +726,85 @@
     async function openScheduleModal(id) {
         document.getElementById('schedule-barber-id').value = id;
         const res = await fetch(`/app/barberos/api/${id}/`);
-        if (!res.ok) return alert('Error cargando datos');
+        if (!res.ok) return;
         currentBarberData = await res.json();
+
+        // Populate lunch/buffer fields
+        document.getElementById('sched-lunch-start').value = currentBarberData.lunch_start || '';
+        document.getElementById('sched-lunch-end').value = currentBarberData.lunch_end || '';
+        document.getElementById('sched-buffer').value = currentBarberData.buffer_minutes || 0;
+
+        // Update flatpickr instances for lunch inputs
+        const lunchStartEl = document.getElementById('sched-lunch-start');
+        const lunchEndEl = document.getElementById('sched-lunch-end');
+        if (lunchStartEl._flatpickr) lunchStartEl._flatpickr.setDate(currentBarberData.lunch_start || '', false);
+        if (lunchEndEl._flatpickr) lunchEndEl._flatpickr.setDate(currentBarberData.lunch_end || '', false);
 
         renderScheduleDays(currentBarberData.schedules);
         renderExceptions(currentBarberData.exceptions);
         document.getElementById('exception-form').classList.add('hidden');
+
+        // Reset exception form
+        document.getElementById('exc-start').value = '';
+        document.getElementById('exc-end').value = '';
+        document.getElementById('exc-desc').value = '';
+        document.getElementById('exc-recurring').checked = false;
+        document.querySelectorAll('.exc-required').forEach(f => { f.dataset.touched = 'false'; });
+        validateExceptionForm();
+
         document.getElementById('modal-schedule').classList.remove('hidden');
+
+        // Init flatpickr on dynamically created schedule time inputs
+        requestAnimationFrame(() => {
+            document.querySelectorAll('#schedule-days .sched-time-input').forEach(el => {
+                if (!el._flatpickr) {
+                    flatpickr(el, {
+                        enableTime: true,
+                        noCalendar: true,
+                        dateFormat: "H:i",
+                        time_24hr: true,
+                        locale: "es",
+                        theme: "dark"
+                    });
+                }
+            });
+        });
     }
 
     function closeScheduleModal() {
         document.getElementById('modal-schedule').classList.add('hidden');
+    }
+
+    function toggleAccordion(dayIndex) {
+        const content = document.getElementById(`accordion-content-${dayIndex}`);
+        const icon = document.getElementById(`accordion-icon-${dayIndex}`);
+        const checkbox = document.querySelector(`.sched-day-check[data-day="${dayIndex}"]`);
+
+        if (content.classList.contains('open')) {
+            content.classList.remove('open');
+            icon.style.transform = 'rotate(0deg)';
+        } else {
+            content.classList.add('open');
+            icon.style.transform = 'rotate(180deg)';
+        }
+    }
+
+    function toggleDay(dayIndex, checkbox) {
+        const content = document.getElementById(`accordion-content-${dayIndex}`);
+        const icon = document.getElementById(`accordion-icon-${dayIndex}`);
+        const label = document.getElementById(`day-label-${dayIndex}`);
+
+        if (checkbox.checked) {
+            content.classList.add('open');
+            icon.style.transform = 'rotate(180deg)';
+            label.innerHTML = '';
+            content.querySelectorAll('input[type=text]').forEach(t => t.disabled = false);
+        } else {
+            content.classList.remove('open');
+            icon.style.transform = 'rotate(0deg)';
+            label.innerHTML = '<span class="text-xs text-neutral-500 bg-neutral-800 px-2 py-0.5 rounded-full hover:bg-neutral-750 transition-colors">Libre</span>';
+            content.querySelectorAll('input[type=text]').forEach(t => t.disabled = true);
+        }
     }
 
     function renderScheduleDays(schedules) {
@@ -507,16 +817,38 @@
             const checked = s ? 'checked' : '';
             const startVal = s ? s.start_time : '08:00';
             const endVal = s ? s.end_time : '20:00';
+            const isOpen = s ? 'open' : '';
+            const iconRotate = s ? 'style="transform: rotate(180deg)"' : '';
+            const freeLabel = !s ? '<span class="text-xs text-neutral-500 bg-neutral-800 px-2 py-0.5 rounded-full hover:bg-neutral-750 transition-colors">Libre</span>' : '';
+
             return `
-        <div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-neutral-800">
-            <label class="flex items-center gap-2 w-28 flex-shrink-0 cursor-pointer">
-                <input type="checkbox" class="sched-day-check rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-700" data-day="${i}" ${checked}
-                       onchange="this.closest('.flex').querySelectorAll('input[type=time]').forEach(t=>t.disabled=!this.checked)">
-                <span class="text-sm text-white font-medium">${dayName}</span>
-            </label>
-            <input type="time" class="sched-start px-3 py-2 bg-neutral-700 border border-neutral-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand transition-colors ${!s ? 'opacity-50' : ''}" data-day="${i}" value="${startVal}" ${!s ? 'disabled' : ''}>
-            <span class="text-neutral-500 text-xs">a</span>
-            <input type="time" class="sched-end px-3 py-2 bg-neutral-700 border border-neutral-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand transition-colors ${!s ? 'opacity-50' : ''}" data-day="${i}" value="${endVal}" ${!s ? 'disabled' : ''}>
+        <div class="rounded-lg border border-neutral-800 overflow-hidden">
+            <!-- Accordion header -->
+            <div class="flex items-center justify-between px-3 py-2.5 bg-neutral-800/50 cursor-pointer select-none" onclick="toggleAccordion(${i})">
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" class="sched-day-check rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-700" data-day="${i}" ${checked}
+                           onclick="event.stopPropagation(); toggleDay(${i}, this)">
+                    <span class="text-sm text-white font-medium">${dayName}</span>
+                    <span id="day-label-${i}">${freeLabel}</span>
+                </div>
+                <svg id="accordion-icon-${i}" class="w-4 h-4 text-neutral-400 transition-transform duration-200" ${iconRotate} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+            </div>
+            <!-- Accordion content -->
+            <div id="accordion-content-${i}" class="accordion-content ${isOpen}">
+                <div class="flex items-center gap-3 px-4 py-3">
+                    <div class="flex-1">
+                        <label class="text-[10px] text-neutral-500 mb-1 block uppercase tracking-wider">Entrada</label>
+                        <input type="text" class="sched-start sched-time-input w-full px-3 py-2 bg-neutral-700 border border-neutral-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand transition-colors" data-day="${i}" value="${startVal}" ${!s ? 'disabled' : ''}>
+                    </div>
+                    <span class="text-neutral-500 text-xs mt-4">a</span>
+                    <div class="flex-1">
+                        <label class="text-[10px] text-neutral-500 mb-1 block uppercase tracking-wider">Salida</label>
+                        <input type="text" class="sched-end sched-time-input w-full px-3 py-2 bg-neutral-700 border border-neutral-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand transition-colors" data-day="${i}" value="${endVal}" ${!s ? 'disabled' : ''}>
+                    </div>
+                </div>
+            </div>
         </div>`;
         }).join('');
     }
@@ -531,18 +863,22 @@
             if (start && end) schedules.push({ day_of_week: day, start_time: start, end_time: end });
         });
 
+        const payload = {
+            schedules,
+            buffer_minutes: parseInt(document.getElementById('sched-buffer').value) || 0,
+            lunch_start: document.getElementById('sched-lunch-start').value || '',
+            lunch_end: document.getElementById('sched-lunch-end').value || '',
+        };
+
         const res = await fetch(`/app/barberos/api/${id}/horarios/`, {
-            method: 'POST', headers, body: JSON.stringify({ schedules }),
+            method: 'POST', headers, body: JSON.stringify(payload),
         });
         if (res.ok) {
-            // Show brief success feedback
             const btn = document.querySelector('#modal-schedule .btn-primary');
             const orig = btn.textContent;
             btn.textContent = '¡Guardado!';
             btn.classList.add('bg-green-600');
             setTimeout(() => { btn.textContent = orig; btn.classList.remove('bg-green-600'); }, 1500);
-        } else {
-            alert((await res.json()).error || 'Error');
         }
     }
 
@@ -574,23 +910,31 @@
 
     async function createException() {
         const id = document.getElementById('schedule-barber-id').value;
+        const startVal = document.getElementById('exc-start').value;
+        const endVal = document.getElementById('exc-end').value;
+
+        // Validate required fields
+        if (!startVal || !endVal) {
+            document.querySelectorAll('.exc-required').forEach(f => {
+                f.dataset.touched = 'true';
+            });
+            validateExceptionForm();
+            return;
+        }
+
         const payload = {
             exception_type: document.getElementById('exc-type').value,
             description: document.getElementById('exc-desc').value,
-            start: document.getElementById('exc-start').value,
-            end: document.getElementById('exc-end').value,
+            start: startVal.replace(' ', 'T'),
+            end: endVal.replace(' ', 'T'),
             is_recurring: document.getElementById('exc-recurring').checked,
         };
-        if (!payload.start || !payload.end) return alert('Inicio y fin son requeridos');
 
         const res = await fetch(`/app/barberos/api/${id}/excepciones/create/`, {
             method: 'POST', headers, body: JSON.stringify(payload),
         });
         if (res.ok) {
-            // Refresh data
             openScheduleModal(parseInt(id));
-        } else {
-            alert((await res.json()).error || 'Error');
         }
     }
 
@@ -601,7 +945,6 @@
             method: 'POST', headers, body: '{}',
         });
         if (res.ok) openScheduleModal(parseInt(id));
-        else alert((await res.json()).error || 'Error');
     }
 </script>
 {% endblock %}
