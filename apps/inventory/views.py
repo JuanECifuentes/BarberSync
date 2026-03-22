@@ -23,52 +23,23 @@ class ProductListView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         org = self.request.organization
-        barbershop = self.request.barbershop
 
-        # Determine which barbershop(s) to show
-        sucursal_filter = self.request.GET.get("sucursal")
-        all_sucursales = Barbershop.objects.filter(organization=org, is_active=True).order_by("name")
-        ctx["sucursales"] = all_sucursales
+        ctx["sucursales"] = Barbershop.objects.filter(
+            organization=org, is_active=True
+        ).order_by("name")
 
-        if sucursal_filter:
-            try:
-                target_shop = Barbershop.objects.get(pk=sucursal_filter, organization=org, is_active=True)
-            except Barbershop.DoesNotExist:
-                target_shop = barbershop
-        else:
-            target_shop = barbershop
+        # All active products across ALL barbershops in the org
+        qs = (
+            Product.objects
+            .filter(barbershop__organization=org, barbershop__is_active=True, is_active=True)
+            .select_related("category", "barbershop")
+            .order_by("category__name", "name")
+        )
 
-        ctx["selected_sucursal"] = target_shop
-
-        # Base queryset
-        qs = Product.objects.filter(barbershop=target_shop, is_active=True).select_related("category")
-
-        # Column filters
-        nombre = self.request.GET.get("nombre")
-        if nombre:
-            qs = qs.filter(name__icontains=nombre)
-
-        sku = self.request.GET.get("sku")
-        if sku:
-            qs = qs.filter(sku__icontains=sku)
-
-        category = self.request.GET.get("category")
-        if category:
-            qs = qs.filter(category_id=category)
-
-        stock_bajo = self.request.GET.get("stock_bajo")
-        if stock_bajo:
-            qs = qs.filter(stock_quantity__lte=F("low_stock_threshold"))
-
-        q = self.request.GET.get("q")
-        if q:
-            qs = qs.filter(name__icontains=q)
-
-        # Group products by category for accordion
-        products = qs.order_by("category__name", "name")
+        # Group by category for accordion rendering
         grouped = OrderedDict()
         uncategorized = []
-        for p in products:
+        for p in qs:
             if p.category:
                 cat_name = p.category.name
                 if cat_name not in grouped:
@@ -84,11 +55,15 @@ class ProductListView(LoginRequiredMixin, TemplateView):
         ctx["total_products"] = qs.count()
         ctx["low_stock_count"] = (
             Product.objects
-            .filter(barbershop=target_shop, is_active=True, stock_quantity__lte=F("low_stock_threshold"))
+            .filter(
+                barbershop__organization=org, barbershop__is_active=True,
+                is_active=True, stock_quantity__lte=F("low_stock_threshold"),
+            )
             .count()
         )
-        ctx["categories"] = ProductCategory.objects.filter(barbershop=target_shop)
-        ctx["barbershop"] = target_shop
+        ctx["categories"] = ProductCategory.objects.filter(
+            barbershop__organization=org, barbershop__is_active=True
+        ).distinct().order_by("name")
         return ctx
 
 
