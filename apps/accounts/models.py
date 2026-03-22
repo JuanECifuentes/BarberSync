@@ -209,6 +209,15 @@ class BarberProfile(models.Model):
     photo = models.ImageField(upload_to="barber_photos/", blank=True)
     instagram = models.URLField(blank=True)
 
+    # Multi-sucursal assignment
+    sucursales = models.ManyToManyField(
+        Barbershop,
+        related_name="barberos",
+        blank=True,
+        verbose_name="sucursales asignadas",
+        help_text="Sucursales donde trabaja este barbero.",
+    )
+
     # Time management
     buffer_minutes = models.PositiveSmallIntegerField(
         "descanso entre servicios (min)", default=0,

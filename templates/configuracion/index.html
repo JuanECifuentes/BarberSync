@@ -1,0 +1,302 @@
+{% extends "base.html" %}
+
+{% block title %}Configuración – BarberSync{% endblock %}
+{% block page_title %}Configuración{% endblock %}
+
+{% block content %}
+<div class="space-y-8 max-w-4xl">
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- ORGANIZACIÓN                                -->
+    <!-- ═══════════════════════════════════════════ -->
+    <section class="card">
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="font-heading font-bold text-xl text-white">Organización</h2>
+            {% if is_owner %}
+            <button onclick="saveOrganization()" class="btn-primary text-sm">Guardar cambios</button>
+            {% endif %}
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-6">
+            <!-- Logo -->
+            <div class="flex-shrink-0">
+                <div id="org-logo-preview" class="w-24 h-24 rounded-xl border-2 border-dashed border-neutral-700 flex items-center justify-center overflow-hidden bg-neutral-800 cursor-pointer hover:border-brand transition-colors"
+                     onclick="document.getElementById('logo-input').click()">
+                    {% if organization.logo %}
+                    <img src="{{ organization.logo.url }}" alt="Logo" class="w-full h-full object-cover">
+                    {% else %}
+                    <div class="text-center">
+                        <svg class="w-8 h-8 mx-auto text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
+                        <span class="text-[10px] text-neutral-500 mt-1 block">Logo</span>
+                    </div>
+                    {% endif %}
+                </div>
+                <input type="file" id="logo-input" accept="image/*" class="hidden" onchange="uploadLogo(this)">
+            </div>
+
+            <!-- Fields -->
+            <div class="flex-1 space-y-4">
+                <div>
+                    <label class="text-xs text-neutral-400 mb-1 block">Nombre de la organización</label>
+                    <input id="org-name" type="text" value="{{ organization.name }}"
+                           class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors"
+                           {% if not is_owner %}disabled{% endif %}>
+                </div>
+                <div>
+                    <label class="text-xs text-neutral-400 mb-1 block">Slug (URL)</label>
+                    <input id="org-slug" type="text" value="{{ organization.slug }}"
+                           class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors"
+                           {% if not is_owner %}disabled{% endif %}>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- SUCURSALES                                  -->
+    <!-- ═══════════════════════════════════════════ -->
+    <section>
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="font-heading font-bold text-xl text-white">Sucursales</h2>
+            <button onclick="openSucursalModal()" class="btn-primary text-sm">+ Nueva Sucursal</button>
+        </div>
+
+        <!-- Sucursales activas -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="sucursales-grid">
+            {% for s in sucursales %}
+            <div class="card card-hover group" id="sucursal-{{ s.pk }}">
+                <div class="flex items-start justify-between">
+                    <div class="min-w-0">
+                        <p class="font-medium text-white truncate">{{ s.name }}</p>
+                        {% if s.address %}
+                        <p class="text-xs text-neutral-500 mt-1 truncate">{{ s.address }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="flex items-center gap-2 ml-2">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-900/40 text-green-400 border border-green-800/50">Activa</span>
+                    </div>
+                </div>
+                <div class="mt-3 flex items-center justify-between text-xs text-neutral-400">
+                    <span>{{ s.open_hour }}:00 – {{ s.close_hour }}:00</span>
+                    <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onclick="editSucursal({{ s.pk }}, '{{ s.name|escapejs }}', '{{ s.address|escapejs }}', '{{ s.phone|escapejs }}', {{ s.open_hour }}, {{ s.close_hour }})"
+                                class="text-brand hover:text-brand-400 transition-colors">Editar</button>
+                        <button onclick="confirmDeactivateSucursal({{ s.pk }}, '{{ s.name|escapejs }}')"
+                                class="text-red-400 hover:text-red-300 transition-colors">Desactivar</button>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-span-full text-center py-12 text-neutral-500">No hay sucursales registradas.</div>
+            {% endfor %}
+        </div>
+
+        <!-- Sucursales inactivas -->
+        {% if sucursales_inactivas %}
+        <div class="mt-6">
+            <button onclick="document.getElementById('inactivas-section').classList.toggle('hidden')"
+                    class="text-sm text-neutral-500 hover:text-neutral-300 transition-colors flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+                {{ sucursales_inactivas|length }} sucursal{{ sucursales_inactivas|length|pluralize:"es" }} inactiva{{ sucursales_inactivas|length|pluralize:"s" }}
+            </button>
+            <div id="inactivas-section" class="hidden mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                {% for s in sucursales_inactivas %}
+                <div class="card border-neutral-800/50 opacity-60 group hover:opacity-100 transition-opacity">
+                    <div class="flex items-center justify-between">
+                        <div class="min-w-0">
+                            <p class="font-medium text-neutral-400 truncate">{{ s.name }}</p>
+                        </div>
+                        <button onclick="reactivateSucursal({{ s.pk }})"
+                                class="text-xs text-green-400 hover:text-green-300 opacity-0 group-hover:opacity-100 transition-all">
+                            Reactivar
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </section>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- MODAL: Crear/Editar Sucursal               -->
+<!-- ═══════════════════════════════════════════ -->
+<div id="modal-sucursal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+    <div class="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
+        <div class="flex items-center justify-between">
+            <h3 id="modal-sucursal-title" class="font-heading font-bold text-lg text-white">Nueva Sucursal</h3>
+            <button onclick="closeSucursalModal()" class="text-neutral-400 hover:text-white transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <input type="hidden" id="suc-edit-id" value="">
+        <div class="space-y-3">
+            <input id="suc-name" type="text" placeholder="Nombre de la sucursal"
+                   class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+            <textarea id="suc-address" rows="2" placeholder="Dirección"
+                      class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors resize-none"></textarea>
+            <input id="suc-phone" type="text" placeholder="Teléfono"
+                   class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs text-neutral-400 mb-1 block">Hora apertura</label>
+                    <input id="suc-open" type="number" min="0" max="23" value="8"
+                           class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                </div>
+                <div>
+                    <label class="text-xs text-neutral-400 mb-1 block">Hora cierre</label>
+                    <input id="suc-close" type="number" min="0" max="23" value="20"
+                           class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                </div>
+            </div>
+        </div>
+        <button onclick="saveSucursal()" class="btn-primary w-full" id="btn-save-sucursal">Crear Sucursal</button>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- MODAL: Confirmación de desactivación       -->
+<!-- ═══════════════════════════════════════════ -->
+<div id="modal-confirm-deactivate" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+    <div class="w-full max-w-sm bg-neutral-900 border border-red-900/50 rounded-xl p-6 space-y-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-red-900/30 flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                </svg>
+            </div>
+            <div>
+                <h3 class="font-heading font-bold text-white">Desactivar sucursal</h3>
+                <p class="text-xs text-neutral-400 mt-1">Esta acción no elimina datos, pero la sucursal dejará de estar disponible.</p>
+            </div>
+        </div>
+        <p class="text-sm text-neutral-300">
+            ¿Estás seguro de desactivar <strong id="deactivate-name" class="text-brand"></strong>?
+            Los barberos y citas asociadas podrían perder acceso a la información de esta sucursal.
+        </p>
+        <input type="hidden" id="deactivate-id" value="">
+        <div class="flex gap-3">
+            <button onclick="closeDeactivateModal()" class="btn-secondary flex-1 text-sm">Cancelar</button>
+            <button onclick="deactivateSucursal()" class="flex-1 text-sm bg-red-600 text-white font-semibold px-4 py-3 rounded-lg hover:bg-red-500 transition-colors">Desactivar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function getCookie(name) {
+    const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return v ? v.pop() : '';
+}
+const csrfToken = getCookie('csrftoken');
+const headers = {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken};
+
+// ── Organization ──
+async function saveOrganization() {
+    const res = await fetch('{% url "configuracion:api_org_update" %}', {
+        method: 'POST', headers,
+        body: JSON.stringify({
+            name: document.getElementById('org-name').value,
+            slug: document.getElementById('org-slug').value,
+        }),
+    });
+    if (res.ok) location.reload();
+    else alert((await res.json()).error || 'Error');
+}
+
+async function uploadLogo(input) {
+    if (!input.files[0]) return;
+    const fd = new FormData();
+    fd.append('logo', input.files[0]);
+    const res = await fetch('{% url "configuracion:api_org_logo" %}', {
+        method: 'POST',
+        headers: {'X-CSRFToken': csrfToken},
+        body: fd,
+    });
+    if (res.ok) {
+        const data = await res.json();
+        document.getElementById('org-logo-preview').innerHTML =
+            `<img src="${data.logo_url}" alt="Logo" class="w-full h-full object-cover">`;
+    } else {
+        alert('Error al subir logo');
+    }
+}
+
+// ── Sucursales ──
+function openSucursalModal() {
+    document.getElementById('suc-edit-id').value = '';
+    document.getElementById('suc-name').value = '';
+    document.getElementById('suc-address').value = '';
+    document.getElementById('suc-phone').value = '';
+    document.getElementById('suc-open').value = '8';
+    document.getElementById('suc-close').value = '20';
+    document.getElementById('modal-sucursal-title').textContent = 'Nueva Sucursal';
+    document.getElementById('btn-save-sucursal').textContent = 'Crear Sucursal';
+    document.getElementById('modal-sucursal').classList.remove('hidden');
+}
+
+function editSucursal(id, name, address, phone, open, close) {
+    document.getElementById('suc-edit-id').value = id;
+    document.getElementById('suc-name').value = name;
+    document.getElementById('suc-address').value = address;
+    document.getElementById('suc-phone').value = phone;
+    document.getElementById('suc-open').value = open;
+    document.getElementById('suc-close').value = close;
+    document.getElementById('modal-sucursal-title').textContent = 'Editar Sucursal';
+    document.getElementById('btn-save-sucursal').textContent = 'Guardar cambios';
+    document.getElementById('modal-sucursal').classList.remove('hidden');
+}
+
+function closeSucursalModal() {
+    document.getElementById('modal-sucursal').classList.add('hidden');
+}
+
+async function saveSucursal() {
+    const editId = document.getElementById('suc-edit-id').value;
+    const payload = {
+        name: document.getElementById('suc-name').value.trim(),
+        address: document.getElementById('suc-address').value,
+        phone: document.getElementById('suc-phone').value,
+        open_hour: parseInt(document.getElementById('suc-open').value) || 8,
+        close_hour: parseInt(document.getElementById('suc-close').value) || 20,
+    };
+    const url = editId
+        ? `/app/configuracion/api/sucursales/${editId}/update/`
+        : '{% url "configuracion:api_sucursal_create" %}';
+    const res = await fetch(url, {method: 'POST', headers, body: JSON.stringify(payload)});
+    if (res.ok) location.reload();
+    else alert((await res.json()).error || 'Error');
+}
+
+function confirmDeactivateSucursal(id, name) {
+    document.getElementById('deactivate-id').value = id;
+    document.getElementById('deactivate-name').textContent = name;
+    document.getElementById('modal-confirm-deactivate').classList.remove('hidden');
+}
+
+function closeDeactivateModal() {
+    document.getElementById('modal-confirm-deactivate').classList.add('hidden');
+}
+
+async function deactivateSucursal() {
+    const id = document.getElementById('deactivate-id').value;
+    const res = await fetch(`/app/configuracion/api/sucursales/${id}/deactivate/`, {
+        method: 'POST', headers, body: '{}',
+    });
+    if (res.ok) location.reload();
+    else alert((await res.json()).error || 'Error');
+}
+
+async function reactivateSucursal(id) {
+    const res = await fetch(`/app/configuracion/api/sucursales/${id}/reactivate/`, {
+        method: 'POST', headers, body: '{}',
+    });
+    if (res.ok) location.reload();
+    else alert((await res.json()).error || 'Error');
+}
+</script>
+{% endblock %}

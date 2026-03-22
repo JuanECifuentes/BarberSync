@@ -1,0 +1,606 @@
+{% extends "base.html" %}
+
+{% block title %}Barberos – BarberSync{% endblock %}
+{% block page_title %}Barberos{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between flex-wrap gap-3">
+        <h2 class="font-heading font-bold text-xl text-white">Equipo de Barberos</h2>
+        <button onclick="openCreateModal()" class="btn-primary text-sm">+ Nuevo Barbero</button>
+    </div>
+
+    <!-- Barbers grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" id="barberos-grid">
+        {% for b in barberos %}
+        <div class="card card-hover group" id="barbero-card-{{ b.pk }}">
+            <div class="flex items-start gap-3">
+                <!-- Avatar -->
+                <div class="flex-shrink-0">
+                    {% if b.photo %}
+                    <img src="{{ b.photo.url }}" alt="{{ b }}"
+                        class="w-12 h-12 rounded-full object-cover border-2 border-neutral-700">
+                    {% else %}
+                    <div
+                        class="w-12 h-12 rounded-full bg-brand/10 border-2 border-brand/30 flex items-center justify-center">
+                        <span class="font-heading font-bold text-brand text-lg">
+                            {{ b.display_name|default:b.user.first_name|first|upper }}
+                        </span>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="min-w-0 flex-1">
+                    <p class="font-medium text-white truncate">{{ b.display_name|default:b.user.get_full_name }}</p>
+                    <p class="text-xs text-neutral-500 truncate">{{ b.user.email }}</p>
+                    {% if b.phone %}
+                    <p class="text-xs text-neutral-500">{{ b.phone }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Services count & sucursales -->
+            <div class="mt-3 flex items-center justify-between">
+                <div class="flex items-center gap-3 text-xs text-neutral-400">
+                    <span class="flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5"
+                            viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="6" cy="6" r="3"></circle>
+                            <circle cx="6" cy="18" r="3"></circle>
+                            <path d="M20 4L8.12 15.88"></path>
+                            <path d="M14.47 14.48L20 20"></path>
+                            <path d="M8.12 8.12L12 12"></path>
+                        </svg>
+                        {{ b.barber_services.count }} servicio{{ b.barber_services.count|pluralize:"s" }}
+                    </span>
+                    <span class="flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                        {{ b.sucursales.count }} sucursal{{ b.sucursales.count|pluralize:"es" }}
+                    </span>
+                </div>
+                <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onclick="openScheduleModal({{ b.pk }})"
+                        class="text-xs text-neutral-400 hover:text-white transition-colors" title="Horarios">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </button>
+                    <button onclick="openEditModal({{ b.pk }})"
+                        class="text-xs text-brand hover:text-brand-400 transition-colors">Editar</button>
+                    <button
+                        onclick="confirmDeactivateBarber({{ b.pk }}, '{{ b.display_name|default:b.user.get_full_name|escapejs }}')"
+                        class="text-xs text-red-400 hover:text-red-300 transition-colors">Desactivar</button>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-span-full text-center py-12 text-neutral-500">
+            No hay barberos registrados.
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Inactive barbers -->
+    {% if barberos_inactivos %}
+    <div class="mt-4">
+        <button onclick="document.getElementById('inactivos-section').classList.toggle('hidden')"
+            class="text-sm text-neutral-500 hover:text-neutral-300 transition-colors flex items-center gap-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+            {{ barberos_inactivos|length }} barbero{{ barberos_inactivos|length|pluralize:"s" }} inactivo{{
+            barberos_inactivos|length|pluralize:"s" }}
+        </button>
+        <div id="inactivos-section" class="hidden mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {% for b in barberos_inactivos %}
+            <div class="card border-neutral-800/50 opacity-60 group hover:opacity-100 transition-opacity">
+                <div class="flex items-center justify-between">
+                    <p class="font-medium text-neutral-400 truncate">{{ b.display_name|default:b.user.get_full_name }}
+                    </p>
+                    <button onclick="reactivateBarber({{ b.pk }})"
+                        class="text-xs text-green-400 hover:text-green-300 opacity-0 group-hover:opacity-100 transition-all">Reactivar</button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- MODAL: Crear / Editar Barbero                      -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div id="modal-barbero"
+    class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 overflow-y-auto">
+    <div class="w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4 my-8">
+        <div class="flex items-center justify-between">
+            <h3 id="modal-barbero-title" class="font-heading font-bold text-lg text-white">Nuevo Barbero</h3>
+            <button onclick="closeBarberModal()" class="text-neutral-400 hover:text-white transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <input type="hidden" id="barber-edit-id" value="">
+
+        <!-- Tabs -->
+        <div class="flex border-b border-neutral-800">
+            <button onclick="showTab('tab-info')"
+                class="tab-btn active px-4 py-2 text-sm font-medium border-b-2 border-brand text-brand"
+                data-tab="tab-info">Información</button>
+            <button onclick="showTab('tab-assign')"
+                class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-white"
+                data-tab="tab-assign">Asignaciones</button>
+            <button onclick="showTab('tab-time')"
+                class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-white"
+                data-tab="tab-time">Tiempo</button>
+        </div>
+
+        <!-- Tab: Info -->
+        <div id="tab-info" class="tab-panel space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+                <input id="bb-first-name" type="text" placeholder="Nombre *"
+                    class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                <input id="bb-last-name" type="text" placeholder="Apellido"
+                    class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+            </div>
+            <input id="bb-email" type="email" placeholder="Correo electrónico *"
+                class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+            <input id="bb-display-name" type="text" placeholder="Nombre artístico (opcional)"
+                class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+            <input id="bb-phone" type="text" placeholder="Teléfono"
+                class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+            <textarea id="bb-bio" rows="2" placeholder="Biografía (opcional)"
+                class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors resize-none"></textarea>
+            <input id="bb-instagram" type="url" placeholder="Instagram URL (opcional)"
+                class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+        </div>
+
+        <!-- Tab: Assignments -->
+        <div id="tab-assign" class="tab-panel hidden space-y-4">
+            <!-- Sucursales -->
+            <div>
+                <label class="text-xs text-neutral-400 mb-2 block font-medium uppercase tracking-wider">Sucursales
+                    asignadas</label>
+                <div class="space-y-2 max-h-32 overflow-y-auto" id="bb-sucursales-list">
+                    {% for s in sucursales %}
+                    <label
+                        class="flex items-center gap-2 px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-750 cursor-pointer transition-colors">
+                        <input type="checkbox" value="{{ s.pk }}"
+                            class="bb-sucursal-check rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-700">
+                        <span class="text-sm text-white">{{ s.name }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            <!-- Servicios -->
+            <div>
+                <label class="text-xs text-neutral-400 mb-2 block font-medium uppercase tracking-wider">Servicios que
+                    realiza</label>
+                <div class="space-y-2 max-h-40 overflow-y-auto" id="bb-servicios-list">
+                    {% for svc in servicios %}
+                    <label
+                        class="flex items-center justify-between px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-750 cursor-pointer transition-colors">
+                        <span class="flex items-center gap-2">
+                            <input type="checkbox" value="{{ svc.pk }}"
+                                class="bb-servicio-check rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-700">
+                            <span class="text-sm text-white">{{ svc.name }}</span>
+                        </span>
+                        <span class="text-xs text-neutral-500">${{ svc.price }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Time management -->
+        <div id="tab-time" class="tab-panel hidden space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs text-neutral-400 mb-1 block">Buffer entre citas (min)</label>
+                    <input id="bb-buffer" type="number" min="0" value="0"
+                        class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                </div>
+                <div></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs text-neutral-400 mb-1 block">Inicio almuerzo</label>
+                    <input id="bb-lunch-start" type="time"
+                        class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                </div>
+                <div>
+                    <label class="text-xs text-neutral-400 mb-1 block">Fin almuerzo</label>
+                    <input id="bb-lunch-end" type="time"
+                        class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                </div>
+            </div>
+        </div>
+
+        <button onclick="saveBarber()" class="btn-primary w-full" id="btn-save-barber">Crear Barbero</button>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- MODAL: Horarios del Barbero                        -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div id="modal-schedule"
+    class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 overflow-y-auto">
+    <div class="w-full max-w-2xl bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4 my-8">
+        <div class="flex items-center justify-between">
+            <h3 class="font-heading font-bold text-lg text-white">Horario Semanal</h3>
+            <button onclick="closeScheduleModal()" class="text-neutral-400 hover:text-white transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <input type="hidden" id="schedule-barber-id" value="">
+
+        <p class="text-xs text-neutral-500">Marca los días que trabaja y establece sus horas. Los días sin marcar se
+            consideran libres.</p>
+
+        <!-- Weekly schedule -->
+        <div class="space-y-2" id="schedule-days">
+            <!-- Generated by JS -->
+        </div>
+
+        <button onclick="saveSchedule()" class="btn-primary w-full">Guardar Horario</button>
+
+        <!-- ── Excepciones / Permisos ── -->
+        <div class="border-t border-neutral-800 pt-4 mt-4">
+            <div class="flex items-center justify-between mb-3">
+                <h4 class="font-heading font-bold text-sm text-white">Excepciones y Permisos</h4>
+                <button onclick="document.getElementById('exception-form').classList.toggle('hidden')"
+                    class="btn-secondary text-xs flex items-center gap-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Añadir Excepción/Permiso
+                </button>
+            </div>
+
+            <!-- Exception form (hidden by default) -->
+            <div id="exception-form" class="hidden card mb-3 space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs text-neutral-400 mb-1 block">Tipo</label>
+                        <select id="exc-type"
+                            class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                            <option value="vacation">Vacaciones</option>
+                            <option value="sick_leave">Permiso médico</option>
+                            <option value="personal">Permiso personal</option>
+                            <option value="lunch">Almuerzo</option>
+                            <option value="break">Descanso</option>
+                            <option value="other">Otro</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs text-neutral-400 mb-1 block">Descripción</label>
+                        <input id="exc-desc" type="text" placeholder="Motivo"
+                            class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs text-neutral-400 mb-1 block">Inicio</label>
+                        <input id="exc-start" type="datetime-local"
+                            class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                    </div>
+                    <div>
+                        <label class="text-xs text-neutral-400 mb-1 block">Fin</label>
+                        <input id="exc-end" type="datetime-local"
+                            class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                    </div>
+                </div>
+                <label class="flex items-center gap-2 text-sm text-neutral-300">
+                    <input id="exc-recurring" type="checkbox"
+                        class="rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-700">
+                    Recurrente (se repite semanalmente)
+                </label>
+                <button onclick="createException()" class="btn-primary text-sm w-full">Registrar Excepción</button>
+            </div>
+
+            <!-- Exceptions list -->
+            <div id="exceptions-list" class="space-y-2">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- MODAL: Confirmación desactivación                  -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div id="modal-confirm-deactivate" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+    <div class="w-full max-w-sm bg-neutral-900 border border-red-900/50 rounded-xl p-6 space-y-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-red-900/30 flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+            </div>
+            <div>
+                <h3 class="font-heading font-bold text-white">Desactivar barbero</h3>
+                <p class="text-xs text-neutral-400 mt-1">El barbero no será eliminado, pero dejará de estar activo en el
+                    sistema.</p>
+            </div>
+        </div>
+        <p class="text-sm text-neutral-300">
+            ¿Desactivar a <strong id="deactivate-barber-name" class="text-brand"></strong>?
+            Sus citas futuras y datos históricos se conservarán.
+        </p>
+        <input type="hidden" id="deactivate-barber-id" value="">
+        <div class="flex gap-3">
+            <button onclick="document.getElementById('modal-confirm-deactivate').classList.add('hidden')"
+                class="btn-secondary flex-1 text-sm">Cancelar</button>
+            <button onclick="deactivateBarber()"
+                class="flex-1 text-sm bg-red-600 text-white font-semibold px-4 py-3 rounded-lg hover:bg-red-500 transition-colors">Desactivar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function getCookie(name) {
+        const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+        return v ? v.pop() : '';
+    }
+    const csrfToken = getCookie('csrftoken');
+    const headers = { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken };
+
+    const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    const EXC_TYPES = { vacation: 'Vacaciones', sick_leave: 'Permiso médico', personal: 'Personal', lunch: 'Almuerzo', break: 'Descanso', other: 'Otro' };
+
+    // ── Tabs ──
+    function showTab(tabId) {
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(b => {
+            b.classList.remove('border-brand', 'text-brand');
+            b.classList.add('border-transparent', 'text-neutral-400');
+        });
+        document.getElementById(tabId).classList.remove('hidden');
+        const btn = document.querySelector(`[data-tab="${tabId}"]`);
+        btn.classList.add('border-brand', 'text-brand');
+        btn.classList.remove('border-transparent', 'text-neutral-400');
+    }
+
+    // ── Create Modal ──
+    function openCreateModal() {
+        document.getElementById('barber-edit-id').value = '';
+        document.getElementById('bb-first-name').value = '';
+        document.getElementById('bb-last-name').value = '';
+        document.getElementById('bb-email').value = '';
+        document.getElementById('bb-email').disabled = false;
+        document.getElementById('bb-display-name').value = '';
+        document.getElementById('bb-phone').value = '';
+        document.getElementById('bb-bio').value = '';
+        document.getElementById('bb-instagram').value = '';
+        document.getElementById('bb-buffer').value = '0';
+        document.getElementById('bb-lunch-start').value = '';
+        document.getElementById('bb-lunch-end').value = '';
+        document.querySelectorAll('.bb-sucursal-check').forEach(c => c.checked = false);
+        document.querySelectorAll('.bb-servicio-check').forEach(c => c.checked = false);
+        document.getElementById('modal-barbero-title').textContent = 'Nuevo Barbero';
+        document.getElementById('btn-save-barber').textContent = 'Crear Barbero';
+        showTab('tab-info');
+        document.getElementById('modal-barbero').classList.remove('hidden');
+    }
+
+    // ── Edit Modal ──
+    async function openEditModal(id) {
+        const res = await fetch(`/app/barberos/api/${id}/`);
+        if (!res.ok) return alert('Error cargando datos');
+        const d = await res.json();
+
+        document.getElementById('barber-edit-id').value = id;
+        document.getElementById('bb-first-name').value = d.first_name;
+        document.getElementById('bb-last-name').value = d.last_name;
+        document.getElementById('bb-email').value = d.email;
+        document.getElementById('bb-email').disabled = true;
+        document.getElementById('bb-display-name').value = d.display_name;
+        document.getElementById('bb-phone').value = d.phone;
+        document.getElementById('bb-bio').value = d.bio;
+        document.getElementById('bb-instagram').value = d.instagram;
+        document.getElementById('bb-buffer').value = d.buffer_minutes;
+        document.getElementById('bb-lunch-start').value = d.lunch_start;
+        document.getElementById('bb-lunch-end').value = d.lunch_end;
+
+        document.querySelectorAll('.bb-sucursal-check').forEach(c => {
+            c.checked = d.sucursal_ids.includes(parseInt(c.value));
+        });
+        document.querySelectorAll('.bb-servicio-check').forEach(c => {
+            c.checked = d.servicio_ids.includes(parseInt(c.value));
+        });
+
+        document.getElementById('modal-barbero-title').textContent = 'Editar Barbero';
+        document.getElementById('btn-save-barber').textContent = 'Guardar cambios';
+        showTab('tab-info');
+        document.getElementById('modal-barbero').classList.remove('hidden');
+    }
+
+    function closeBarberModal() {
+        document.getElementById('modal-barbero').classList.add('hidden');
+    }
+
+    async function saveBarber() {
+        const editId = document.getElementById('barber-edit-id').value;
+        const sucursalIds = [...document.querySelectorAll('.bb-sucursal-check:checked')].map(c => parseInt(c.value));
+        const servicioIds = [...document.querySelectorAll('.bb-servicio-check:checked')].map(c => parseInt(c.value));
+
+        const payload = {
+            first_name: document.getElementById('bb-first-name').value.trim(),
+            last_name: document.getElementById('bb-last-name').value.trim(),
+            email: document.getElementById('bb-email').value.trim(),
+            display_name: document.getElementById('bb-display-name').value.trim(),
+            phone: document.getElementById('bb-phone').value.trim(),
+            bio: document.getElementById('bb-bio').value.trim(),
+            instagram: document.getElementById('bb-instagram').value.trim(),
+            buffer_minutes: parseInt(document.getElementById('bb-buffer').value) || 0,
+            lunch_start: document.getElementById('bb-lunch-start').value || '',
+            lunch_end: document.getElementById('bb-lunch-end').value || '',
+            sucursal_ids: sucursalIds,
+            servicio_ids: servicioIds,
+        };
+
+        const url = editId ? `/app/barberos/api/${editId}/update/` : '{% url "barberos:api_create" %}';
+        const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
+        if (res.ok) location.reload();
+        else alert((await res.json()).error || 'Error');
+    }
+
+    // ── Deactivate / Reactivate ──
+    function confirmDeactivateBarber(id, name) {
+        document.getElementById('deactivate-barber-id').value = id;
+        document.getElementById('deactivate-barber-name').textContent = name;
+        document.getElementById('modal-confirm-deactivate').classList.remove('hidden');
+    }
+
+    async function deactivateBarber() {
+        const id = document.getElementById('deactivate-barber-id').value;
+        const res = await fetch(`/app/barberos/api/${id}/deactivate/`, { method: 'POST', headers, body: '{}' });
+        if (res.ok) location.reload();
+        else alert((await res.json()).error || 'Error');
+    }
+
+    async function reactivateBarber(id) {
+        const res = await fetch(`/app/barberos/api/${id}/reactivate/`, { method: 'POST', headers, body: '{}' });
+        if (res.ok) location.reload();
+        else alert((await res.json()).error || 'Error');
+    }
+
+    // ═══════════════════════════════════════════════════
+    // SCHEDULE MODAL
+    // ═══════════════════════════════════════════════════
+    let currentBarberData = null;
+
+    async function openScheduleModal(id) {
+        document.getElementById('schedule-barber-id').value = id;
+        const res = await fetch(`/app/barberos/api/${id}/`);
+        if (!res.ok) return alert('Error cargando datos');
+        currentBarberData = await res.json();
+
+        renderScheduleDays(currentBarberData.schedules);
+        renderExceptions(currentBarberData.exceptions);
+        document.getElementById('exception-form').classList.add('hidden');
+        document.getElementById('modal-schedule').classList.remove('hidden');
+    }
+
+    function closeScheduleModal() {
+        document.getElementById('modal-schedule').classList.add('hidden');
+    }
+
+    function renderScheduleDays(schedules) {
+        const container = document.getElementById('schedule-days');
+        const schedMap = {};
+        schedules.forEach(s => { schedMap[s.day_of_week] = s; });
+
+        container.innerHTML = DAYS.map((dayName, i) => {
+            const s = schedMap[i];
+            const checked = s ? 'checked' : '';
+            const startVal = s ? s.start_time : '08:00';
+            const endVal = s ? s.end_time : '20:00';
+            return `
+        <div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-neutral-800">
+            <label class="flex items-center gap-2 w-28 flex-shrink-0 cursor-pointer">
+                <input type="checkbox" class="sched-day-check rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-700" data-day="${i}" ${checked}
+                       onchange="this.closest('.flex').querySelectorAll('input[type=time]').forEach(t=>t.disabled=!this.checked)">
+                <span class="text-sm text-white font-medium">${dayName}</span>
+            </label>
+            <input type="time" class="sched-start px-3 py-2 bg-neutral-700 border border-neutral-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand transition-colors ${!s ? 'opacity-50' : ''}" data-day="${i}" value="${startVal}" ${!s ? 'disabled' : ''}>
+            <span class="text-neutral-500 text-xs">a</span>
+            <input type="time" class="sched-end px-3 py-2 bg-neutral-700 border border-neutral-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand transition-colors ${!s ? 'opacity-50' : ''}" data-day="${i}" value="${endVal}" ${!s ? 'disabled' : ''}>
+        </div>`;
+        }).join('');
+    }
+
+    async function saveSchedule() {
+        const id = document.getElementById('schedule-barber-id').value;
+        const schedules = [];
+        document.querySelectorAll('.sched-day-check:checked').forEach(chk => {
+            const day = parseInt(chk.dataset.day);
+            const start = document.querySelector(`.sched-start[data-day="${day}"]`).value;
+            const end = document.querySelector(`.sched-end[data-day="${day}"]`).value;
+            if (start && end) schedules.push({ day_of_week: day, start_time: start, end_time: end });
+        });
+
+        const res = await fetch(`/app/barberos/api/${id}/horarios/`, {
+            method: 'POST', headers, body: JSON.stringify({ schedules }),
+        });
+        if (res.ok) {
+            // Show brief success feedback
+            const btn = document.querySelector('#modal-schedule .btn-primary');
+            const orig = btn.textContent;
+            btn.textContent = '¡Guardado!';
+            btn.classList.add('bg-green-600');
+            setTimeout(() => { btn.textContent = orig; btn.classList.remove('bg-green-600'); }, 1500);
+        } else {
+            alert((await res.json()).error || 'Error');
+        }
+    }
+
+    // ── Exceptions ──
+    function renderExceptions(exceptions) {
+        const container = document.getElementById('exceptions-list');
+        if (!exceptions.length) {
+            container.innerHTML = '<p class="text-sm text-neutral-500 text-center py-4">No hay excepciones registradas.</p>';
+            return;
+        }
+        container.innerHTML = exceptions.map(e => {
+            const start = new Date(e.start);
+            const end = new Date(e.end);
+            const fmt = d => d.toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            return `
+        <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-neutral-800 group">
+            <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                    <span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium bg-brand/10 text-brand">${EXC_TYPES[e.exception_type] || e.exception_type}</span>
+                    ${e.is_recurring ? '<span class="text-[10px] text-neutral-500">🔁 Recurrente</span>' : ''}
+                </div>
+                <p class="text-xs text-neutral-400 mt-1">${fmt(start)} → ${fmt(end)}</p>
+                ${e.description ? `<p class="text-xs text-neutral-500 mt-0.5">${e.description}</p>` : ''}
+            </div>
+            <button onclick="deleteException(${e.id})" class="text-xs text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0 ml-2">Eliminar</button>
+        </div>`;
+        }).join('');
+    }
+
+    async function createException() {
+        const id = document.getElementById('schedule-barber-id').value;
+        const payload = {
+            exception_type: document.getElementById('exc-type').value,
+            description: document.getElementById('exc-desc').value,
+            start: document.getElementById('exc-start').value,
+            end: document.getElementById('exc-end').value,
+            is_recurring: document.getElementById('exc-recurring').checked,
+        };
+        if (!payload.start || !payload.end) return alert('Inicio y fin son requeridos');
+
+        const res = await fetch(`/app/barberos/api/${id}/excepciones/create/`, {
+            method: 'POST', headers, body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+            // Refresh data
+            openScheduleModal(parseInt(id));
+        } else {
+            alert((await res.json()).error || 'Error');
+        }
+    }
+
+    async function deleteException(excId) {
+        const id = document.getElementById('schedule-barber-id').value;
+        if (!confirm('¿Eliminar esta excepción?')) return;
+        const res = await fetch(`/app/barberos/api/${id}/excepciones/${excId}/delete/`, {
+            method: 'POST', headers, body: '{}',
+        });
+        if (res.ok) openScheduleModal(parseInt(id));
+        else alert((await res.json()).error || 'Error');
+    }
+</script>
+{% endblock %}
