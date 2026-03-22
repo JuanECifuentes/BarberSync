@@ -489,10 +489,13 @@ function applyFilters() {
 
         totalVisible += groupVisible;
 
-        // Re-calculate accordion body height
+        // Force-open visible accordions and recalculate height
         const body = group.querySelector('.accordion-body');
-        if (body && body.style.maxHeight !== '0px') {
+        const chevron = group.querySelector('.accordion-chevron');
+        if (body && groupVisible > 0) {
             body.style.maxHeight = body.scrollHeight + 'px';
+            body.style.opacity = '1';
+            if (chevron) chevron.style.transform = 'rotate(0deg)';
         }
     });
 
