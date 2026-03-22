@@ -4,6 +4,8 @@ from .models import (
     Appointment,
     AppointmentService,
     BarberService,
+    CategoriaServicio,
+    HistorialPrecioServicio,
     Intervencion,
     IntervencionProducto,
     IntervencionServicio,
@@ -19,11 +21,25 @@ class AppointmentServiceInline(admin.TabularInline):
     readonly_fields = ("price_charged",)
 
 
-@admin.register(Service)
-class ServiceAdmin(admin.ModelAdmin):
-    list_display = ("name", "barbershop", "duration_minutes", "price", "is_active")
+@admin.register(CategoriaServicio)
+class CategoriaServicioAdmin(admin.ModelAdmin):
+    list_display = ("name", "barbershop", "is_active")
     list_filter = ("barbershop", "is_active")
     search_fields = ("name",)
+
+
+@admin.register(Service)
+class ServiceAdmin(admin.ModelAdmin):
+    list_display = ("name", "category", "barbershop", "duration_minutes", "price", "is_active")
+    list_filter = ("barbershop", "category", "is_active")
+    search_fields = ("name",)
+
+
+@admin.register(HistorialPrecioServicio)
+class HistorialPrecioServicioAdmin(admin.ModelAdmin):
+    list_display = ("service", "price", "changed_at", "changed_by")
+    list_filter = ("service",)
+    readonly_fields = ("changed_at",)
 
 
 @admin.register(BarberService)

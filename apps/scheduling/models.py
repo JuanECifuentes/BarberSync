@@ -20,11 +20,39 @@ from apps.core.models import AuditModel, TenantModel
 
 
 # ─────────────────────────────────────────────
+# Service category
+# ─────────────────────────────────────────────
+class CategoriaServicio(TenantModel):
+    """Category to group services (e.g., Cortes, Barba, Tratamientos)."""
+
+    name = models.CharField("nombre", max_length=80)
+    description = models.TextField("descripción", blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "scheduling_categoria_servicio"
+        verbose_name = "categoría de servicio"
+        verbose_name_plural = "categorías de servicio"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+# ─────────────────────────────────────────────
 # Service catalogue
 # ─────────────────────────────────────────────
 class Service(TenantModel):
     """A service offered by a barbershop (e.g., corte clásico, afeitado)."""
 
+    category = models.ForeignKey(
+        CategoriaServicio,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="services",
+        verbose_name="categoría",
+    )
     name = models.CharField("nombre", max_length=80)
     description = models.TextField("descripción", blank=True)
     duration_minutes = models.PositiveIntegerField(
@@ -46,6 +74,39 @@ class Service(TenantModel):
 
     def __str__(self):
         return f"{self.name} – ${self.price}"
+
+
+# ─────────────────────────────────────────────
+# Service price history
+# ─────────────────────────────────────────────
+class HistorialPrecioServicio(models.Model):
+    """Tracks price changes for a service over time."""
+
+    service = models.ForeignKey(
+        Service,
+        on_delete=models.CASCADE,
+        related_name="price_history",
+    )
+    price = models.DecimalField(
+        "precio", max_digits=10, decimal_places=2,
+    )
+    changed_at = models.DateTimeField("fecha de cambio", auto_now_add=True)
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    class Meta:
+        db_table = "scheduling_historial_precio_servicio"
+        verbose_name = "historial de precio"
+        verbose_name_plural = "historial de precios"
+        ordering = ["-changed_at"]
+
+    def __str__(self):
+        return f"{self.service.name}: ${self.price} @ {self.changed_at:%d/%m/%Y}"
 
 
 # ─────────────────────────────────────────────

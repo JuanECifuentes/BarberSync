@@ -4,156 +4,657 @@
 {% block title %}Servicios – BarberSync{% endblock %}
 {% block page_title %}Catálogo de Servicios{% endblock %}
 
+{% block extra_head %}
+<style>
+    /* Aggressive hover for primary action buttons */
+    .btn-action-primary {
+        position: relative;
+        overflow: hidden;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .btn-action-primary::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: #ff2301;
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 0;
+        border-radius: inherit;
+    }
+    .btn-action-primary:not(:disabled):hover::before {
+        transform: scaleX(1);
+    }
+    .btn-action-primary:not(:disabled):hover {
+        color: #fff !important;
+        border-color: #ff2301 !important;
+        transform: scale(1.03);
+        box-shadow: 0 4px 16px rgba(255, 35, 1, 0.3);
+    }
+    .btn-action-primary > * {
+        position: relative;
+        z-index: 1;
+    }
+    .btn-action-primary span,
+    .btn-action-primary svg {
+        position: relative;
+        z-index: 1;
+    }
+    /* Custom tooltip styling */
+    [data-tooltip] {
+        position: relative;
+    }
+    [data-tooltip]::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: calc(100% + 8px);
+        left: 50%;
+        transform: translateX(-50%) scale(0.95);
+        padding: 6px 12px;
+        background: #2a2a2d;
+        border: 1px solid #4a4a4f;
+        color: #fff;
+        font-size: 11px;
+        font-family: 'Poppins', sans-serif;
+        font-weight: 500;
+        border-radius: 8px;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+        z-index: 50;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+    [data-tooltip]::before {
+        content: '';
+        position: absolute;
+        bottom: calc(100% + 2px);
+        left: 50%;
+        transform: translateX(-50%) scale(0.95);
+        border: 5px solid transparent;
+        border-top-color: #4a4a4f;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+        z-index: 50;
+    }
+    [data-tooltip]:hover::after,
+    [data-tooltip]:hover::before {
+        opacity: 1;
+        transform: translateX(-50%) scale(1);
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="space-y-4">
 
-    <!-- Header with actions -->
+    <!-- Header -->
     <div class="flex items-center justify-between flex-wrap gap-3">
-        <h2 class="font-heading font-bold text-xl text-white">Servicios</h2>
+        <div class="flex items-center gap-3">
+            <h2 class="font-heading font-bold text-xl text-white">Servicios</h2>
+            <span class="text-sm text-neutral-500" id="service-count">({{ total_services }})</span>
+        </div>
         {% if is_admin %}
         <div class="flex gap-2">
-            <button onclick="copyBookingLink()" id="btn-booking-link"
-                    class="btn-secondary text-sm flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+            <button onclick="openCategoryModal()"
+                    class="btn-action-primary btn-secondary text-sm flex items-center gap-2 border border-neutral-700 px-4 py-2 rounded-lg transition-all">
+                <svg class="w-4 h-4 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/>
                 </svg>
-                <span id="link-text">Copiar link de reserva</span>
+                <span>Nueva Categoría</span>
             </button>
-            <button onclick="document.getElementById('modal-service').classList.remove('hidden')"
-                    class="btn-primary text-sm">
-                + Nuevo Servicio
+            <button onclick="openServiceModal()"
+                    class="btn-action-primary btn-primary text-sm flex items-center gap-2 border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                <span>Nuevo Servicio</span>
             </button>
         </div>
         {% endif %}
     </div>
 
-    <!-- Booking link preview -->
-    {% if is_admin and barbershop %}
-    <div class="card flex items-center justify-between">
-        <div>
-            <p class="text-xs text-neutral-400">Link público de reserva</p>
-            <p class="text-sm text-brand font-medium mt-1" id="booking-url">
-                {{ request.scheme }}://{{ request.get_host }}/book/{{ barbershop.slug }}-{{ barbershop.booking_uid }}/
-            </p>
-        </div>
-        <button onclick="copyBookingLink()" class="btn-ghost text-sm">Copiar</button>
-    </div>
-    {% endif %}
-
-    <!-- Services grid -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {% for service in services %}
-        <div class="card card-hover group">
-            <div class="flex items-start justify-between">
-                <div>
-                    <p class="font-medium text-white">{{ service.name }}</p>
-                    {% if service.description %}
-                    <p class="text-xs text-neutral-500 mt-1 line-clamp-2">{{ service.description }}</p>
-                    {% endif %}
-                </div>
-                <span class="font-heading font-bold text-brand text-lg">${{ service.price|money }}</span>
+    <!-- Filters (client-side) -->
+    <div class="card">
+        <p class="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3">Filtros</p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">Nombre</label>
+                <input type="text" id="filter-nombre" placeholder="Buscar servicio..."
+                       class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
+                              placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
             </div>
-            <div class="mt-3 flex items-center justify-between">
-                <span class="flex items-center gap-1 text-xs text-neutral-400">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    {{ service.duration_minutes }} min
-                </span>
-                {% if is_admin %}
-                <button onclick="deleteService({{ service.pk }}, '{{ service.name }}')"
-                        class="opacity-0 group-hover:opacity-100 text-xs text-red-400 hover:text-red-300 transition-all">
-                    Eliminar
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">Categoría</label>
+                <select id="filter-category"
+                        class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
+                               focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                    <option value="">Todas</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.pk }}">{{ cat.name }}</option>
+                    {% endfor %}
+                    <option value="none">Sin Categoría</option>
+                </select>
+            </div>
+            <div class="flex items-end">
+                <button type="button" onclick="clearFilters()"
+                        class="btn-action-primary btn-ghost text-sm border border-neutral-700 px-4 py-2 rounded-lg transition-all">
+                    <span>Limpiar filtros</span>
                 </button>
-                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Accordions: Services grouped by category -->
+    <div class="space-y-3" id="services-accordion">
+        {% for cat_name, group in grouped_services.items %}
+        <div class="card p-0 overflow-hidden accordion-group"
+             data-category-id="{{ group.category_id }}"
+             data-category-name="{{ cat_name|lower }}">
+            <!-- Accordion header -->
+            <button onclick="toggleAccordion(this)"
+                    class="w-full flex items-center justify-between px-5 py-4 hover:bg-neutral-800/50 transition-colors">
+                <div class="flex items-center gap-3">
+                    <svg class="w-5 h-5 text-brand accordion-chevron transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                    <h3 class="font-heading font-bold text-white text-base">{{ cat_name }}</h3>
+                    <span class="cat-count text-xs text-neutral-500 bg-neutral-800 px-2 py-0.5 rounded-full">{{ group.services|length }}</span>
+                </div>
+            </button>
+
+            <!-- Accordion body (open by default) -->
+            <div class="accordion-body">
+                <div class="px-5 pb-4 space-y-2">
+                    {% for service in group.services %}
+                    <div class="service-card flex items-center gap-4 p-4 rounded-xl bg-neutral-800/60 border border-neutral-700
+                                hover:shadow-lg hover:shadow-brand/5 hover:border-neutral-600 transition-all duration-300 group"
+                         id="service-row-{{ service.pk }}"
+                         data-nombre="{{ service.name|lower }}"
+                         data-category-id="{{ service.category.pk|default:'' }}">
+
+                        <!-- Left: Icon + Price -->
+                        <div class="flex flex-col items-center gap-1.5 flex-shrink-0 w-16">
+                            <div class="w-10 h-10 rounded-lg bg-brand/10 border border-brand/20 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <circle cx="6" cy="6" r="3" stroke-width="1.5"></circle>
+                                    <circle cx="6" cy="18" r="3" stroke-width="1.5"></circle>
+                                    <path d="M20 4L8.12 15.88" stroke-width="1.5" stroke-linecap="round"></path>
+                                    <path d="M14.47 14.48L20 20" stroke-width="1.5" stroke-linecap="round"></path>
+                                    <path d="M8.12 8.12L12 12" stroke-width="1.5" stroke-linecap="round"></path>
+                                </svg>
+                            </div>
+                            <span class="text-xs font-heading font-bold text-brand">${{ service.price|money }}</span>
+                        </div>
+
+                        <!-- Center: Name + Duration -->
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium font-heading text-white truncate">{{ service.name }}</p>
+                            {% if service.description %}
+                            <p class="text-xs text-neutral-500 mt-0.5 truncate">{{ service.description }}</p>
+                            {% endif %}
+                            <div class="flex items-center gap-1 mt-1 text-xs text-neutral-400">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                {{ service.duration_minutes }} min
+                            </div>
+                        </div>
+
+                        <!-- Right: Action buttons -->
+                        {% if is_admin %}
+                        <div class="flex items-center gap-1 flex-shrink-0">
+                            <button onclick="openDetailModal({{ service.pk }})"
+                                    data-tooltip="Detalles"
+                                    class="border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-400 hover:text-white">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </button>
+                            <button onclick="openEditModal({{ service.pk }})"
+                                    data-tooltip="Editar Servicio"
+                                    class="border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-400 hover:text-white">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                </svg>
+                            </button>
+                            <button onclick="confirmDeleteService({{ service.pk }}, '{{ service.name|escapejs }}')"
+                                    data-tooltip="Eliminar Servicio"
+                                    class="border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-red-400 hover:text-red-300">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                </svg>
+                            </button>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
         </div>
         {% empty %}
-        <div class="col-span-full text-center py-12 text-neutral-500">
+        <div id="empty-state" class="text-center py-16 text-neutral-500">
+            <svg class="w-12 h-12 mx-auto text-neutral-700 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <circle cx="6" cy="6" r="3" stroke-width="1.5"></circle>
+                <circle cx="6" cy="18" r="3" stroke-width="1.5"></circle>
+                <path d="M20 4L8.12 15.88" stroke-width="1.5" stroke-linecap="round"></path>
+            </svg>
             No hay servicios registrados.
         </div>
         {% endfor %}
     </div>
+
+    <!-- No results from filter -->
+    <div id="no-filter-results" class="hidden text-center py-12 text-neutral-500">
+        <svg class="w-10 h-10 mx-auto text-neutral-700 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        <p>No se encontraron servicios con los filtros aplicados.</p>
+    </div>
 </div>
 
 {% if is_admin %}
-<!-- Modal: Crear Servicio -->
-<div id="modal-service" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-    <div class="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
+<!-- ═══════════════════════════════════════════ -->
+<!-- MODAL: Crear / Editar Servicio             -->
+<!-- ═══════════════════════════════════════════ -->
+<div id="modal-service" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 overflow-y-auto">
+    <div class="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4 my-8">
         <div class="flex items-center justify-between">
-            <h3 class="font-heading font-bold text-lg text-white">Nuevo Servicio</h3>
-            <button onclick="document.getElementById('modal-service').classList.add('hidden')" class="text-neutral-400 hover:text-white">✕</button>
+            <h3 id="modal-service-title" class="font-heading font-bold text-lg text-white">Nuevo Servicio</h3>
+            <button onclick="closeServiceModal()" class="text-neutral-400 hover:text-white transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
         </div>
+        <input type="hidden" id="svc-edit-id" value="">
         <div class="space-y-3">
-            <input id="svc-name" type="text" placeholder="Nombre del servicio"
+            <input id="svc-name" type="text" placeholder="Nombre del servicio *"
                    class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
             <textarea id="svc-desc" rows="2" placeholder="Descripción (opcional)"
                       class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors resize-none"></textarea>
+            <select id="svc-category"
+                    class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                <option value="">Sin categoría</option>
+                {% for cat in categories %}
+                <option value="{{ cat.pk }}">{{ cat.name }}</option>
+                {% endfor %}
+            </select>
             <div class="grid grid-cols-2 gap-3">
-                <input id="svc-duration" type="number" placeholder="Duración (min)" value="30"
-                       class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-                <input id="svc-price" type="number" step="0.01" placeholder="Precio"
-                       class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                <div>
+                    <label class="text-xs text-neutral-400 mb-1 block">Duración (min)</label>
+                    <input id="svc-duration" type="number" placeholder="30" value="30"
+                           class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                </div>
+                <div>
+                    <label class="text-xs text-neutral-400 mb-1 block">Precio</label>
+                    <input id="svc-price" type="text" inputmode="numeric" placeholder="0"
+                           class="money-input w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                </div>
             </div>
         </div>
-        <button onclick="createService()" class="btn-primary w-full">Crear Servicio</button>
+        <button onclick="saveService()" class="btn-action-primary btn-primary w-full border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm" id="btn-save-service"><span>Crear Servicio</span></button>
     </div>
 </div>
+
+<!-- MODAL: Crear Categoría -->
+<div id="modal-category" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+    <div class="w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
+        <div class="flex items-center justify-between">
+            <h3 class="font-heading font-bold text-lg text-white">Nueva Categoría</h3>
+            <button onclick="closeCategoryModal()" class="text-neutral-400 hover:text-white transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <input id="cat-name" type="text" placeholder="Nombre de la categoría"
+               class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+        <button onclick="createCategory()" class="btn-action-primary btn-primary w-full border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm"><span>Crear Categoría</span></button>
+    </div>
+</div>
+
+<!-- MODAL: Detalles / Historial de Precios -->
+<div id="modal-detail" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 overflow-y-auto">
+    <div class="w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4 my-8">
+        <div class="flex items-center justify-between">
+            <h3 id="detail-title" class="font-heading font-bold text-lg text-white">Detalles del Servicio</h3>
+            <button onclick="closeDetailModal()" class="text-neutral-400 hover:text-white transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <!-- Service info -->
+        <div class="card space-y-2">
+            <div class="flex items-center justify-between">
+                <span id="detail-name" class="font-heading font-bold text-white text-lg"></span>
+                <span id="detail-price" class="font-heading font-bold text-brand text-lg"></span>
+            </div>
+            <p id="detail-desc" class="text-sm text-neutral-400"></p>
+            <div class="flex items-center gap-4 text-xs text-neutral-500">
+                <span class="flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <span id="detail-duration"></span>
+                </span>
+                <span class="flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/>
+                    </svg>
+                    <span id="detail-category"></span>
+                </span>
+            </div>
+        </div>
+        <!-- Price history -->
+        <div>
+            <h4 class="font-heading font-bold text-sm text-white mb-2 flex items-center gap-2">
+                <svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
+                Historial de Precios
+            </h4>
+            <div id="detail-history" class="space-y-1 max-h-60 overflow-y-auto">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Confirmación de eliminación -->
+<div id="modal-confirm-delete" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+    <div class="w-full max-w-sm bg-neutral-900 border border-red-900/50 rounded-xl p-6 space-y-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-red-900/30 flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                </svg>
+            </div>
+            <div>
+                <h3 class="font-heading font-bold text-white">Eliminar servicio</h3>
+                <p class="text-xs text-neutral-400 mt-1">El servicio se desactivará y dejará de estar visible.</p>
+            </div>
+        </div>
+        <p class="text-sm text-neutral-300">
+            ¿Eliminar <strong id="delete-service-name" class="text-brand"></strong>?
+        </p>
+        <input type="hidden" id="delete-service-id" value="">
+        <div class="flex gap-3">
+            <button onclick="document.getElementById('modal-confirm-delete').classList.add('hidden')" class="btn-secondary flex-1 text-sm">Cancelar</button>
+            <button onclick="deleteService()" class="flex-1 text-sm bg-red-600 text-white font-semibold px-4 py-3 rounded-lg hover:bg-red-500 transition-colors">Eliminar</button>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <script>
 function getCookie(name) {
     const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
     return v ? v.pop() : '';
 }
+const csrfToken = getCookie('csrftoken');
+const headers = { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken };
 
-function copyBookingLink() {
-    const url = document.getElementById('booking-url');
-    if (!url) return;
-    const text = url.textContent.trim();
-    navigator.clipboard.writeText(text).then(() => {
-        const btn = document.getElementById('link-text');
-        const original = btn.textContent;
-        btn.textContent = '¡Copiado!';
-        setTimeout(() => { btn.textContent = original; }, 2000);
-    }).catch(() => {
-        // Fallback for older browsers
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-        const btn = document.getElementById('link-text');
-        const original = btn.textContent;
-        btn.textContent = '¡Copiado!';
-        setTimeout(() => { btn.textContent = original; }, 2000);
+// ═══════════════════════════════════════
+// MONEY FORMATTING
+// ═══════════════════════════════════════
+function formatMoney(value) {
+    const num = value.replace(/\D/g, '');
+    return num.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+function cleanMoney(value) {
+    return value.replace(/\./g, '');
+}
+
+document.addEventListener('input', (e) => {
+    if (e.target.classList.contains('money-input')) {
+        const pos = e.target.selectionStart;
+        const oldLen = e.target.value.length;
+        e.target.value = formatMoney(e.target.value);
+        const newLen = e.target.value.length;
+        const newPos = Math.max(0, pos + (newLen - oldLen));
+        e.target.setSelectionRange(newPos, newPos);
+    }
+});
+
+// ═══════════════════════════════════════
+// ACCORDION
+// ═══════════════════════════════════════
+function toggleAccordion(btn) {
+    const body = btn.nextElementSibling;
+    const chevron = btn.querySelector('.accordion-chevron');
+    if (body.style.maxHeight && body.style.maxHeight !== '0px') {
+        body.style.maxHeight = '0px';
+        body.style.opacity = '0';
+        chevron.style.transform = 'rotate(-90deg)';
+    } else {
+        body.style.maxHeight = body.scrollHeight + 'px';
+        body.style.opacity = '1';
+        chevron.style.transform = 'rotate(0deg)';
+    }
+}
+
+function initAccordions() {
+    document.querySelectorAll('.accordion-body').forEach(body => {
+        body.style.maxHeight = body.scrollHeight + 'px';
+        body.style.opacity = '1';
+        body.style.transition = 'max-height 0.3s ease, opacity 0.2s ease';
     });
 }
 
-async function createService() {
+document.addEventListener('DOMContentLoaded', initAccordions);
+
+// ═══════════════════════════════════════
+// CLIENT-SIDE FILTERING
+// ═══════════════════════════════════════
+const filterNombre = document.getElementById('filter-nombre');
+const filterCategory = document.getElementById('filter-category');
+
+function applyFilters() {
+    const nombre = (filterNombre?.value || '').toLowerCase().trim();
+    const catVal = filterCategory?.value || '';
+
+    let totalVisible = 0;
+
+    document.querySelectorAll('.accordion-group').forEach(group => {
+        const groupCatId = group.dataset.categoryId;
+        let groupVisible = 0;
+
+        group.querySelectorAll('.service-card').forEach(card => {
+            const cardNombre = card.dataset.nombre || '';
+            const cardCatId = card.dataset.categoryId || '';
+
+            let show = true;
+            if (nombre && !cardNombre.includes(nombre)) show = false;
+            if (catVal === 'none' && cardCatId !== '') show = false;
+            if (catVal && catVal !== 'none' && cardCatId !== catVal) show = false;
+
+            card.style.display = show ? '' : 'none';
+            if (show) groupVisible++;
+        });
+
+        // Hide entire accordion if no services visible
+        group.style.display = groupVisible > 0 ? '' : 'none';
+
+        // Update count badge
+        const countBadge = group.querySelector('.cat-count');
+        if (countBadge) countBadge.textContent = groupVisible;
+
+        totalVisible += groupVisible;
+
+        // Re-calculate accordion body height
+        const body = group.querySelector('.accordion-body');
+        if (body && body.style.maxHeight !== '0px') {
+            body.style.maxHeight = body.scrollHeight + 'px';
+        }
+    });
+
+    const noResults = document.getElementById('no-filter-results');
+    if (noResults) noResults.classList.toggle('hidden', totalVisible > 0);
+
+    const countEl = document.getElementById('service-count');
+    if (countEl) countEl.textContent = `(${totalVisible})`;
+}
+
+filterNombre?.addEventListener('input', applyFilters);
+filterCategory?.addEventListener('change', applyFilters);
+
+function clearFilters() {
+    if (filterNombre) filterNombre.value = '';
+    if (filterCategory) filterCategory.value = '';
+    applyFilters();
+}
+
+// ═══════════════════════════════════════
+// SERVICE MODAL (Create / Edit)
+// ═══════════════════════════════════════
+function openServiceModal() {
+    document.getElementById('svc-edit-id').value = '';
+    document.getElementById('svc-name').value = '';
+    document.getElementById('svc-desc').value = '';
+    document.getElementById('svc-category').value = '';
+    document.getElementById('svc-duration').value = '30';
+    document.getElementById('svc-price').value = '';
+    document.getElementById('modal-service-title').textContent = 'Nuevo Servicio';
+    document.getElementById('btn-save-service').querySelector('span').textContent = 'Crear Servicio';
+    document.getElementById('modal-service').classList.remove('hidden');
+}
+
+async function openEditModal(id) {
+    const res = await fetch(`/app/schedule/api/services/${id}/`);
+    if (!res.ok) return;
+    const d = await res.json();
+
+    document.getElementById('svc-edit-id').value = id;
+    document.getElementById('svc-name').value = d.name;
+    document.getElementById('svc-desc').value = d.description;
+    document.getElementById('svc-category').value = d.category_id;
+    document.getElementById('svc-duration').value = d.duration_minutes;
+    document.getElementById('svc-price').value = formatMoney(String(d.price).split('.')[0]);
+    document.getElementById('modal-service-title').textContent = 'Editar Servicio';
+    document.getElementById('btn-save-service').querySelector('span').textContent = 'Guardar cambios';
+    document.getElementById('modal-service').classList.remove('hidden');
+}
+
+function closeServiceModal() {
+    document.getElementById('modal-service').classList.add('hidden');
+}
+
+async function saveService() {
+    const editId = document.getElementById('svc-edit-id').value;
     const name = document.getElementById('svc-name').value.trim();
-    if (!name) return alert('Nombre requerido');
-    const res = await fetch('{% url "scheduling:api_service_create" %}', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-        body: JSON.stringify({
-            name,
-            description: document.getElementById('svc-desc').value,
-            duration_minutes: parseInt(document.getElementById('svc-duration').value) || 30,
-            price: parseFloat(document.getElementById('svc-price').value) || 0,
-        }),
-    });
+    if (!name) return;
+
+    const rawPrice = cleanMoney(document.getElementById('svc-price').value);
+
+    const payload = {
+        name,
+        description: document.getElementById('svc-desc').value,
+        duration_minutes: parseInt(document.getElementById('svc-duration').value) || 30,
+        price: parseInt(rawPrice) || 0,
+        category_id: document.getElementById('svc-category').value || null,
+    };
+
+    const url = editId
+        ? `/app/schedule/api/services/${editId}/update/`
+        : '{% url "scheduling:api_service_create" %}';
+
+    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
     if (res.ok) location.reload();
-    else alert((await res.json()).error || 'Error');
+    else {
+        const err = await res.json();
+        const btn = document.getElementById('btn-save-service');
+        const span = btn.querySelector('span');
+        const orig = span.textContent;
+        span.textContent = err.error || 'Error';
+        btn.classList.add('bg-red-600');
+        setTimeout(() => { span.textContent = orig; btn.classList.remove('bg-red-600'); }, 2000);
+    }
 }
 
-async function deleteService(id, name) {
-    if (!confirm('¿Eliminar el servicio "' + name + '"?')) return;
-    const res = await fetch('/app/schedule/api/services/' + id + '/delete/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+// ═══════════════════════════════════════
+// CATEGORY MODAL
+// ═══════════════════════════════════════
+function openCategoryModal() {
+    document.getElementById('cat-name').value = '';
+    document.getElementById('modal-category').classList.remove('hidden');
+}
+
+function closeCategoryModal() {
+    document.getElementById('modal-category').classList.add('hidden');
+}
+
+async function createCategory() {
+    const name = document.getElementById('cat-name').value.trim();
+    if (!name) return;
+    const res = await fetch('{% url "scheduling:api_category_create" %}', {
+        method: 'POST', headers, body: JSON.stringify({ name }),
     });
     if (res.ok) location.reload();
-    else alert((await res.json()).error || 'Error');
+}
+
+// ═══════════════════════════════════════
+// DETAIL MODAL (Info + Price History)
+// ═══════════════════════════════════════
+async function openDetailModal(id) {
+    const res = await fetch(`/app/schedule/api/services/${id}/`);
+    if (!res.ok) return;
+    const d = await res.json();
+
+    document.getElementById('detail-name').textContent = d.name;
+    document.getElementById('detail-price').textContent = '$' + formatMoney(String(d.price).split('.')[0]);
+    document.getElementById('detail-desc').textContent = d.description || 'Sin descripción';
+    document.getElementById('detail-duration').textContent = d.duration_minutes + ' min';
+    document.getElementById('detail-category').textContent = d.category_name || 'Sin categoría';
+
+    const historyContainer = document.getElementById('detail-history');
+    if (d.price_history.length === 0) {
+        historyContainer.innerHTML = '<p class="text-sm text-neutral-500 text-center py-4">Sin cambios de precio registrados.</p>';
+    } else {
+        historyContainer.innerHTML = d.price_history.map(h => {
+            const date = new Date(h.changed_at);
+            const fmt = date.toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const who = [h.changed_by__first_name, h.changed_by__last_name].filter(Boolean).join(' ') || 'Sistema';
+            return `
+            <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-neutral-800">
+                <div>
+                    <span class="text-sm font-heading font-bold text-brand">$${formatMoney(String(h.price).split('.')[0])}</span>
+                    <span class="text-xs text-neutral-500 ml-2">${fmt}</span>
+                </div>
+                <span class="text-xs text-neutral-500">${who}</span>
+            </div>`;
+        }).join('');
+    }
+
+    document.getElementById('modal-detail').classList.remove('hidden');
+}
+
+function closeDetailModal() {
+    document.getElementById('modal-detail').classList.add('hidden');
+}
+
+// ═══════════════════════════════════════
+// DELETE SERVICE
+// ═══════════════════════════════════════
+function confirmDeleteService(id, name) {
+    document.getElementById('delete-service-id').value = id;
+    document.getElementById('delete-service-name').textContent = name;
+    document.getElementById('modal-confirm-delete').classList.remove('hidden');
+}
+
+async function deleteService() {
+    const id = document.getElementById('delete-service-id').value;
+    const res = await fetch(`/app/schedule/api/services/${id}/delete/`, {
+        method: 'POST', headers, body: '{}',
+    });
+    if (res.ok) location.reload();
 }
 </script>
-{% endif %}
 {% endblock %}

@@ -11,7 +11,12 @@ urlpatterns = [
 
     # Service CRUD APIs
     path("api/services/create/", views.ServiceCreateAPI.as_view(), name="api_service_create"),
+    path("api/services/<int:pk>/", views.ServiceDetailAPI.as_view(), name="api_service_detail"),
+    path("api/services/<int:pk>/update/", views.ServiceUpdateAPI.as_view(), name="api_service_update"),
     path("api/services/<int:pk>/delete/", views.ServiceDeleteAPI.as_view(), name="api_service_delete"),
+
+    # Category APIs
+    path("api/categories/create/", views.CategoryCreateAPI.as_view(), name="api_category_create"),
 
     # Calendar & appointment APIs
     path("api/events/", views.CalendarEventsAPI.as_view(), name="api_events"),
