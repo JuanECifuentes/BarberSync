@@ -8,7 +8,7 @@
 
     <!-- Header -->
     <header class="bg-neutral-900 border-b border-neutral-800">
-        <div class="max-w-lg mx-auto px-4 py-4 flex items-center gap-3">
+        <div class="max-w-lg mx-auto px-4 py-4 items-center gap-3">
             <div class="w-10 h-10 bg-brand rounded-xl flex items-center justify-center">
                 <span class="text-white font-heading font-bold text-xl">B</span>
             </div>
@@ -327,7 +327,7 @@ function bookingApp() {
                 const data = await res.json();
 
                 if (res.ok) {
-                    document.querySelector('[x-data]').__x.$data.step = 5;
+                    this.step = 5;
                     // Show success screen (replace content)
                     document.querySelector('.max-w-lg').innerHTML = `
                         <div class="text-center py-16 space-y-4">
@@ -349,6 +349,7 @@ function bookingApp() {
                     alert(data.error || 'Error al crear la reserva');
                 }
             } catch (e) {
+                console.error(e);
                 alert('Error de conexión');
             }
             this.booking = false;
