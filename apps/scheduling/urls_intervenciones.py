@@ -6,8 +6,11 @@ app_name = "intervenciones"
 
 urlpatterns = [
     path("", views.IntervencionListView.as_view(), name="list"),
-    path("crear/", views.IntervencionCreateView.as_view(), name="create"),
-    path("<int:pk>/", views.IntervencionDetailView.as_view(), name="detail"),
-    path("<int:pk>/estado/", views.IntervencionChangeStatusAPI.as_view(), name="api_change_status"),
+    path("api/grid/", views.IntervencionGridAPI.as_view(), name="api_grid"),
     path("api/data/", views.IntervencionDataAPI.as_view(), name="api_data"),
+    path("api/crear/", views.IntervencionCreateView.as_view(), name="api_create"),
+    path("api/<int:pk>/", views.IntervencionDetailAPI.as_view(), name="api_detail"),
+    path("api/<int:pk>/editar/", views.IntervencionUpdateView.as_view(), name="api_update"),
+    path("api/<int:pk>/eliminar/", views.IntervencionDeleteView.as_view(), name="api_delete"),
+    path("api/<int:pk>/estado/", views.IntervencionChangeStatusAPI.as_view(), name="api_change_status"),
 ]

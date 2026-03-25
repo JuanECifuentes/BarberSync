@@ -1,139 +1,928 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Intervenciones – BarberSync{% endblock %}
 {% block page_title %}Intervenciones{% endblock %}
 
+{% block extra_head %}
+<!-- ag-Grid Community CSS + JS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-grid.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-theme-alpine.css">
+<script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/dist/ag-grid-community.min.noStyle.js"></script>
+<!-- Alpine.js -->
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+<!-- Flatpickr -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+
+<style>
+
+    .btn-action-primary {
+        position: relative;
+        overflow: hidden;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .btn-action-primary::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: #ff2301;
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 0;
+        border-radius: inherit;
+    }
+    .btn-action-primary:not(:disabled):hover::before {
+        transform: scaleX(1);
+    }
+    .btn-action-primary:not(:disabled):hover {
+        color: #fff !important;
+        border-color: #ff2301 !important;
+        transform: scale(1.03);
+        box-shadow: 0 4px 16px rgba(255, 35, 1, 0.3);
+    }
+
+    .btn-action-primary > * {
+        position: relative;
+        z-index: 1;
+    }
+    .btn-action-primary span,
+    .btn-action-primary svg {
+        position: relative;
+        z-index: 1;
+    }
+
+    /* ── ag-Grid dark theme overrides ── */
+    .ag-theme-alpine {
+        --ag-background-color: #1a1a1c;
+        --ag-header-background-color: #2a2a2d;
+        --ag-odd-row-background-color: #1f1f22;
+        --ag-row-hover-color: rgba(255, 35, 1, 0.08);
+        --ag-selected-row-background-color: rgba(255, 35, 1, 0.15);
+        --ag-range-selection-border-color: #ff2301;
+        --ag-border-color: #3d3d41;
+        --ag-header-foreground-color: #b8b8be;
+        --ag-foreground-color: #ffffff;
+        --ag-secondary-foreground-color: #91919a;
+        --ag-input-focus-border-color: #ff2301;
+        --ag-checkbox-checked-color: #ff2301;
+        --ag-row-border-color: #2a2a2d;
+        --ag-control-panel-background-color: #2a2a2d;
+        --ag-input-border-color: #4a4a4f;
+        --ag-alpine-active-color: #ff2301;
+        --ag-font-family: 'Poppins', sans-serif;
+        --ag-font-size: 13px;
+        --ag-header-height: 44px;
+        --ag-row-height: 48px;
+    }
+
+    .ag-theme-alpine .ag-header-cell {
+        font-family: 'Roboto', sans-serif;
+        font-weight: 700;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .ag-theme-alpine .ag-header-cell-label .ag-sort-indicator-icon {
+        color: #ff2301;
+    }
+
+    .ag-theme-alpine .ag-floating-filter-input input,
+    .ag-theme-alpine .ag-floating-filter-input select {
+        background-color: #2a2a2d !important;
+        border-color: #4a4a4f !important;
+        color: #ffffff !important;
+        border-radius: 6px;
+        font-size: 12px;
+    }
+
+    .ag-theme-alpine .ag-floating-filter-input input:focus,
+    .ag-theme-alpine .ag-floating-filter-input select:focus {
+        border-color: #ff2301 !important;
+        box-shadow: 0 0 0 1px #ff2301;
+    }
+
+    .ag-theme-alpine .ag-paging-panel {
+        background-color: #2a2a2d;
+        border-top: 1px solid #3d3d41;
+        color: #b8b8be;
+    }
+
+    .ag-theme-alpine .ag-paging-button {
+        color: #b8b8be;
+    }
+
+    .ag-theme-alpine .ag-paging-button:hover {
+        color: #ff2301;
+    }
+
+    /* Loading overlay */
+    .ag-theme-alpine .ag-overlay-loading-center {
+        background-color: rgba(26, 26, 28, 0.9);
+        color: #ff2301;
+        border: 1px solid #3d3d41;
+        border-radius: 8px;
+        padding: 20px 40px;
+        font-family: 'Poppins', sans-serif;
+    }
+
+    /* Service tags */
+    .svc-tag {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 6px 10px;
+        border-radius: 9999px;
+        font-size: 11px;
+        font-weight: 500;
+        line-height: 1;
+        background-color: rgba(255, 35, 1, 0.12);
+        color: #ffa093;
+        white-space: nowrap;
+    }
+    .svc-count-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 6px 10px;
+        border-radius: 9999px;
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1;
+        background-color: rgba(255, 35, 1, 0.2);
+        color: #ff6b56;
+    }
+    .svc-tags-wrap {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px;
+        overflow: hidden;
+        max-height: 44px;
+        width: 100%;
+    }
+
+    /* Estado badges */
+    .estado-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 6px 10px;
+        border-radius: 9999px;
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1;
+        white-space: nowrap;
+        text-transform: capitalize;
+    }
+    .estado-pendiente { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+    .estado-en_progreso { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+    .estado-realizada { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+    .estado-cancelada { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+
+    /* Action buttons in grid */
+    .grid-action-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        border-radius: 6px;
+        border: 1px solid #4a4a4f;
+        background: transparent;
+        color: #b8b8be;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .grid-action-btn:hover {
+        background: #ff2301;
+        border-color: #ff2301;
+        color: white;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(255, 35, 1, 0.3);
+    }
+    .grid-action-btn.delete:hover {
+        background: #dc2626;
+        border-color: #dc2626;
+        box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+    }
+
+    /* Modal */
+    .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(4px);
+        z-index: 50;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .modal-content {
+        background: #1a1a1c;
+        border: 1px solid #3d3d41;
+        border-radius: 12px;
+        width: 100%;
+        max-width: 520px;
+        max-height: 90vh;
+        overflow-y: auto;
+        padding: 24px;
+        box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+    }
+
+    /* Confirm dialog */
+    .confirm-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(2px);
+        z-index: 60;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .confirm-content {
+        background: #2a2a2d;
+        border: 1px solid #3d3d41;
+        border-radius: 12px;
+        padding: 24px;
+        max-width: 400px;
+        width: 100%;
+        text-align: center;
+    }
+</style>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Override main scroll for this page — only ag-Grid should scroll */
+    .flex-1.overflow-y-auto { overflow: hidden !important; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="space-y-4">
+<div class="flex flex-col h-full" x-data="intervencionesApp()" x-init="init()">
 
     <!-- Header -->
-    <div class="flex items-center justify-between flex-wrap gap-3">
+    <div class="flex items-center justify-between flex-wrap gap-3 mb-4 flex-shrink-0">
         <h2 class="font-heading font-bold text-xl text-white">Intervenciones</h2>
         {% if is_admin %}
-        <a href="{% url 'intervenciones:create' %}" class="btn-primary text-sm">
-            + Nueva Intervención
-        </a>
+        <button @click="openCreateModal()"
+                class="btn-action-primary btn-secondary text-sm flex items-center gap-2 border border-neutral-700 px-4 py-2 rounded-lg transition-all">
+            <span>+ Nueva Intervención</span>
+        </button>
         {% endif %}
     </div>
 
-    <!-- Filtros por columna -->
-    <form method="get" class="card">
-        <p class="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3">Filtros</p>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-            <div>
-                <label class="block text-xs text-neutral-400 mb-1">Estado</label>
-                <select name="estado"
-                        class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
-                               focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-                    <option value="">Todos</option>
-                    {% for value, label in estados %}
-                    <option value="{{ value }}" {% if request.GET.estado == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div>
-                <label class="block text-xs text-neutral-400 mb-1">Barbero</label>
-                <select name="barbero"
-                        class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
-                               focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-                    <option value="">Todos</option>
-                    {% for barber in barbers %}
-                    <option value="{{ barber.pk }}" {% if request.GET.barbero == barber.pk|stringformat:"d" %}selected{% endif %}>{{ barber }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div>
-                <label class="block text-xs text-neutral-400 mb-1">Cliente</label>
-                <input type="text" name="cliente" value="{{ request.GET.cliente }}" placeholder="Nombre o email..."
-                       class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
-                              placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-            </div>
-            <div>
-                <label class="block text-xs text-neutral-400 mb-1">Desde</label>
-                <input type="date" name="fecha_desde" value="{{ request.GET.fecha_desde }}"
-                       class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
-                              focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-            </div>
-            <div>
-                <label class="block text-xs text-neutral-400 mb-1">Hasta</label>
-                <input type="date" name="fecha_hasta" value="{{ request.GET.fecha_hasta }}"
-                       class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
-                              focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-            </div>
-        </div>
-        <div class="flex gap-2 mt-3">
-            <button type="submit" class="btn-primary text-sm px-4">Filtrar</button>
-            <a href="{% url 'intervenciones:list' %}" class="btn-ghost text-sm">Limpiar</a>
-        </div>
-    </form>
+    <!-- ag-Grid container -->
+    <div id="intervencionesGrid" class="ag-theme-alpine flex-1 min-h-0 w-full rounded-xl overflow-hidden border border-neutral-800"></div>
 
-    <!-- Lista -->
-    <div class="space-y-2">
-        {% for intervencion in intervenciones %}
-        <a href="{% url 'intervenciones:detail' intervencion.pk %}"
-           class="card card-hover flex items-center justify-between group cursor-pointer block">
-            <div class="flex items-center gap-3 min-w-0">
-                <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0
-                    {% if intervencion.estado == 'realizada' %}bg-green-900/50 text-green-400
-                    {% elif intervencion.estado == 'pendiente' %}bg-amber-900/50 text-amber-400
-                    {% elif intervencion.estado == 'en_progreso' %}bg-blue-900/50 text-blue-400
-                    {% elif intervencion.estado == 'cancelada' %}bg-red-900/50 text-red-400
-                    {% endif %}">
-                    <span class="text-xs font-bold">
-                        {% if intervencion.estado == 'realizada' %}✓
-                        {% elif intervencion.estado == 'pendiente' %}⏳
-                        {% elif intervencion.estado == 'en_progreso' %}▶
-                        {% elif intervencion.estado == 'cancelada' %}✕
-                        {% endif %}
-                    </span>
+    <!-- ════════════════════════════════════════ -->
+    <!-- Modal Crear / Editar -->
+    <!-- ════════════════════════════════════════ -->
+    <template x-if="showModal">
+        <div class="modal-backdrop" @click.self="closeModal()">
+            <div class="modal-content" @click.stop>
+                <div class="flex items-center justify-between mb-5">
+                    <h3 class="font-heading font-bold text-lg text-white"
+                        x-text="editingId ? 'Editar Intervención' : 'Nueva Intervención'"></h3>
+                    <button @click="closeModal()" class="text-neutral-500 hover:text-white transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
                 </div>
-                <div class="min-w-0">
-                    <p class="font-medium text-white group-hover:text-brand transition-colors truncate">
-                        {{ intervencion.client.name }}
-                    </p>
-                    <p class="text-xs text-neutral-500">
-                        {{ intervencion.barber }} · {{ intervencion.fecha|date:"d/m/Y H:i" }}
-                    </p>
+
+                <div class="space-y-4">
+                    <!-- Barbero -->
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-300 mb-1">Barbero</label>
+                        <select x-model="form.barber_id"
+                                class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                            <option value="">Seleccionar barbero...</option>
+                            {% for barber in barbers %}
+                            <option value="{{ barber.pk }}">{{ barber }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Cliente (autocomplete) -->
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-300 mb-1">Cliente</label>
+                        <div class="relative">
+                            <input type="text" x-model="clientSearch" @input.debounce.300ms="searchClients()"
+                                   placeholder="Buscar por nombre o email..."
+                                   x-show="!form.selectedClient"
+                                   class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                            <div x-show="clientResults.length > 0 && !form.selectedClient"
+                                 class="absolute z-10 w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                                <template x-for="c in clientResults" :key="c.id">
+                                    <button @click="selectClient(c)" type="button"
+                                            class="w-full text-left px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors">
+                                        <span x-text="c.name" class="font-medium"></span>
+                                        <span class="text-neutral-500 text-xs ml-2" x-text="c.email"></span>
+                                    </button>
+                                </template>
+                            </div>
+                        </div>
+                        <div x-show="form.selectedClient" class="mt-1 px-3 py-2 bg-brand/10 border border-brand/20 rounded-lg flex items-center justify-between">
+                            <span class="text-sm text-white" x-text="form.selectedClient?.name"></span>
+                            <button @click="form.selectedClient = null; form.client_id = ''; clientSearch = ''" type="button" class="text-neutral-400 hover:text-white text-xs ml-2">✕</button>
+                        </div>
+                    </div>
+
+                    <!-- Servicios -->
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-300 mb-1">Servicios</label>
+                        <div class="space-y-2 max-h-48 overflow-y-auto">
+                            {% for service in services %}
+                            <label class="flex items-center justify-between p-3 bg-neutral-800 border border-neutral-700 rounded-lg cursor-pointer hover:border-neutral-600 transition-colors"
+                                   :class="form.service_ids.includes({{ service.pk }}) ? 'border-brand ring-1 ring-brand' : ''">
+                                <div class="flex items-center gap-3">
+                                    <input type="checkbox"
+                                           :checked="form.service_ids.includes({{ service.pk }})"
+                                           @change="toggleService({{ service.pk }})"
+                                           class="w-4 h-4 rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-700">
+                                    <div>
+                                        <span class="text-sm text-white">{{ service.name }}</span>
+                                        <span class="text-xs text-neutral-500 ml-2">{{ service.duration_minutes }} min</span>
+                                    </div>
+                                </div>
+                                <span class="text-sm font-heading font-bold text-brand">${{ service.price }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Fecha -->
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-300 mb-1">Fecha y hora</label>
+                        <input type="text" x-ref="fechaInput" x-model="form.fecha" readonly
+                               class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors cursor-pointer">
+                    </div>
+
+                    <!-- Notas -->
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-300 mb-1">Notas</label>
+                        <textarea x-model="form.notas" rows="2" placeholder="Observaciones opcionales..."
+                                  class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors resize-none"></textarea>
+                    </div>
+
+                    <!-- Error -->
+                    <div x-show="formError" class="p-3 bg-red-900/40 border border-red-800 rounded-lg text-sm text-red-300" x-text="formError"></div>
+
+                    <!-- Submit -->
+                    <button @click="submitForm()" :disabled="!canSubmit || submitting"
+                            class="w-full border border-neutral-700 px-4 py-2 rounded-lg hover:bg-[#ff2301] hover:text-white hover:border-[#ff2301] hover:-translate-y-1 hover:shadow-md transition-all duration-300 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:bg-transparent disabled:hover:border-neutral-700"
+                            :class="canSubmit && !submitting ? 'text-neutral-300' : 'text-neutral-600'">
+                        <span x-show="!submitting" x-text="editingId ? 'Guardar Cambios' : 'Crear Intervención'"></span>
+                        <span x-show="submitting" class="flex items-center justify-center gap-2">
+                            <span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block"></span>
+                            Guardando...
+                        </span>
+                    </button>
                 </div>
             </div>
-            <div class="text-right flex-shrink-0 ml-3">
-                <span class="inline-block px-2 py-0.5 rounded text-xs font-medium
-                    {% if intervencion.estado == 'realizada' %}bg-green-900/50 text-green-300
-                    {% elif intervencion.estado == 'pendiente' %}bg-amber-900/50 text-amber-300
-                    {% elif intervencion.estado == 'en_progreso' %}bg-blue-900/50 text-blue-300
-                    {% elif intervencion.estado == 'cancelada' %}bg-red-900/50 text-red-300
-                    {% endif %}">
-                    {{ intervencion.get_estado_display }}
-                </span>
-            </div>
-        </a>
-        {% empty %}
-        <div class="text-center py-12 text-neutral-500">
-            <p class="text-lg">No se encontraron intervenciones</p>
-            {% if is_admin %}
-            <a href="{% url 'intervenciones:create' %}" class="text-brand text-sm mt-2 inline-block hover:underline">
-                Crear la primera intervención
-            </a>
-            {% endif %}
         </div>
-        {% endfor %}
-    </div>
+    </template>
 
-    <!-- Pagination -->
-    {% if page_obj.has_other_pages %}
-    <div class="flex justify-center gap-2 pt-4">
-        {% if page_obj.has_previous %}
-        <a href="?page={{ page_obj.previous_page_number }}&estado={{ request.GET.estado }}&barbero={{ request.GET.barbero }}&cliente={{ request.GET.cliente }}&fecha_desde={{ request.GET.fecha_desde }}&fecha_hasta={{ request.GET.fecha_hasta }}"
-           class="btn-ghost text-sm">Anterior</a>
-        {% endif %}
-        <span class="px-3 py-2 text-sm text-neutral-400">
-            Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
-        </span>
-        {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}&estado={{ request.GET.estado }}&barbero={{ request.GET.barbero }}&cliente={{ request.GET.cliente }}&fecha_desde={{ request.GET.fecha_desde }}&fecha_hasta={{ request.GET.fecha_hasta }}"
-           class="btn-ghost text-sm">Siguiente</a>
-        {% endif %}
-    </div>
-    {% endif %}
+    <!-- ════════════════════════════════════════ -->
+    <!-- Modal Confirmar Eliminar -->
+    <!-- ════════════════════════════════════════ -->
+    <template x-if="showDeleteConfirm">
+        <div class="confirm-backdrop" @click.self="showDeleteConfirm = false">
+            <div class="confirm-content" @click.stop>
+                <svg class="w-12 h-12 text-red-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+                <h4 class="font-heading font-bold text-white text-lg mb-2">¿Eliminar intervención?</h4>
+                <p class="text-neutral-400 text-sm mb-5">Esta acción no se puede deshacer.</p>
+                <div class="flex gap-3 justify-center">
+                    <button @click="showDeleteConfirm = false"
+                            class="px-5 py-2 rounded-lg border border-neutral-700 text-neutral-300 text-sm hover:bg-neutral-800 transition-colors">
+                        Cancelar
+                    </button>
+                    <button @click="confirmDelete()"
+                            class="px-5 py-2 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700 transition-colors">
+                        Eliminar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </template>
 </div>
+
+<script>
+const CSRF_TOKEN = '{{ csrf_token }}';
+const API_GRID_URL = '{% url "intervenciones:api_grid" %}';
+const API_CREATE_URL = '{% url "intervenciones:api_create" %}';
+const API_BASE_URL = '/app/intervenciones/api/';
+const CLIENT_SEARCH_URL = '/app/clients/api/search/';
+const IS_ADMIN = {{ is_admin|yesno:"true,false" }};
+
+// ── ag-Grid setup ──
+let gridApi = null;
+
+function serviciosCellRenderer(params) {
+    if (!params.value || !params.value.length) {
+        return '<div class="flex items-center w-full h-full"><span class="text-neutral-500 text-xs">—</span></div>';
+    }
+    
+    // Contenedor flex para centrar verticalmente sin heredar el line-height total
+    const wrapper = document.createElement('div');
+    wrapper.className = 'flex items-center w-full h-full';
+
+    const svcs = params.value;
+    const container = document.createElement('div');
+    container.className = 'svc-tags-wrap';
+
+    // Measure: try rendering all tags, if they overflow show count badge
+    const maxWidth = params.column.getActualWidth() - 20;
+    let totalWidth = 0;
+    const tagWidthEstimate = 9; // px per char approx
+
+    let fitsAll = true;
+    for (const s of svcs) {
+        totalWidth += (s.nombre.length * tagWidthEstimate) + 32;
+        if (totalWidth > maxWidth) { fitsAll = false; break; }
+    }
+
+    if (fitsAll) {
+        for (const s of svcs) {
+            const tag = document.createElement('span');
+            tag.className = 'svc-tag';
+            tag.textContent = s.nombre;
+            container.appendChild(tag);
+        }
+    } else {
+        // Show first tag + count
+        const first = document.createElement('span');
+        first.className = 'svc-tag';
+        first.textContent = svcs[0].nombre;
+        container.appendChild(first);
+
+        const badge = document.createElement('span');
+        badge.className = 'svc-count-badge';
+        badge.textContent = `+${svcs.length - 1} más`;
+        badge.title = svcs.map(s => s.nombre).join(', ');
+        container.appendChild(badge);
+    }
+    
+    wrapper.appendChild(container);
+    return wrapper;
+}
+
+function estadoCellRenderer(params) {
+    if (!params.value) return '';
+    
+    // Contenedor flex para que el badge no herede la altura/line-height total de la celda
+    const wrapper = document.createElement('div');
+    wrapper.className = 'flex items-center w-full h-full';
+    
+    const el = document.createElement('span');
+    el.className = `estado-badge estado-${params.value}`;
+    el.textContent = params.data?.estado_display || params.value;
+    
+    wrapper.appendChild(el);
+    return wrapper;
+}
+
+function accionesCellRenderer(params) {
+    if (!IS_ADMIN || !params.data) return '';
+    const container = document.createElement('div');
+    container.style.display = 'flex';
+    container.style.gap = '6px';
+    container.style.alignItems = 'center';
+    container.style.height = '100%';
+
+    // Edit button
+    const editBtn = document.createElement('button');
+    editBtn.className = 'grid-action-btn';
+    editBtn.title = 'Editar';
+    editBtn.innerHTML = '<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>';
+    editBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.dispatchEvent(new CustomEvent('edit-intervencion', { detail: params.data.id }));
+    });
+
+    // Delete button
+    const delBtn = document.createElement('button');
+    delBtn.className = 'grid-action-btn delete';
+    delBtn.title = 'Eliminar';
+    delBtn.innerHTML = '<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>';
+    delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.dispatchEvent(new CustomEvent('delete-intervencion', { detail: params.data.id }));
+    });
+
+    container.appendChild(editBtn);
+    container.appendChild(delBtn);
+    return container;
+}
+
+function precioTotalCellRenderer(params) {
+    if (!params.data) return '';
+    const el = document.createElement('span');
+    el.className = 'font-heading font-bold';
+    el.style.color = '#ff2301';
+    el.textContent = params.data.precio_total_fmt || '$0';
+    return el;
+}
+
+// Column definitions
+const columnDefs = [
+    {
+        headerName: 'Fecha',
+        field: 'fecha',
+        sortable: true,
+        filter: 'agDateColumnFilter',
+        floatingFilter: true,
+        minWidth: 150,
+        maxWidth: 180,
+        floatingFilterComponentParams: {
+            suppressFilterButton: true,
+        },
+        filterParams: {
+            filterOptions: ['equals'],
+            suppressAndOrCondition: true,
+            comparator: function(filterDate, cellValue) {
+                if (!cellValue) return -1;
+                // cellValue is "dd/mm/yyyy HH:MM"
+                const parts = cellValue.split(' ')[0].split('/');
+                const cellDate = new Date(parts[2], parts[1] - 1, parts[0]);
+                if (filterDate.getTime() === cellDate.getTime()) return 0;
+                return cellDate < filterDate ? -1 : 1;
+            }
+        }
+    },
+    {
+        headerName: 'Cliente',
+        field: 'cliente',
+        sortable: true,
+        filter: 'agTextColumnFilter',
+        floatingFilter: true,
+        minWidth: 140,
+        flex: 1,
+        floatingFilterComponentParams: {
+            suppressFilterButton: true,
+        },
+        filterParams: {
+            filterOptions: ['contains'],
+            suppressAndOrCondition: true,
+        }
+    },
+    {
+        headerName: 'Barbero',
+        field: 'barbero',
+        sortable: true,
+        filter: 'agTextColumnFilter',
+        floatingFilter: true,
+        minWidth: 140,
+        flex: 1,
+        floatingFilterComponentParams: {
+            suppressFilterButton: true,
+        },
+        filterParams: {
+            filterOptions: ['contains'],
+            suppressAndOrCondition: true,
+        }
+    },
+    {
+        headerName: 'Servicios',
+        field: 'servicios',
+        sortable: false,
+        filter: false,
+        minWidth: 180,
+        flex: 1.5,
+        cellRenderer: serviciosCellRenderer,
+        autoHeight: false,
+    },
+    {
+        headerName: 'Sucursal',
+        field: 'sucursal',
+        sortable: true,
+        filter: 'agTextColumnFilter',
+        floatingFilter: true,
+        minWidth: 120,
+        flex: 0.8,
+        floatingFilterComponentParams: {
+            suppressFilterButton: true,
+        },
+        filterParams: {
+            filterOptions: ['contains'],
+            suppressAndOrCondition: true,
+        }
+    },
+    {
+        headerName: 'Total',
+        field: 'precio_total',
+        sortable: false,
+        filter: false,
+        minWidth: 100,
+        maxWidth: 120,
+        cellRenderer: precioTotalCellRenderer,
+    },
+    {
+        headerName: 'Estado',
+        field: 'estado',
+        sortable: true,
+        filter: 'agTextColumnFilter',
+        floatingFilter: true,
+        minWidth: 120,
+        maxWidth: 150,
+        cellRenderer: estadoCellRenderer,
+        floatingFilterComponentParams: {
+            suppressFilterButton: true,
+        },
+        filterParams: {
+            filterOptions: ['equals'],
+            suppressAndOrCondition: true,
+        }
+    },
+    {
+        headerName: 'Acciones',
+        field: 'acciones',
+        sortable: false,
+        filter: false,
+        minWidth: 90,
+        maxWidth: 90,
+        cellRenderer: accionesCellRenderer,
+        suppressSizeToFit: true,
+    },
+];
+
+// Datasource for infinite row model
+const dataSource = {
+    getRows(params) {
+        const startRow = params.startRow;
+        const endRow = params.endRow;
+
+        // Build query params
+        const urlParams = new URLSearchParams();
+        urlParams.set('startRow', startRow);
+        urlParams.set('endRow', endRow);
+
+        // Sorting (single column)
+        if (params.sortModel && params.sortModel.length > 0) {
+            const sm = params.sortModel[0];
+            urlParams.set('sort', sm.colId);
+            urlParams.set('order', sm.sort);
+        }
+
+        // Filters
+        if (params.filterModel) {
+            const fm = params.filterModel;
+            if (fm.fecha && fm.fecha.dateFrom) {
+                // ag-Grid sends dateFrom as "YYYY-MM-DD HH:MM:SS"
+                urlParams.set('filter_fecha', fm.fecha.dateFrom.split(' ')[0]);
+            }
+            if (fm.cliente && fm.cliente.filter) {
+                urlParams.set('filter_cliente', fm.cliente.filter);
+            }
+            if (fm.barbero && fm.barbero.filter) {
+                // Text filter on barbero name - we need to search by name
+                urlParams.set('filter_barbero', fm.barbero.filter);
+            }
+            if (fm.estado && fm.estado.filter) {
+                urlParams.set('filter_estado', fm.estado.filter);
+            }
+            if (fm.sucursal && fm.sucursal.filter) {
+                urlParams.set('filter_sucursal', fm.sucursal.filter);
+            }
+        }
+
+        fetch(`${API_GRID_URL}?${urlParams.toString()}`)
+            .then(res => res.json())
+            .then(data => {
+                const lastRow = data.lastRow >= 0 ? data.lastRow : -1;
+                params.successCallback(data.rows, lastRow);
+            })
+            .catch(() => {
+                params.failCallback();
+            });
+    }
+};
+
+// Initialize grid
+document.addEventListener('DOMContentLoaded', () => {
+    const gridDiv = document.getElementById('intervencionesGrid');
+    const gridOptions = {
+        columnDefs: columnDefs,
+        rowModelType: 'infinite',
+        datasource: dataSource,
+        paginationPageSize: 30,
+        cacheBlockSize: 30,
+        maxBlocksInCache: 3,
+        pagination: true,
+        animateRows: true,
+        suppressMultiSort: true,
+        defaultColDef: {
+            resizable: true,
+            suppressMenu: true,
+        },
+        overlayLoadingTemplate: '<div class="flex items-center gap-3"><div class="w-5 h-5 border-2 border-[#ff2301] border-t-transparent rounded-full animate-spin"></div><span>Cargando intervenciones...</span></div>',
+        overlayNoRowsTemplate: '<div class="text-neutral-500 py-8"><p class="text-lg mb-1">No se encontraron intervenciones</p><p class="text-sm">Ajusta los filtros o crea una nueva</p></div>',
+        onFilterChanged: () => {
+            // When filters change, the grid automatically re-fetches with the datasource
+        },
+        getRowId: (params) => params.data?.id?.toString(),
+    };
+
+    gridApi = agGrid.createGrid(gridDiv, gridOptions);
+});
+
+
+// ── Alpine.js App ──
+function intervencionesApp() {
+    return {
+        showModal: false,
+        showDeleteConfirm: false,
+        deletingId: null,
+        editingId: null,
+        submitting: false,
+        formError: '',
+        clientSearch: '',
+        clientResults: [],
+        flatpickrInstance: null,
+
+        form: {
+            barber_id: '',
+            client_id: '',
+            selectedClient: null,
+            service_ids: [],
+            fecha: '',
+            notas: '',
+        },
+
+        get canSubmit() {
+            return this.form.barber_id && this.form.selectedClient && this.form.service_ids.length > 0;
+        },
+
+        init() {
+            // Listen for grid action events
+            document.addEventListener('edit-intervencion', (e) => this.openEditModal(e.detail));
+            document.addEventListener('delete-intervencion', (e) => this.openDeleteConfirm(e.detail));
+        },
+
+        resetForm() {
+            this.form = {
+                barber_id: '',
+                client_id: '',
+                selectedClient: null,
+                service_ids: [],
+                fecha: new Date().toISOString().slice(0, 16),
+                notas: '',
+            };
+            this.formError = '';
+            this.clientSearch = '';
+            this.clientResults = [];
+            this.editingId = null;
+        },
+
+        openCreateModal() {
+            this.resetForm();
+            this.showModal = true;
+            this.$nextTick(() => this.initFlatpickr());
+        },
+
+        async openEditModal(id) {
+            this.resetForm();
+            this.editingId = id;
+            try {
+                const res = await fetch(`${API_BASE_URL}${id}/`);
+                if (!res.ok) throw new Error('Error al cargar');
+                const data = await res.json();
+                this.form.barber_id = data.barber_id.toString();
+                this.form.client_id = data.client_id;
+                this.form.selectedClient = { id: data.client_id, name: data.cliente };
+                this.form.service_ids = data.service_ids;
+                this.form.fecha = data.fecha;
+                this.form.notas = data.notas || '';
+                this.showModal = true;
+                this.$nextTick(() => this.initFlatpickr());
+            } catch (e) {
+                console.error(e);
+            }
+        },
+
+        closeModal() {
+            this.showModal = false;
+            if (this.flatpickrInstance) {
+                this.flatpickrInstance.destroy();
+                this.flatpickrInstance = null;
+            }
+        },
+
+        initFlatpickr() {
+            const input = this.$refs.fechaInput;
+            if (!input) return;
+            if (this.flatpickrInstance) this.flatpickrInstance.destroy();
+            this.flatpickrInstance = flatpickr(input, {
+                enableTime: true,
+                dateFormat: 'Y-m-d\\TH:i',
+                altInput: true,
+                altFormat: 'd/m/Y H:i',
+                time_24hr: true,
+                locale: 'es',
+                defaultDate: this.form.fecha || new Date(),
+                onChange: (selectedDates, dateStr) => {
+                    this.form.fecha = dateStr;
+                },
+            });
+        },
+
+        toggleService(id) {
+            const idx = this.form.service_ids.indexOf(id);
+            if (idx >= 0) {
+                this.form.service_ids.splice(idx, 1);
+            } else {
+                this.form.service_ids.push(id);
+            }
+        },
+
+        async searchClients() {
+            if (this.clientSearch.length < 2) {
+                this.clientResults = [];
+                return;
+            }
+            try {
+                const res = await fetch(`${CLIENT_SEARCH_URL}?q=${encodeURIComponent(this.clientSearch)}`);
+                this.clientResults = await res.json();
+            } catch (e) {
+                this.clientResults = [];
+            }
+        },
+
+        selectClient(c) {
+            this.form.selectedClient = c;
+            this.form.client_id = c.id;
+            this.clientSearch = '';
+            this.clientResults = [];
+        },
+
+        async submitForm() {
+            this.submitting = true;
+            this.formError = '';
+            try {
+                const url = this.editingId
+                    ? `${API_BASE_URL}${this.editingId}/editar/`
+                    : API_CREATE_URL;
+                const method = this.editingId ? 'PUT' : 'POST';
+
+                const res = await fetch(url, {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': CSRF_TOKEN,
+                    },
+                    body: JSON.stringify({
+                        barber_id: parseInt(this.form.barber_id),
+                        client_id: this.form.selectedClient.id,
+                        service_ids: this.form.service_ids,
+                        fecha: this.form.fecha,
+                        notas: this.form.notas,
+                    }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    this.closeModal();
+                    // Refresh ag-Grid
+                    if (gridApi) {
+                        gridApi.setGridOption('datasource', dataSource);
+                    }
+                } else {
+                    this.formError = data.error || 'Error al guardar';
+                }
+            } catch (e) {
+                this.formError = 'Error de conexión';
+            }
+            this.submitting = false;
+        },
+
+        openDeleteConfirm(id) {
+            this.deletingId = id;
+            this.showDeleteConfirm = true;
+        },
+
+        async confirmDelete() {
+            if (!this.deletingId) return;
+            try {
+                const res = await fetch(`${API_BASE_URL}${this.deletingId}/eliminar/`, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRFToken': CSRF_TOKEN },
+                });
+                if (res.ok) {
+                    this.showDeleteConfirm = false;
+                    this.deletingId = null;
+                    if (gridApi) {
+                        gridApi.setGridOption('datasource', dataSource);
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        },
+    };
+}
+</script>
 {% endblock %}
