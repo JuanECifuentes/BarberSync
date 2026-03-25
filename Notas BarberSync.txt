@@ -35,3 +35,11 @@ Notas BarberSync:
   5. python manage.py createsuperuser
   6. Crear la primera Organization + Barbershop desde el admin
   7. python manage.py qcluster (para las notificaciones async)
+
+
+
+  Posible competencia:
+  - agenda.barbero
+  - bewe.io
+  - agendapro.co
+  - beunik
