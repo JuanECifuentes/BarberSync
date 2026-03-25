@@ -18,7 +18,7 @@
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
 
 <style>
-
+    /* ── Animated button (from inventory module) ── */
     .btn-action-primary {
         position: relative;
         overflow: hidden;
@@ -44,11 +44,7 @@
         transform: scale(1.03);
         box-shadow: 0 4px 16px rgba(255, 35, 1, 0.3);
     }
-
-    .btn-action-primary > * {
-        position: relative;
-        z-index: 1;
-    }
+    .btn-action-primary > *,
     .btn-action-primary span,
     .btn-action-primary svg {
         position: relative;
@@ -78,7 +74,6 @@
         --ag-header-height: 44px;
         --ag-row-height: 48px;
     }
-
     .ag-theme-alpine .ag-header-cell {
         font-family: 'Roboto', sans-serif;
         font-weight: 700;
@@ -86,40 +81,18 @@
         text-transform: uppercase;
         letter-spacing: 0.05em;
     }
-
     .ag-theme-alpine .ag-header-cell-label .ag-sort-indicator-icon {
         color: #ff2301;
     }
-
-    .ag-theme-alpine .ag-floating-filter-input input,
-    .ag-theme-alpine .ag-floating-filter-input select {
-        background-color: #2a2a2d !important;
-        border-color: #4a4a4f !important;
-        color: #ffffff !important;
-        border-radius: 6px;
-        font-size: 12px;
-    }
-
-    .ag-theme-alpine .ag-floating-filter-input input:focus,
-    .ag-theme-alpine .ag-floating-filter-input select:focus {
-        border-color: #ff2301 !important;
-        box-shadow: 0 0 0 1px #ff2301;
-    }
-
     .ag-theme-alpine .ag-paging-panel {
         background-color: #2a2a2d;
         border-top: 1px solid #3d3d41;
         color: #b8b8be;
     }
-
-    .ag-theme-alpine .ag-paging-button {
-        color: #b8b8be;
-    }
-
-    .ag-theme-alpine .ag-paging-button:hover {
-        color: #ff2301;
-    }
-
+    .ag-theme-alpine .ag-paging-button { color: #b8b8be; }
+    .ag-theme-alpine .ag-paging-button:hover { color: #ff2301; }
+    /* Hide page size selector */
+    .ag-theme-alpine .ag-paging-page-size { display: none !important; }
     /* Loading overlay */
     .ag-theme-alpine .ag-overlay-loading-center {
         background-color: rgba(26, 26, 28, 0.9);
@@ -134,7 +107,6 @@
     .svc-tag {
         display: inline-flex;
         align-items: center;
-        justify-content: center;
         padding: 6px 10px;
         border-radius: 9999px;
         font-size: 11px;
@@ -147,7 +119,6 @@
     .svc-count-badge {
         display: inline-flex;
         align-items: center;
-        justify-content: center;
         padding: 6px 10px;
         border-radius: 9999px;
         font-size: 11px;
@@ -170,7 +141,6 @@
     .estado-badge {
         display: inline-flex;
         align-items: center;
-        justify-content: center;
         padding: 6px 10px;
         border-radius: 9999px;
         font-size: 11px;
@@ -211,55 +181,119 @@
         box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
     }
 
-    /* Modal */
+    /* Modals */
     .modal-backdrop {
-        position: fixed;
-        inset: 0;
+        position: fixed; inset: 0;
         background: rgba(0, 0, 0, 0.7);
         backdrop-filter: blur(4px);
         z-index: 50;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        display: flex; align-items: center; justify-content: center;
     }
     .modal-content {
         background: #1a1a1c;
         border: 1px solid #3d3d41;
         border-radius: 12px;
-        width: 100%;
-        max-width: 520px;
-        max-height: 90vh;
-        overflow-y: auto;
-        padding: 24px;
+        width: 100%; max-width: 520px; max-height: 90vh;
+        overflow-y: auto; padding: 24px;
         box-shadow: 0 25px 50px rgba(0,0,0,0.5);
     }
-
-    /* Confirm dialog */
     .confirm-backdrop {
-        position: fixed;
-        inset: 0;
+        position: fixed; inset: 0;
         background: rgba(0, 0, 0, 0.6);
         backdrop-filter: blur(2px);
         z-index: 60;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        display: flex; align-items: center; justify-content: center;
     }
     .confirm-content {
         background: #2a2a2d;
         border: 1px solid #3d3d41;
         border-radius: 12px;
-        padding: 24px;
-        max-width: 400px;
-        width: 100%;
+        padding: 24px; max-width: 400px; width: 100%;
         text-align: center;
+    }
+
+    /* ── Multi-select dropdown ── */
+    .ms-dropdown {
+        position: relative;
+    }
+    .ms-trigger {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        padding: 8px 12px;
+        background: #2a2a2d;
+        border: 1px solid #4a4a4f;
+        border-radius: 8px;
+        color: #fff;
+        font-size: 13px;
+        cursor: pointer;
+        transition: border-color 0.2s;
+        min-height: 38px;
+    }
+    .ms-trigger:hover, .ms-trigger:focus { border-color: #ff2301; }
+    .ms-trigger .ms-count {
+        background: rgba(255, 35, 1, 0.2);
+        color: #ff6b56;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 9999px;
+        margin-left: 8px;
+    }
+    .ms-panel {
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        right: 0;
+        background: #2a2a2d;
+        border: 1px solid #4a4a4f;
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        z-index: 30;
+        max-height: 220px;
+        overflow-y: auto;
+        padding: 4px 0;
+    }
+    .ms-option {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        cursor: pointer;
+        font-size: 13px;
+        color: #d9d9dd;
+        transition: background 0.15s;
+    }
+    .ms-option:hover { background: rgba(255, 255, 255, 0.05); }
+    .ms-option input[type="checkbox"] {
+        width: 16px; height: 16px;
+        border-radius: 4px;
+        border: 1px solid #4a4a4f;
+        background: #1a1a1c;
+        accent-color: #ff2301;
+        cursor: pointer;
+    }
+
+    /* Flatpickr range overrides */
+    .flatpickr-calendar {
+        background: #2a2a2d !important;
+        border-color: #4a4a4f !important;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4) !important;
+    }
+    .flatpickr-day.selected, .flatpickr-day.startRange, .flatpickr-day.endRange {
+        background: #ff2301 !important;
+        border-color: #ff2301 !important;
+    }
+    .flatpickr-day.inRange {
+        background: rgba(255, 35, 1, 0.15) !important;
+        box-shadow: -5px 0 0 rgba(255, 35, 1, 0.15), 5px 0 0 rgba(255, 35, 1, 0.15) !important;
     }
 </style>
 {% endblock %}
 
 {% block extra_css %}
 <style>
-    /* Override main scroll for this page — only ag-Grid should scroll */
     .flex-1.overflow-y-auto { overflow: hidden !important; }
 </style>
 {% endblock %}
@@ -267,23 +301,148 @@
 {% block content %}
 <div class="flex flex-col h-full" x-data="intervencionesApp()" x-init="init()">
 
-    <!-- Header -->
-    <div class="flex items-center justify-between flex-wrap gap-3 mb-4 flex-shrink-0">
+    <!-- ═══════ Header ═══════ -->
+    <div class="flex items-center justify-between flex-wrap gap-3 mb-3 flex-shrink-0">
         <h2 class="font-heading font-bold text-xl text-white">Intervenciones</h2>
         {% if is_admin %}
         <button @click="openCreateModal()"
-                class="btn-action-primary btn-secondary text-sm flex items-center gap-2 border border-neutral-700 px-4 py-2 rounded-lg transition-all">
+                class="btn-action-primary border border-neutral-700 px-4 py-2 rounded-lg text-sm text-neutral-300 font-medium transition-all">
             <span>+ Nueva Intervención</span>
         </button>
         {% endif %}
     </div>
 
-    <!-- ag-Grid container -->
+    <!-- ═══════ Filtros Externos ═══════ -->
+    <div class="card mb-3 flex-shrink-0">
+        <div class="flex items-center justify-between mb-3">
+            <p class="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Filtros</p>
+            <button @click="clearFilters()" x-show="hasActiveFilters"
+                    class="btn-action-primary btn-ghost text-xs border border-neutral-700 px-3 py-1 rounded-lg transition-all">
+                <span>Limpiar filtros</span>
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+
+            <!-- Servicio (multi-select) -->
+            <div class="ms-dropdown" @click.outside="dropdowns.servicios = false">
+                <label class="block text-xs text-neutral-400 mb-1">Servicio</label>
+                <button type="button" class="ms-trigger" @click="dropdowns.servicios = !dropdowns.servicios">
+                    <span x-text="filters.servicios.length ? '' : 'Todos'" class="truncate"
+                          :class="filters.servicios.length ? 'hidden' : ''"></span>
+                    <span x-show="filters.servicios.length" class="truncate text-neutral-300"
+                          x-text="filters.servicios.length + ' seleccionado' + (filters.servicios.length > 1 ? 's' : '')"></span>
+                    <span x-show="filters.servicios.length" class="ms-count" x-text="filters.servicios.length"></span>
+                    <svg class="w-4 h-4 text-neutral-500 flex-shrink-0 ml-1" :class="dropdowns.servicios ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="transition: transform 0.2s"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div class="ms-panel" x-show="dropdowns.servicios" x-transition>
+                    {% for service in services %}
+                    <label class="ms-option">
+                        <input type="checkbox" :checked="filters.servicios.includes({{ service.pk }})"
+                               @change="toggleFilter('servicios', {{ service.pk }})">
+                        <span>{{ service.name }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Barbero (multi-select) -->
+            <div class="ms-dropdown" @click.outside="dropdowns.barberos = false">
+                <label class="block text-xs text-neutral-400 mb-1">Barbero</label>
+                <button type="button" class="ms-trigger" @click="dropdowns.barberos = !dropdowns.barberos">
+                    <span x-show="!filters.barberos.length" class="truncate">Todos</span>
+                    <span x-show="filters.barberos.length" class="truncate text-neutral-300"
+                          x-text="filters.barberos.length + ' seleccionado' + (filters.barberos.length > 1 ? 's' : '')"></span>
+                    <span x-show="filters.barberos.length" class="ms-count" x-text="filters.barberos.length"></span>
+                    <svg class="w-4 h-4 text-neutral-500 flex-shrink-0 ml-1" :class="dropdowns.barberos ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="transition: transform 0.2s"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div class="ms-panel" x-show="dropdowns.barberos" x-transition>
+                    {% for barber in barbers %}
+                    <label class="ms-option">
+                        <input type="checkbox" :checked="filters.barberos.includes({{ barber.pk }})"
+                               @change="toggleFilter('barberos', {{ barber.pk }})">
+                        <span>{{ barber }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Sucursal (multi-select) -->
+            <div class="ms-dropdown" @click.outside="dropdowns.sucursales = false">
+                <label class="block text-xs text-neutral-400 mb-1">Sucursal</label>
+                <button type="button" class="ms-trigger" @click="dropdowns.sucursales = !dropdowns.sucursales">
+                    <span x-show="!filters.sucursales.length" class="truncate">Todas</span>
+                    <span x-show="filters.sucursales.length" class="truncate text-neutral-300"
+                          x-text="filters.sucursales.length + ' seleccionada' + (filters.sucursales.length > 1 ? 's' : '')"></span>
+                    <span x-show="filters.sucursales.length" class="ms-count" x-text="filters.sucursales.length"></span>
+                    <svg class="w-4 h-4 text-neutral-500 flex-shrink-0 ml-1" :class="dropdowns.sucursales ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="transition: transform 0.2s"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div class="ms-panel" x-show="dropdowns.sucursales" x-transition>
+                    {% for suc in sucursales %}
+                    <label class="ms-option">
+                        <input type="checkbox" :checked="filters.sucursales.includes({{ suc.pk }})"
+                               @change="toggleFilter('sucursales', {{ suc.pk }})">
+                        <span>{{ suc.name }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Estado (multi-select) -->
+            <div class="ms-dropdown" @click.outside="dropdowns.estados = false">
+                <label class="block text-xs text-neutral-400 mb-1">Estado</label>
+                <button type="button" class="ms-trigger" @click="dropdowns.estados = !dropdowns.estados">
+                    <span x-show="!filters.estados.length" class="truncate">Todos</span>
+                    <span x-show="filters.estados.length" class="truncate text-neutral-300"
+                          x-text="filters.estados.length + ' seleccionado' + (filters.estados.length > 1 ? 's' : '')"></span>
+                    <span x-show="filters.estados.length" class="ms-count" x-text="filters.estados.length"></span>
+                    <svg class="w-4 h-4 text-neutral-500 flex-shrink-0 ml-1" :class="dropdowns.estados ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="transition: transform 0.2s"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div class="ms-panel" x-show="dropdowns.estados" x-transition>
+                    {% for value, label in estados %}
+                    <label class="ms-option">
+                        <input type="checkbox" :checked="filters.estados.includes('{{ value }}')"
+                               @change="toggleFilter('estados', '{{ value }}')">
+                        <span class="flex items-center gap-2">
+                            <span class="estado-badge estado-{{ value }}" style="padding:3px 8px;font-size:10px;">{{ label }}</span>
+                        </span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Fecha rango -->
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">Fecha</label>
+                <input type="text" x-ref="filterFechaRange" readonly placeholder="Rango de fechas..."
+                       class="w-full px-3 py-2 bg-[#2a2a2d] border border-[#4a4a4f] rounded-lg text-white text-sm
+                              placeholder-neutral-500 focus:border-[#ff2301] transition-colors cursor-pointer"
+                       style="min-height:38px;">
+            </div>
+
+            <!-- Precio total rango -->
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">Total ($)</label>
+                <div class="flex gap-2">
+                    <input type="text" x-model="filters.totalMinDisplay" @input="onPriceInput('totalMin', $event)"
+                           placeholder="Mín"
+                           class="w-1/2 px-3 py-2 bg-[#2a2a2d] border border-[#4a4a4f] rounded-lg text-white text-sm
+                                  placeholder-neutral-500 focus:border-[#ff2301] transition-colors"
+                           style="min-height:38px;">
+                    <input type="text" x-model="filters.totalMaxDisplay" @input="onPriceInput('totalMax', $event)"
+                           placeholder="Máx"
+                           class="w-1/2 px-3 py-2 bg-[#2a2a2d] border border-[#4a4a4f] rounded-lg text-white text-sm
+                                  placeholder-neutral-500 focus:border-[#ff2301] transition-colors"
+                           style="min-height:38px;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════ ag-Grid container ═══════ -->
     <div id="intervencionesGrid" class="ag-theme-alpine flex-1 min-h-0 w-full rounded-xl overflow-hidden border border-neutral-800"></div>
 
-    <!-- ════════════════════════════════════════ -->
-    <!-- Modal Crear / Editar -->
-    <!-- ════════════════════════════════════════ -->
+    <!-- ═══════ Modal Crear / Editar ═══════ -->
     <template x-if="showModal">
         <div class="modal-backdrop" @click.self="closeModal()">
             <div class="modal-content" @click.stop>
@@ -350,10 +509,22 @@
                                         <span class="text-xs text-neutral-500 ml-2">{{ service.duration_minutes }} min</span>
                                     </div>
                                 </div>
-                                <span class="text-sm font-heading font-bold text-brand">${{ service.price }}</span>
+                                <span class="text-sm font-heading font-bold text-brand"
+                                      data-raw-price="{{ service.price }}">${{ service.price|floatformat:"0" }}</span>
                             </label>
                             {% endfor %}
                         </div>
+                    </div>
+
+                    <!-- Estado -->
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-300 mb-1">Estado</label>
+                        <select x-model="form.estado"
+                                class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                            {% for value, label in estados %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
 
                     <!-- Fecha -->
@@ -375,7 +546,7 @@
 
                     <!-- Submit -->
                     <button @click="submitForm()" :disabled="!canSubmit || submitting"
-                            class="w-full border border-neutral-700 px-4 py-2 rounded-lg hover:bg-[#ff2301] hover:text-white hover:border-[#ff2301] hover:-translate-y-1 hover:shadow-md transition-all duration-300 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:bg-transparent disabled:hover:border-neutral-700"
+                            class="btn-action-primary w-full border border-neutral-700 px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                             :class="canSubmit && !submitting ? 'text-neutral-300' : 'text-neutral-600'">
                         <span x-show="!submitting" x-text="editingId ? 'Guardar Cambios' : 'Crear Intervención'"></span>
                         <span x-show="submitting" class="flex items-center justify-center gap-2">
@@ -388,9 +559,7 @@
         </div>
     </template>
 
-    <!-- ════════════════════════════════════════ -->
-    <!-- Modal Confirmar Eliminar -->
-    <!-- ════════════════════════════════════════ -->
+    <!-- ═══════ Modal Confirmar Eliminar ═══════ -->
     <template x-if="showDeleteConfirm">
         <div class="confirm-backdrop" @click.self="showDeleteConfirm = false">
             <div class="confirm-content" @click.stop>
@@ -420,33 +589,65 @@ const API_BASE_URL = '/app/intervenciones/api/';
 const CLIENT_SEARCH_URL = '/app/clients/api/search/';
 const IS_ADMIN = {{ is_admin|yesno:"true,false" }};
 
-// ── ag-Grid setup ──
+/* ══════════════════════════════════════════
+   Utilidades de formateo de precios
+   ══════════════════════════════════════════ */
+function formatMoney(val) {
+    if (!val && val !== 0) return '';
+    const num = parseInt(String(val).replace(/\./g, '').replace(/[^\d]/g, ''), 10);
+    if (isNaN(num)) return '';
+    return num.toLocaleString('es-CO').replace(/,/g, '.');
+}
+function cleanMoney(val) {
+    return String(val).replace(/\./g, '').replace(/[^\d]/g, '');
+}
+
+/* ══════════════════════════════════════════
+   ag-Grid: Localización Español
+   ══════════════════════════════════════════ */
+const AG_LOCALE_ES = {
+    page: 'Página',
+    more: 'Más',
+    to: 'a',
+    of: 'de',
+    next: 'Siguiente',
+    last: 'Última',
+    first: 'Primera',
+    previous: 'Anterior',
+    loadingOoo: 'Cargando...',
+    noRowsToShow: 'No hay datos para mostrar',
+    enabled: 'Habilitado',
+    pinColumn: 'Fijar columna',
+    noPin: 'Sin fijar',
+    autosizeThiscolumn: 'Auto-ajustar esta columna',
+    autosizeAllColumns: 'Auto-ajustar todas',
+    resetColumns: 'Restablecer columnas',
+    sortAscending: 'Orden ascendente',
+    sortDescending: 'Orden descendente',
+    sortUnSort: 'Quitar orden',
+};
+
+/* ══════════════════════════════════════════
+   ag-Grid: Setup
+   ══════════════════════════════════════════ */
 let gridApi = null;
 
 function serviciosCellRenderer(params) {
     if (!params.value || !params.value.length) {
         return '<div class="flex items-center w-full h-full"><span class="text-neutral-500 text-xs">—</span></div>';
     }
-    
-    // Contenedor flex para centrar verticalmente sin heredar el line-height total
     const wrapper = document.createElement('div');
     wrapper.className = 'flex items-center w-full h-full';
-
     const svcs = params.value;
     const container = document.createElement('div');
     container.className = 'svc-tags-wrap';
-
-    // Measure: try rendering all tags, if they overflow show count badge
     const maxWidth = params.column.getActualWidth() - 20;
     let totalWidth = 0;
-    const tagWidthEstimate = 9; // px per char approx
-
     let fitsAll = true;
     for (const s of svcs) {
-        totalWidth += (s.nombre.length * tagWidthEstimate) + 32;
+        totalWidth += (s.nombre.length * 9) + 32;
         if (totalWidth > maxWidth) { fitsAll = false; break; }
     }
-
     if (fitsAll) {
         for (const s of svcs) {
             const tag = document.createElement('span');
@@ -455,34 +656,27 @@ function serviciosCellRenderer(params) {
             container.appendChild(tag);
         }
     } else {
-        // Show first tag + count
         const first = document.createElement('span');
         first.className = 'svc-tag';
         first.textContent = svcs[0].nombre;
         container.appendChild(first);
-
         const badge = document.createElement('span');
         badge.className = 'svc-count-badge';
         badge.textContent = `+${svcs.length - 1} más`;
         badge.title = svcs.map(s => s.nombre).join(', ');
         container.appendChild(badge);
     }
-    
     wrapper.appendChild(container);
     return wrapper;
 }
 
 function estadoCellRenderer(params) {
     if (!params.value) return '';
-    
-    // Contenedor flex para que el badge no herede la altura/line-height total de la celda
     const wrapper = document.createElement('div');
     wrapper.className = 'flex items-center w-full h-full';
-    
     const el = document.createElement('span');
     el.className = `estado-badge estado-${params.value}`;
     el.textContent = params.data?.estado_display || params.value;
-    
     wrapper.appendChild(el);
     return wrapper;
 }
@@ -490,12 +684,7 @@ function estadoCellRenderer(params) {
 function accionesCellRenderer(params) {
     if (!IS_ADMIN || !params.data) return '';
     const container = document.createElement('div');
-    container.style.display = 'flex';
-    container.style.gap = '6px';
-    container.style.alignItems = 'center';
-    container.style.height = '100%';
-
-    // Edit button
+    container.style.cssText = 'display:flex;gap:6px;align-items:center;height:100%';
     const editBtn = document.createElement('button');
     editBtn.className = 'grid-action-btn';
     editBtn.title = 'Editar';
@@ -504,8 +693,6 @@ function accionesCellRenderer(params) {
         e.stopPropagation();
         document.dispatchEvent(new CustomEvent('edit-intervencion', { detail: params.data.id }));
     });
-
-    // Delete button
     const delBtn = document.createElement('button');
     delBtn.className = 'grid-action-btn delete';
     delBtn.title = 'Eliminar';
@@ -514,7 +701,6 @@ function accionesCellRenderer(params) {
         e.stopPropagation();
         document.dispatchEvent(new CustomEvent('delete-intervencion', { detail: params.data.id }));
     });
-
     container.appendChild(editBtn);
     container.appendChild(delBtn);
     return container;
@@ -529,210 +715,82 @@ function precioTotalCellRenderer(params) {
     return el;
 }
 
-// Column definitions
+// Column definitions — NO internal filters
 const columnDefs = [
-    {
-        headerName: 'Fecha',
-        field: 'fecha',
-        sortable: true,
-        filter: 'agDateColumnFilter',
-        floatingFilter: true,
-        minWidth: 150,
-        maxWidth: 180,
-        floatingFilterComponentParams: {
-            suppressFilterButton: true,
-        },
-        filterParams: {
-            filterOptions: ['equals'],
-            suppressAndOrCondition: true,
-            comparator: function(filterDate, cellValue) {
-                if (!cellValue) return -1;
-                // cellValue is "dd/mm/yyyy HH:MM"
-                const parts = cellValue.split(' ')[0].split('/');
-                const cellDate = new Date(parts[2], parts[1] - 1, parts[0]);
-                if (filterDate.getTime() === cellDate.getTime()) return 0;
-                return cellDate < filterDate ? -1 : 1;
-            }
-        }
-    },
-    {
-        headerName: 'Cliente',
-        field: 'cliente',
-        sortable: true,
-        filter: 'agTextColumnFilter',
-        floatingFilter: true,
-        minWidth: 140,
-        flex: 1,
-        floatingFilterComponentParams: {
-            suppressFilterButton: true,
-        },
-        filterParams: {
-            filterOptions: ['contains'],
-            suppressAndOrCondition: true,
-        }
-    },
-    {
-        headerName: 'Barbero',
-        field: 'barbero',
-        sortable: true,
-        filter: 'agTextColumnFilter',
-        floatingFilter: true,
-        minWidth: 140,
-        flex: 1,
-        floatingFilterComponentParams: {
-            suppressFilterButton: true,
-        },
-        filterParams: {
-            filterOptions: ['contains'],
-            suppressAndOrCondition: true,
-        }
-    },
-    {
-        headerName: 'Servicios',
-        field: 'servicios',
-        sortable: false,
-        filter: false,
-        minWidth: 180,
-        flex: 1.5,
-        cellRenderer: serviciosCellRenderer,
-        autoHeight: false,
-    },
-    {
-        headerName: 'Sucursal',
-        field: 'sucursal',
-        sortable: true,
-        filter: 'agTextColumnFilter',
-        floatingFilter: true,
-        minWidth: 120,
-        flex: 0.8,
-        floatingFilterComponentParams: {
-            suppressFilterButton: true,
-        },
-        filterParams: {
-            filterOptions: ['contains'],
-            suppressAndOrCondition: true,
-        }
-    },
-    {
-        headerName: 'Total',
-        field: 'precio_total',
-        sortable: false,
-        filter: false,
-        minWidth: 100,
-        maxWidth: 120,
-        cellRenderer: precioTotalCellRenderer,
-    },
-    {
-        headerName: 'Estado',
-        field: 'estado',
-        sortable: true,
-        filter: 'agTextColumnFilter',
-        floatingFilter: true,
-        minWidth: 120,
-        maxWidth: 150,
-        cellRenderer: estadoCellRenderer,
-        floatingFilterComponentParams: {
-            suppressFilterButton: true,
-        },
-        filterParams: {
-            filterOptions: ['equals'],
-            suppressAndOrCondition: true,
-        }
-    },
-    {
-        headerName: 'Acciones',
-        field: 'acciones',
-        sortable: false,
-        filter: false,
-        minWidth: 90,
-        maxWidth: 90,
-        cellRenderer: accionesCellRenderer,
-        suppressSizeToFit: true,
-    },
+    { headerName: 'Fecha',     field: 'fecha',     sortable: true,  minWidth: 150, maxWidth: 180 },
+    { headerName: 'Cliente',   field: 'cliente',   sortable: true,  minWidth: 140, flex: 1 },
+    { headerName: 'Barbero',   field: 'barbero',   sortable: true,  minWidth: 140, flex: 1 },
+    { headerName: 'Servicios', field: 'servicios', sortable: false, minWidth: 180, flex: 1.5, cellRenderer: serviciosCellRenderer },
+    { headerName: 'Sucursal',  field: 'sucursal',  sortable: true,  minWidth: 120, flex: 0.8 },
+    { headerName: 'Total',     field: 'precio_total', sortable: false, minWidth: 100, maxWidth: 120, cellRenderer: precioTotalCellRenderer },
+    { headerName: 'Estado',    field: 'estado',    sortable: true,  minWidth: 120, maxWidth: 150, cellRenderer: estadoCellRenderer },
+    { headerName: 'Acciones',  field: 'acciones',  sortable: false, minWidth: 90,  maxWidth: 90,  cellRenderer: accionesCellRenderer, suppressSizeToFit: true },
 ];
 
-// Datasource for infinite row model
-const dataSource = {
-    getRows(params) {
-        const startRow = params.startRow;
-        const endRow = params.endRow;
+// Datasource — reads external filter state from Alpine
+function buildDataSource() {
+    return {
+        getRows(params) {
+            const urlParams = new URLSearchParams();
+            urlParams.set('startRow', params.startRow);
+            urlParams.set('endRow', params.endRow);
 
-        // Build query params
-        const urlParams = new URLSearchParams();
-        urlParams.set('startRow', startRow);
-        urlParams.set('endRow', endRow);
+            // Sorting
+            if (params.sortModel && params.sortModel.length > 0) {
+                urlParams.set('sort', params.sortModel[0].colId);
+                urlParams.set('order', params.sortModel[0].sort);
+            }
 
-        // Sorting (single column)
-        if (params.sortModel && params.sortModel.length > 0) {
-            const sm = params.sortModel[0];
-            urlParams.set('sort', sm.colId);
-            urlParams.set('order', sm.sort);
+            // Read external filters from Alpine state
+            const f = window.__intervencionFilters || {};
+            if (f.barberos?.length)   urlParams.set('filter_barberos', f.barberos.join(','));
+            if (f.servicios?.length)  urlParams.set('filter_servicios', f.servicios.join(','));
+            if (f.sucursales?.length) urlParams.set('filter_sucursales', f.sucursales.join(','));
+            if (f.estados?.length)    urlParams.set('filter_estados', f.estados.join(','));
+            if (f.fechaDesde)         urlParams.set('filter_fecha_desde', f.fechaDesde);
+            if (f.fechaHasta)         urlParams.set('filter_fecha_hasta', f.fechaHasta);
+            if (f.totalMin)           urlParams.set('filter_total_min', f.totalMin);
+            if (f.totalMax)           urlParams.set('filter_total_max', f.totalMax);
+
+            fetch(`${API_GRID_URL}?${urlParams.toString()}`)
+                .then(r => r.json())
+                .then(data => {
+                    params.successCallback(data.rows, data.lastRow >= 0 ? data.lastRow : -1);
+                })
+                .catch(() => params.failCallback());
         }
-
-        // Filters
-        if (params.filterModel) {
-            const fm = params.filterModel;
-            if (fm.fecha && fm.fecha.dateFrom) {
-                // ag-Grid sends dateFrom as "YYYY-MM-DD HH:MM:SS"
-                urlParams.set('filter_fecha', fm.fecha.dateFrom.split(' ')[0]);
-            }
-            if (fm.cliente && fm.cliente.filter) {
-                urlParams.set('filter_cliente', fm.cliente.filter);
-            }
-            if (fm.barbero && fm.barbero.filter) {
-                // Text filter on barbero name - we need to search by name
-                urlParams.set('filter_barbero', fm.barbero.filter);
-            }
-            if (fm.estado && fm.estado.filter) {
-                urlParams.set('filter_estado', fm.estado.filter);
-            }
-            if (fm.sucursal && fm.sucursal.filter) {
-                urlParams.set('filter_sucursal', fm.sucursal.filter);
-            }
-        }
-
-        fetch(`${API_GRID_URL}?${urlParams.toString()}`)
-            .then(res => res.json())
-            .then(data => {
-                const lastRow = data.lastRow >= 0 ? data.lastRow : -1;
-                params.successCallback(data.rows, lastRow);
-            })
-            .catch(() => {
-                params.failCallback();
-            });
-    }
-};
+    };
+}
 
 // Initialize grid
 document.addEventListener('DOMContentLoaded', () => {
     const gridDiv = document.getElementById('intervencionesGrid');
-    const gridOptions = {
-        columnDefs: columnDefs,
+    gridApi = agGrid.createGrid(gridDiv, {
+        columnDefs,
         rowModelType: 'infinite',
-        datasource: dataSource,
+        datasource: buildDataSource(),
         paginationPageSize: 30,
         cacheBlockSize: 30,
         maxBlocksInCache: 3,
         pagination: true,
         animateRows: true,
         suppressMultiSort: true,
+        localeText: AG_LOCALE_ES,
         defaultColDef: {
             resizable: true,
+            filter: false,
+            floatingFilter: false,
             suppressMenu: true,
         },
         overlayLoadingTemplate: '<div class="flex items-center gap-3"><div class="w-5 h-5 border-2 border-[#ff2301] border-t-transparent rounded-full animate-spin"></div><span>Cargando intervenciones...</span></div>',
         overlayNoRowsTemplate: '<div class="text-neutral-500 py-8"><p class="text-lg mb-1">No se encontraron intervenciones</p><p class="text-sm">Ajusta los filtros o crea una nueva</p></div>',
-        onFilterChanged: () => {
-            // When filters change, the grid automatically re-fetches with the datasource
-        },
         getRowId: (params) => params.data?.id?.toString(),
-    };
-
-    gridApi = agGrid.createGrid(gridDiv, gridOptions);
+    });
 });
 
-
-// ── Alpine.js App ──
+/* ══════════════════════════════════════════
+   Alpine.js App
+   ══════════════════════════════════════════ */
 function intervencionesApp() {
     return {
         showModal: false,
@@ -744,7 +802,26 @@ function intervencionesApp() {
         clientSearch: '',
         clientResults: [],
         flatpickrInstance: null,
+        flatpickrRangeInstance: null,
 
+        // Dropdown open states
+        dropdowns: { servicios: false, barberos: false, sucursales: false, estados: false },
+
+        // External filter state
+        filters: {
+            servicios: [],
+            barberos: [],
+            sucursales: [],
+            estados: [],
+            fechaDesde: '',
+            fechaHasta: '',
+            totalMin: '',
+            totalMax: '',
+            totalMinDisplay: '',
+            totalMaxDisplay: '',
+        },
+
+        // Modal form
         form: {
             barber_id: '',
             client_id: '',
@@ -752,26 +829,107 @@ function intervencionesApp() {
             service_ids: [],
             fecha: '',
             notas: '',
+            estado: 'pendiente',
         },
 
         get canSubmit() {
             return this.form.barber_id && this.form.selectedClient && this.form.service_ids.length > 0;
         },
 
-        init() {
-            // Listen for grid action events
-            document.addEventListener('edit-intervencion', (e) => this.openEditModal(e.detail));
-            document.addEventListener('delete-intervencion', (e) => this.openDeleteConfirm(e.detail));
+        get hasActiveFilters() {
+            const f = this.filters;
+            return f.servicios.length || f.barberos.length || f.sucursales.length || f.estados.length
+                || f.fechaDesde || f.fechaHasta || f.totalMin || f.totalMax;
         },
 
+        init() {
+            document.addEventListener('edit-intervencion', (e) => this.openEditModal(e.detail));
+            document.addEventListener('delete-intervencion', (e) => this.openDeleteConfirm(e.detail));
+
+            // Init Flatpickr range for date filter
+            this.$nextTick(() => {
+                const rangeInput = this.$refs.filterFechaRange;
+                if (rangeInput) {
+                    this.flatpickrRangeInstance = flatpickr(rangeInput, {
+                        mode: 'range',
+                        dateFormat: 'Y-m-d',
+                        altInput: true,
+                        altFormat: 'd/m/Y',
+                        locale: 'es',
+                        onChange: (dates) => {
+                            if (dates.length === 2) {
+                                this.filters.fechaDesde = dates[0].toISOString().slice(0, 10);
+                                this.filters.fechaHasta = dates[1].toISOString().slice(0, 10);
+                                this.applyFilters();
+                            } else if (dates.length === 0) {
+                                this.filters.fechaDesde = '';
+                                this.filters.fechaHasta = '';
+                                this.applyFilters();
+                            }
+                        },
+                    });
+                }
+            });
+
+            // Sync filter state to window for the datasource to read
+            window.__intervencionFilters = this.filters;
+
+            // Format service prices in the modal
+            this.$nextTick(() => {
+                document.querySelectorAll('[data-raw-price]').forEach(el => {
+                    const raw = el.getAttribute('data-raw-price');
+                    const num = parseInt(parseFloat(raw));
+                    el.textContent = '$' + formatMoney(num);
+                });
+            });
+        },
+
+        /* ── Filter logic ── */
+        toggleFilter(key, value) {
+            const arr = this.filters[key];
+            const idx = arr.indexOf(value);
+            if (idx >= 0) arr.splice(idx, 1);
+            else arr.push(value);
+            this.applyFilters();
+        },
+
+        onPriceInput(field, event) {
+            const raw = cleanMoney(event.target.value);
+            if (field === 'totalMin') {
+                this.filters.totalMin = raw;
+                this.filters.totalMinDisplay = raw ? formatMoney(raw) : '';
+            } else {
+                this.filters.totalMax = raw;
+                this.filters.totalMaxDisplay = raw ? formatMoney(raw) : '';
+            }
+            // Debounce the grid refresh
+            clearTimeout(this._priceTimer);
+            this._priceTimer = setTimeout(() => this.applyFilters(), 500);
+        },
+
+        applyFilters() {
+            window.__intervencionFilters = { ...this.filters };
+            if (gridApi) {
+                gridApi.purgeInfiniteCache();
+            }
+        },
+
+        clearFilters() {
+            this.filters = {
+                servicios: [], barberos: [], sucursales: [], estados: [],
+                fechaDesde: '', fechaHasta: '', totalMin: '', totalMax: '',
+                totalMinDisplay: '', totalMaxDisplay: '',
+            };
+            if (this.flatpickrRangeInstance) this.flatpickrRangeInstance.clear();
+            this.applyFilters();
+        },
+
+        /* ── Modal logic ── */
         resetForm() {
             this.form = {
-                barber_id: '',
-                client_id: '',
-                selectedClient: null,
-                service_ids: [],
-                fecha: new Date().toISOString().slice(0, 16),
-                notas: '',
+                barber_id: '', client_id: '', selectedClient: null,
+                service_ids: [], fecha: new Date().toISOString().slice(0, 16),
+                notas: '', estado: 'pendiente',
             };
             this.formError = '';
             this.clientSearch = '';
@@ -798,6 +956,7 @@ function intervencionesApp() {
                 this.form.service_ids = data.service_ids;
                 this.form.fecha = data.fecha;
                 this.form.notas = data.notas || '';
+                this.form.estado = data.estado || 'pendiente';
                 this.showModal = true;
                 this.$nextTick(() => this.initFlatpickr());
             } catch (e) {
@@ -833,24 +992,16 @@ function intervencionesApp() {
 
         toggleService(id) {
             const idx = this.form.service_ids.indexOf(id);
-            if (idx >= 0) {
-                this.form.service_ids.splice(idx, 1);
-            } else {
-                this.form.service_ids.push(id);
-            }
+            if (idx >= 0) this.form.service_ids.splice(idx, 1);
+            else this.form.service_ids.push(id);
         },
 
         async searchClients() {
-            if (this.clientSearch.length < 2) {
-                this.clientResults = [];
-                return;
-            }
+            if (this.clientSearch.length < 2) { this.clientResults = []; return; }
             try {
                 const res = await fetch(`${CLIENT_SEARCH_URL}?q=${encodeURIComponent(this.clientSearch)}`);
                 this.clientResults = await res.json();
-            } catch (e) {
-                this.clientResults = [];
-            }
+            } catch (e) { this.clientResults = []; }
         },
 
         selectClient(c) {
@@ -881,15 +1032,13 @@ function intervencionesApp() {
                         service_ids: this.form.service_ids,
                         fecha: this.form.fecha,
                         notas: this.form.notas,
+                        estado: this.form.estado,
                     }),
                 });
                 const data = await res.json();
                 if (res.ok) {
                     this.closeModal();
-                    // Refresh ag-Grid
-                    if (gridApi) {
-                        gridApi.setGridOption('datasource', dataSource);
-                    }
+                    if (gridApi) gridApi.setGridOption('datasource', buildDataSource());
                 } else {
                     this.formError = data.error || 'Error al guardar';
                 }
@@ -914,13 +1063,9 @@ function intervencionesApp() {
                 if (res.ok) {
                     this.showDeleteConfirm = false;
                     this.deletingId = null;
-                    if (gridApi) {
-                        gridApi.setGridOption('datasource', dataSource);
-                    }
+                    if (gridApi) gridApi.setGridOption('datasource', buildDataSource());
                 }
-            } catch (e) {
-                console.error(e);
-            }
+            } catch (e) { console.error(e); }
         },
     };
 }

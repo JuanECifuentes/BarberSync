@@ -4,16 +4,17 @@ Intervenciones views – CRUD and ag-Grid API.
 
 import json
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Q, Prefetch
+from django.db.models import Q, Prefetch, Sum
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
 
-from apps.accounts.models import BarberProfile
+from apps.accounts.models import BarberProfile, Barbershop
 from apps.clients.models import Client
 from .models import Intervencion, IntervencionServicio, Service
 
@@ -26,15 +27,19 @@ class IntervencionListView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        org = self.request.organization
+        barbershop = self.request.barbershop
+
         ctx["barbers"] = BarberProfile.objects.filter(
-            membership__barbershop=self.request.barbershop,
+            membership__barbershop=barbershop,
             is_active=True,
         ).select_related("membership__user")
         ctx["services"] = Service.objects.filter(
-            barbershop=self.request.barbershop, is_active=True,
+            barbershop=barbershop, is_active=True,
         )
         ctx["estados"] = Intervencion.Estado.choices
-        ctx["sucursal_name"] = str(self.request.barbershop)
+        ctx["sucursales"] = Barbershop.objects.filter(organization=org)
+        ctx["sucursal_name"] = str(barbershop)
         return ctx
 
 
@@ -44,8 +49,7 @@ class IntervencionListView(LoginRequiredMixin, TemplateView):
 class IntervencionGridAPI(LoginRequiredMixin, View):
     """
     API endpoint for ag-Grid infinite row model.
-    Accepts: startRow, endRow, sort, order, and filter_* params.
-    Returns: { rows: [...], lastRow: int }
+    Supports external filters: multi-select checkboxes, date range, price range.
     """
 
     def get(self, request):
@@ -64,38 +68,64 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
             )
         )
 
-        # ── Filtros por columna ──
-        # Fecha
-        filter_fecha = request.GET.get("filter_fecha", "").strip()
-        if filter_fecha:
-            qs = qs.filter(fecha__date=filter_fecha)
+        # ── Filtros externos (multi-select checkboxes) ──
 
-        # Cliente (text contains)
-        filter_cliente = request.GET.get("filter_cliente", "").strip()
-        if filter_cliente:
-            qs = qs.filter(
-                Q(client__name__icontains=filter_cliente)
-                | Q(client__email__icontains=filter_cliente)
+        # Barberos (comma-separated IDs)
+        filter_barberos = request.GET.get("filter_barberos", "").strip()
+        if filter_barberos:
+            ids = [int(x) for x in filter_barberos.split(",") if x.strip().isdigit()]
+            if ids:
+                qs = qs.filter(barber_id__in=ids)
+
+        # Servicios (comma-separated IDs) – intervenciones que contengan AL MENOS uno
+        filter_servicios = request.GET.get("filter_servicios", "").strip()
+        if filter_servicios:
+            ids = [int(x) for x in filter_servicios.split(",") if x.strip().isdigit()]
+            if ids:
+                qs = qs.filter(servicios__servicio_id__in=ids).distinct()
+
+        # Sucursales (comma-separated IDs)
+        filter_sucursales = request.GET.get("filter_sucursales", "").strip()
+        if filter_sucursales:
+            ids = [int(x) for x in filter_sucursales.split(",") if x.strip().isdigit()]
+            if ids:
+                qs = qs.filter(barbershop_id__in=ids)
+
+        # Estados (comma-separated values)
+        filter_estados = request.GET.get("filter_estados", "").strip()
+        if filter_estados:
+            vals = [v.strip() for v in filter_estados.split(",") if v.strip()]
+            if vals:
+                qs = qs.filter(estado__in=vals)
+
+        # ── Filtros de rango ──
+
+        # Fecha rango
+        filter_fecha_desde = request.GET.get("filter_fecha_desde", "").strip()
+        if filter_fecha_desde:
+            qs = qs.filter(fecha__date__gte=filter_fecha_desde)
+
+        filter_fecha_hasta = request.GET.get("filter_fecha_hasta", "").strip()
+        if filter_fecha_hasta:
+            qs = qs.filter(fecha__date__lte=filter_fecha_hasta)
+
+        # Precio total rango (requires annotation)
+        filter_total_min = request.GET.get("filter_total_min", "").strip()
+        filter_total_max = request.GET.get("filter_total_max", "").strip()
+        if filter_total_min or filter_total_max:
+            qs = qs.annotate(
+                _precio_total=Sum("servicios__precio_cobrado")
             )
-
-        # Barbero (text contains on display name)
-        filter_barbero = request.GET.get("filter_barbero", "").strip()
-        if filter_barbero:
-            qs = qs.filter(
-                Q(barber__membership__user__first_name__icontains=filter_barbero)
-                | Q(barber__membership__user__last_name__icontains=filter_barbero)
-                | Q(barber__display_name__icontains=filter_barbero)
-            )
-
-        # Estado (exact match)
-        filter_estado = request.GET.get("filter_estado", "").strip()
-        if filter_estado:
-            qs = qs.filter(estado=filter_estado)
-
-        # Sucursal (text contains on barbershop name)
-        filter_sucursal = request.GET.get("filter_sucursal", "").strip()
-        if filter_sucursal:
-            qs = qs.filter(barbershop__name__icontains=filter_sucursal)
+            if filter_total_min:
+                try:
+                    qs = qs.filter(_precio_total__gte=Decimal(filter_total_min))
+                except (InvalidOperation, ValueError):
+                    pass
+            if filter_total_max:
+                try:
+                    qs = qs.filter(_precio_total__lte=Decimal(filter_total_max))
+                except (InvalidOperation, ValueError):
+                    pass
 
         # ── Ordenamiento ──
         sort_field = request.GET.get("sort", "fecha")
@@ -149,15 +179,12 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
                 "notas": inv.notas,
             })
 
-        # lastRow: si no hay más filas, lastRow = total_count; sino -1
         last_row = total_count if end_row >= total_count else -1
-
         return JsonResponse({"rows": rows, "lastRow": last_row})
 
 
 def _format_money(value):
     """Format number with dot as thousands separator (Colombian style)."""
-    from decimal import Decimal
     try:
         rounded = int(Decimal(str(value)).quantize(Decimal("1")))
         return f"{rounded:,}".replace(",", ".")
@@ -182,9 +209,13 @@ class IntervencionCreateView(LoginRequiredMixin, View):
         service_ids = data.get("service_ids", [])
         notas = data.get("notas", "")
         fecha_str = data.get("fecha")
+        estado = data.get("estado", Intervencion.Estado.PENDIENTE)
 
         if not all([barber_id, client_id, service_ids]):
             return JsonResponse({"error": "Faltan campos requeridos"}, status=400)
+
+        if estado not in dict(Intervencion.Estado.choices):
+            estado = Intervencion.Estado.PENDIENTE
 
         barber = BarberProfile.objects.filter(
             pk=barber_id, membership__barbershop=barbershop,
@@ -211,7 +242,6 @@ class IntervencionCreateView(LoginRequiredMixin, View):
         if not services.exists():
             return JsonResponse({"error": "No se encontraron servicios válidos"}, status=400)
 
-        # Calculate end time
         total_duration = sum(s.duration_minutes for s in services)
         from datetime import timedelta
         fecha_fin = fecha + timedelta(minutes=total_duration)
@@ -220,7 +250,7 @@ class IntervencionCreateView(LoginRequiredMixin, View):
             barbershop=barbershop,
             barber=barber,
             client=client,
-            estado=Intervencion.Estado.PENDIENTE,
+            estado=estado,
             fecha=fecha,
             fecha_fin=fecha_fin,
             notas=notas,
@@ -260,6 +290,7 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
         service_ids = data.get("service_ids", [])
         notas = data.get("notas", "")
         fecha_str = data.get("fecha")
+        estado = data.get("estado")
 
         if not all([barber_id, client_id, service_ids]):
             return JsonResponse({"error": "Faltan campos requeridos"}, status=400)
@@ -299,6 +330,12 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
         intervencion.fecha_fin = fecha_fin
         intervencion.notas = notas
         intervencion.updated_by = request.user
+
+        if estado and estado in dict(Intervencion.Estado.choices):
+            intervencion.estado = estado
+            if estado == Intervencion.Estado.REALIZADA and not intervencion.fecha_fin:
+                intervencion.fecha_fin = timezone.now()
+
         intervencion.save()
 
         # Replace services
