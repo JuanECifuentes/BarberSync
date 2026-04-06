@@ -1,0 +1,40 @@
+Ideas para BarberSync:
+
+MEJORAS AGENDAPRO
+
+- Fichas clínicas y de clientes altamente personalizables
+- Control de inventario automatizado que descuenta insumos con cada servicio prestado
+- Reportes de gestión gerencial (Investigar Bien)
+- Herramientas avanzadas de fidelización como la emisión de gift cards y campañas automatizadas de email marketing
+
+- Recordatorios automáticos por canales digitales (WhatsApp y Email)
+
+
+MEJORAS BEUNIK
+
+- La aplicación permite a los administradores liquidar comisiones porcentuales complejas en cuestión de segundos, reduciendo procesos de cuadre de caja nocturnos que históricamente tomaban más de una hora a unos pocos clics
+
+MEJORAS FRESHA
+
+- procesamiento de pagos integrados (embedded finance) y la monetización de un marketplace de descubrimiento de clientes.
+
+
+MEJORAS GEMINI
+
+- Si un local agota su stock de un insumo crítico o un producto de venta al por menor (como ceras capilares de alta gama, tratamientos para barba o lociones), el administrador carece de visibilidad inmediata sobre el inventario del local vecino para solicitar un traslado interno sin fricción
+
+- La norma industrial es el arrendamiento de la silla de trabajo o la división porcentual de los ingresos diarios (típicamente esquemas de 60/40 o 50/50). Además, estas comisiones varían asimétricamente: el porcentaje que recibe el profesional por ejecutar un corte de cabello no es el mismo que recibe si logra realizar la venta cruzada de un producto físico de inventario.
+
+- Integrar sistemas auxiliares para la contabilidad con la DIAN, pueden ser informes en un formato especifico para la contabilidad o integración con herramientas de facturación electronica
+
+- Agenda por Link personalizado y WhatsApp 
+
+- Operar de forma invisible para el usuario final ****
+
+- matriz de permisos de acceso extremadamente granular: el profesional independiente de la sucursal norte solo tendrá autorización de sistema para visualizar su propia programación diaria y el cálculo de sus ingresos personales proyectados; el gerente o administrador de dicha sucursal accederá a los datos agregados del personal de su local y tendrá la potestad de aprobar el cierre de caja y el cuadre diario; mientras que los roles ejecutivos mantendrán control total de la jerarquía de la información
+
+
+- Modulo financiero a la medida de las barberías
+
+- Integración de APIs de Facturación electronica
+
