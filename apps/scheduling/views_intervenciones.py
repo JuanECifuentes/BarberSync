@@ -71,8 +71,9 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
         if not barbershop:
             return JsonResponse({"error": "Sin barbería"}, status=403)
 
+        org = barbershop.organization
         qs = Intervencion.objects.filter(
-            barbershop=barbershop,
+            barbershop__organization=org,
         ).select_related(
             "barber__membership__user", "client",
         ).prefetch_related(
@@ -299,8 +300,9 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
 
     def put(self, request, pk):
         barbershop = request.barbershop
+        org = barbershop.organization
         intervencion = get_object_or_404(
-            Intervencion, pk=pk, barbershop=barbershop,
+            Intervencion, pk=pk, barbershop__organization=org,
         )
         try:
             data = json.loads(request.body)
@@ -321,19 +323,19 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
         # Resolve target barbershop (sucursal)
         if sucursal_id:
             target_barbershop = Barbershop.objects.filter(
-                pk=sucursal_id, organization=barbershop.organization,
+                pk=sucursal_id, organization=org,
             ).first()
             if target_barbershop:
                 intervencion.barbershop = target_barbershop
 
         barber = BarberProfile.objects.filter(
-            pk=barber_id, membership__barbershop=barbershop,
+            pk=barber_id, membership__barbershop__organization=org,
         ).first()
         if not barber:
             return JsonResponse({"error": "Barbero no encontrado"}, status=404)
 
         client = Client.objects.filter(
-            pk=client_id, organization=barbershop.organization,
+            pk=client_id, organization=org,
         ).first()
         if not client:
             return JsonResponse({"error": "Cliente no encontrado"}, status=404)
@@ -346,7 +348,7 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
             fecha = intervencion.fecha
 
         services = Service.objects.filter(
-            pk__in=service_ids, barbershop=barbershop, is_active=True,
+            pk__in=service_ids, barbershop__organization=org, is_active=True,
         )
         if not services.exists():
             return JsonResponse({"error": "No se encontraron servicios válidos"}, status=400)
@@ -388,8 +390,9 @@ class IntervencionDeleteView(LoginRequiredMixin, View):
 
     def delete(self, request, pk):
         barbershop = request.barbershop
+        org = barbershop.organization
         intervencion = get_object_or_404(
-            Intervencion, pk=pk, barbershop=barbershop,
+            Intervencion, pk=pk, barbershop__organization=org,
         )
         intervencion.delete()
         return JsonResponse({"message": "Intervención eliminada"})
@@ -401,8 +404,9 @@ class IntervencionDeleteView(LoginRequiredMixin, View):
 class IntervencionChangeStatusAPI(LoginRequiredMixin, View):
     def post(self, request, pk):
         barbershop = request.barbershop
+        org = barbershop.organization
         intervencion = get_object_or_404(
-            Intervencion, pk=pk, barbershop=barbershop,
+            Intervencion, pk=pk, barbershop__organization=org,
         )
         try:
             data = json.loads(request.body)
@@ -467,6 +471,7 @@ class IntervencionDetailAPI(LoginRequiredMixin, View):
 
     def get(self, request, pk):
         barbershop = request.barbershop
+        org = barbershop.organization
         intervencion = get_object_or_404(
             Intervencion.objects.select_related(
                 "barber__membership__user", "client",
@@ -474,7 +479,7 @@ class IntervencionDetailAPI(LoginRequiredMixin, View):
                 "servicios__servicio",
             ),
             pk=pk,
-            barbershop=barbershop,
+            barbershop__organization=org,
         )
 
         servicios = list(intervencion.servicios.all())
