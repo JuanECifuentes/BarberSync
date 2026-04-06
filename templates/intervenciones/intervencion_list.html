@@ -11,11 +11,13 @@
 <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/dist/ag-grid-community.min.noStyle.js"></script>
 <!-- Alpine.js -->
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
-<!-- Flatpickr -->
+<!-- Flatpickr + confirmDate plugin -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/confirmDate/confirmDate.css">
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/confirmDate/confirmDate.js"></script>
 
 <style>
     /* ── Animated button (from inventory module) ── */
@@ -282,6 +284,24 @@
     .modal-accordion-body {
         overflow: hidden;
         transition: max-height 0.3s ease, opacity 0.2s ease;
+    }
+
+    /* Flatpickr confirmDate button styling */
+    .flatpickr-confirm {
+        background: #ff2301 !important;
+        color: #fff !important;
+        font-weight: 600 !important;
+        border: none !important;
+        border-radius: 0 0 8px 8px !important;
+        padding: 8px !important;
+        cursor: pointer !important;
+        transition: background 0.2s ease !important;
+    }
+    .flatpickr-confirm:hover {
+        background: #e01e00 !important;
+    }
+    .flatpickr-confirm svg {
+        display: none !important;
     }
 
     /* Flatpickr range overrides */
@@ -632,6 +652,13 @@ const CLIENT_SEARCH_URL = '/app/clients/api/search/';
 const IS_ADMIN = {{ is_admin|yesno:"true,false" }};
 
 /* ══════════════════════════════════════════
+   Flatpickr: confirmDate plugin helper
+   ══════════════════════════════════════════ */
+function makeFpConfirmPlugin() {
+    return confirmDatePlugin({ confirmText: 'Aceptar', showAlways: true });
+}
+
+/* ══════════════════════════════════════════
    Utilidades de formateo de precios
    ══════════════════════════════════════════ */
 function formatMoney(val) {
@@ -924,6 +951,7 @@ function intervencionesApp() {
                         altInput: true,
                         altFormat: 'd/m/Y',
                         locale: 'es',
+                        plugins: [makeFpConfirmPlugin()],
                         onChange: (dates) => {
                             if (dates.length === 2) {
                                 this.filters.fechaDesde = dates[0].toISOString().slice(0, 10);
@@ -1055,6 +1083,7 @@ function intervencionesApp() {
                 time_24hr: true,
                 locale: 'es',
                 defaultDate: this.form.fecha || new Date(),
+                plugins: [makeFpConfirmPlugin()],
                 onChange: (selectedDates, dateStr) => {
                     this.form.fecha = dateStr;
                 },
