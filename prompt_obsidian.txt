@@ -1,0 +1,27 @@
+Tengo un proyecto llamado BarberSync, en este existen los siguientes modulos:
+
+Agenda: El cual es básicamente un calendario donde se ven las citas agendadas.
+
+Finanzas : Donde va todo lo relacionado con dinero, incluytendo vistas de dashboards analiticos, manejo de cuadre de caja e impuestos.
+
+Barberos: Donde se crea y/o modifica 
+informacion, funciones y horarios de los empleados o barberos 
+
+Servicios: Donde se crea y/o modifica la informacion y costos de los diferentes servicios prestados por el negocio
+
+Inventario:
+Donde se gestionan los productos y categorías de estos mismos que se venden en el negocio aparte de los servicios
+
+Intervenciones:
+Modulo donde se ve y/o modifican los servicios y ventas hechas en el negocio.
+
+Clientes:
+Donde se crea y/o modifica información de los clientes
+
+Configuración: Donde se ve y modifica información del negocio
+
+Lo que quiero es que crees una agrupación de tarjetas llamada Iteración 1, donde por cada modulo vas a crear una tarjeta con 1 checkbox por mejora. En caso de que no puedas asignar o no entiendas en que modulo va una mejora lo agregas a una tarjeta llamada Mejoras globales.
+
+Además cada comentario entre parentesis tienes que dejarlo tal cual como esta, no debes modificarlo o resumirlo 
+
+Las mejoras que tienes que agrupar son las siguientes:

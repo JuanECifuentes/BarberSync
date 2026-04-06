@@ -16,7 +16,7 @@ from django.views.generic import TemplateView
 
 from apps.accounts.models import BarberProfile, Barbershop
 from apps.clients.models import Client
-from .models import Intervencion, IntervencionServicio, Service
+from .models import CategoriaServicio, Intervencion, IntervencionServicio, Service
 
 
 # ─────────────────────────────────────────────
@@ -34,12 +34,26 @@ class IntervencionListView(LoginRequiredMixin, TemplateView):
             membership__barbershop=barbershop,
             is_active=True,
         ).select_related("membership__user")
-        ctx["services"] = Service.objects.filter(
+        services = Service.objects.filter(
             barbershop=barbershop, is_active=True,
-        )
+        ).select_related("category")
+        ctx["services"] = services
         ctx["estados"] = Intervencion.Estado.choices
         ctx["sucursales"] = Barbershop.objects.filter(organization=org)
         ctx["sucursal_name"] = str(barbershop)
+        ctx["current_barbershop_id"] = barbershop.pk
+
+        # Group services by category for accordion display in modals
+        from collections import OrderedDict
+        grouped = OrderedDict()
+        for svc_obj in services:
+            cat_name = svc_obj.category.name if svc_obj.category else "Sin Categoría"
+            cat_id = svc_obj.category.pk if svc_obj.category else ""
+            if cat_name not in grouped:
+                grouped[cat_name] = {"category_id": cat_id, "services": []}
+            grouped[cat_name]["services"].append(svc_obj)
+        ctx["grouped_services"] = grouped
+
         return ctx
 
 
@@ -57,8 +71,9 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
         if not barbershop:
             return JsonResponse({"error": "Sin barbería"}, status=403)
 
+        org = barbershop.organization
         qs = Intervencion.objects.filter(
-            barbershop=barbershop,
+            barbershop__organization=org,
         ).select_related(
             "barber__membership__user", "client",
         ).prefetch_related(
@@ -210,12 +225,20 @@ class IntervencionCreateView(LoginRequiredMixin, View):
         notas = data.get("notas", "")
         fecha_str = data.get("fecha")
         estado = data.get("estado", Intervencion.Estado.PENDIENTE)
+        sucursal_id = data.get("sucursal_id")
 
         if not all([barber_id, client_id, service_ids]):
             return JsonResponse({"error": "Faltan campos requeridos"}, status=400)
 
         if estado not in dict(Intervencion.Estado.choices):
             estado = Intervencion.Estado.PENDIENTE
+
+        # Resolve target barbershop (sucursal)
+        target_barbershop = barbershop
+        if sucursal_id:
+            target_barbershop = Barbershop.objects.filter(
+                pk=sucursal_id, organization=barbershop.organization,
+            ).first() or barbershop
 
         barber = BarberProfile.objects.filter(
             pk=barber_id, membership__barbershop=barbershop,
@@ -247,7 +270,7 @@ class IntervencionCreateView(LoginRequiredMixin, View):
         fecha_fin = fecha + timedelta(minutes=total_duration)
 
         intervencion = Intervencion.objects.create(
-            barbershop=barbershop,
+            barbershop=target_barbershop,
             barber=barber,
             client=client,
             estado=estado,
@@ -277,8 +300,9 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
 
     def put(self, request, pk):
         barbershop = request.barbershop
+        org = barbershop.organization
         intervencion = get_object_or_404(
-            Intervencion, pk=pk, barbershop=barbershop,
+            Intervencion, pk=pk, barbershop__organization=org,
         )
         try:
             data = json.loads(request.body)
@@ -291,18 +315,27 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
         notas = data.get("notas", "")
         fecha_str = data.get("fecha")
         estado = data.get("estado")
+        sucursal_id = data.get("sucursal_id")
 
         if not all([barber_id, client_id, service_ids]):
             return JsonResponse({"error": "Faltan campos requeridos"}, status=400)
 
+        # Resolve target barbershop (sucursal)
+        if sucursal_id:
+            target_barbershop = Barbershop.objects.filter(
+                pk=sucursal_id, organization=org,
+            ).first()
+            if target_barbershop:
+                intervencion.barbershop = target_barbershop
+
         barber = BarberProfile.objects.filter(
-            pk=barber_id, membership__barbershop=barbershop,
+            pk=barber_id, membership__barbershop__organization=org,
         ).first()
         if not barber:
             return JsonResponse({"error": "Barbero no encontrado"}, status=404)
 
         client = Client.objects.filter(
-            pk=client_id, organization=barbershop.organization,
+            pk=client_id, organization=org,
         ).first()
         if not client:
             return JsonResponse({"error": "Cliente no encontrado"}, status=404)
@@ -315,7 +348,7 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
             fecha = intervencion.fecha
 
         services = Service.objects.filter(
-            pk__in=service_ids, barbershop=barbershop, is_active=True,
+            pk__in=service_ids, barbershop__organization=org, is_active=True,
         )
         if not services.exists():
             return JsonResponse({"error": "No se encontraron servicios válidos"}, status=400)
@@ -357,8 +390,9 @@ class IntervencionDeleteView(LoginRequiredMixin, View):
 
     def delete(self, request, pk):
         barbershop = request.barbershop
+        org = barbershop.organization
         intervencion = get_object_or_404(
-            Intervencion, pk=pk, barbershop=barbershop,
+            Intervencion, pk=pk, barbershop__organization=org,
         )
         intervencion.delete()
         return JsonResponse({"message": "Intervención eliminada"})
@@ -370,8 +404,9 @@ class IntervencionDeleteView(LoginRequiredMixin, View):
 class IntervencionChangeStatusAPI(LoginRequiredMixin, View):
     def post(self, request, pk):
         barbershop = request.barbershop
+        org = barbershop.organization
         intervencion = get_object_or_404(
-            Intervencion, pk=pk, barbershop=barbershop,
+            Intervencion, pk=pk, barbershop__organization=org,
         )
         try:
             data = json.loads(request.body)
@@ -409,6 +444,10 @@ class IntervencionDataAPI(LoginRequiredMixin, View):
             barbershop=barbershop, is_active=True,
         )
 
+        sucursales = Barbershop.objects.filter(
+            organization=barbershop.organization,
+        )
+
         return JsonResponse({
             "barbers": [
                 {"id": b.pk, "name": str(b)}
@@ -417,6 +456,10 @@ class IntervencionDataAPI(LoginRequiredMixin, View):
             "services": [
                 {"id": s.pk, "name": s.name, "price": str(s.price), "duration": s.duration_minutes}
                 for s in services
+            ],
+            "sucursales": [
+                {"id": s.pk, "name": s.name}
+                for s in sucursales
             ],
         })
 
@@ -428,6 +471,7 @@ class IntervencionDetailAPI(LoginRequiredMixin, View):
 
     def get(self, request, pk):
         barbershop = request.barbershop
+        org = barbershop.organization
         intervencion = get_object_or_404(
             Intervencion.objects.select_related(
                 "barber__membership__user", "client",
@@ -435,7 +479,7 @@ class IntervencionDetailAPI(LoginRequiredMixin, View):
                 "servicios__servicio",
             ),
             pk=pk,
-            barbershop=barbershop,
+            barbershop__organization=org,
         )
 
         servicios = list(intervencion.servicios.all())
@@ -448,6 +492,7 @@ class IntervencionDetailAPI(LoginRequiredMixin, View):
             "fecha": intervencion.fecha.strftime("%Y-%m-%dT%H:%M") if intervencion.fecha else "",
             "estado": intervencion.estado,
             "notas": intervencion.notas,
+            "sucursal_id": intervencion.barbershop_id,
             "service_ids": [s.servicio_id for s in servicios],
             "servicios": [
                 {"id": s.servicio_id, "nombre": s.servicio.name, "precio": str(s.precio_cobrado)}

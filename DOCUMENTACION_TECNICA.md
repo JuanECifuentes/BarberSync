@@ -73,3 +73,8 @@ Módulo encargado de exponer las vistas e interfaces para que los clientes pueda
 - **Inmutabilidad en Históricos:** Precios en citas (`AppointmentService`), registros financieros (`SaleItem`) y movimientos de inventario (`StockMovement`) utilizan estrategias de snapshot (fotografía de datos en el momento) para que cambios futuros en el catálogo no alteren datos históricos.
 - **Soft Deletion / Is Active:** Se prefiere el uso de flags booleanos (e.g., `is_active=False`) sobre la eliminación dura en base de datos para preservar la integridad referencial y de auditoría en servicios, sucursales y usuarios.
 - **Integridad y Validaciones:** Los modelos utilizan `UniqueConstraint` e índices (`db_index`) de forma extensiva en combinaciones como `[organization, slug]`, `[barber, start_time]`, previniendo solapamientos en bases de datos.
+- **Datepickers (Flatpickr) – Regla obligatoria:** Todo datepicker del proyecto debe incluir el plugin `confirmDatePlugin` con el botón "Aceptar" siempre visible. La configuración estándar es:
+  - **CDN requeridos:** `flatpickr/dist/plugins/confirmDate/confirmDate.css` y `flatpickr/dist/plugins/confirmDate/confirmDate.js`.
+  - **Helper reutilizable:** Definir `function makeFpConfirmPlugin() { return confirmDatePlugin({ confirmText: 'Aceptar', showAlways: true }); }` en cada template que use Flatpickr.
+  - **Uso:** Añadir `plugins: [makeFpConfirmPlugin()]` en toda inicialización `flatpickr(...)`.
+  - **Estilos del botón:** `.flatpickr-confirm` con `background: #ff2301`, hover `#e01e00`, SVG oculto, `border-radius: 0 0 8px 8px`, `font-weight: 600`, texto blanco.
