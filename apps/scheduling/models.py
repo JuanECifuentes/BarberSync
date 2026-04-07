@@ -415,6 +415,40 @@ class Intervencion(TenantModel):
         return sum(s.servicio.duration_minutes for s in self.servicios.all())
 
 
+class ServicioProducto(models.Model):
+    """Producto consumido automáticamente al realizar un servicio."""
+
+    servicio = models.ForeignKey(
+        Service,
+        on_delete=models.CASCADE,
+        related_name="productos_consumidos",
+    )
+    producto = models.ForeignKey(
+        "inventory.Product",
+        on_delete=models.CASCADE,
+        related_name="servicios_asociados",
+    )
+    cantidad_consumida = models.PositiveIntegerField(
+        "cantidad consumida",
+        default=1,
+        validators=[MinValueValidator(1)],
+    )
+
+    class Meta:
+        db_table = "scheduling_servicio_producto"
+        verbose_name = "producto de servicio"
+        verbose_name_plural = "productos de servicio"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["servicio", "producto"],
+                name="unique_servicio_producto",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.servicio.name} → {self.producto.name} x{self.cantidad_consumida}"
+
+
 class IntervencionServicio(models.Model):
     """Servicio individual realizado dentro de una intervención."""
 

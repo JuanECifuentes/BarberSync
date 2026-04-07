@@ -10,6 +10,7 @@ ServiceListView     – CRUD for services
 """
 
 import json
+from collections import OrderedDict
 from datetime import datetime, date
 
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -20,9 +21,10 @@ from django.views.generic import TemplateView
 
 from apps.accounts.models import BarberProfile
 from . import services as svc
+from apps.inventory.models import Product, ProductCategory
 from .models import (
     Appointment, CategoriaServicio,
-    HistorialPrecioServicio, Service,
+    HistorialPrecioServicio, Service, ServicioProducto,
 )
 
 
@@ -263,7 +265,6 @@ class ServiceListView(LoginRequiredMixin, TemplateView):
         ).order_by("name")
 
         # Group services by category for accordion display
-        from collections import OrderedDict
         grouped = OrderedDict()
         for svc_obj in services:
             cat_name = svc_obj.category.name if svc_obj.category else "Sin Categoría"
@@ -276,6 +277,19 @@ class ServiceListView(LoginRequiredMixin, TemplateView):
         ctx["categories"] = categories
         ctx["total_services"] = services.count()
         ctx["barbershop"] = barbershop
+
+        # Products grouped by category for the product consumption selector
+        products = Product.objects.filter(
+            barbershop=barbershop, is_active=True,
+        ).select_related("category").order_by("category__name", "name")
+        grouped_products = OrderedDict()
+        for prod in products:
+            cat_name = prod.category.name if prod.category else "Sin Categoría"
+            if cat_name not in grouped_products:
+                grouped_products[cat_name] = []
+            grouped_products[cat_name].append(prod)
+        ctx["grouped_products"] = grouped_products
+
         return ctx
 
 
@@ -300,6 +314,15 @@ class ServiceDetailAPI(LoginRequiredMixin, View):
             h["changed_at"] = h["changed_at"].isoformat()
             h["price"] = str(h["price"])
 
+        # Associated products
+        productos = ServicioProducto.objects.filter(
+            servicio=service,
+        ).select_related("producto")
+        productos_data = [
+            {"producto_id": sp.producto_id, "nombre": sp.producto.name, "cantidad": sp.cantidad_consumida}
+            for sp in productos
+        ]
+
         return JsonResponse({
             "id": service.pk,
             "name": service.name,
@@ -309,6 +332,7 @@ class ServiceDetailAPI(LoginRequiredMixin, View):
             "category_id": service.category_id or "",
             "category_name": service.category.name if service.category else "",
             "price_history": history,
+            "productos": productos_data,
         })
 
 
@@ -352,6 +376,22 @@ class ServiceCreateAPI(LoginRequiredMixin, View):
             price=service.price,
             changed_by=request.user,
         )
+
+        # Save product consumption
+        productos = data.get("productos", [])
+        for p in productos:
+            prod_id = p.get("producto_id")
+            cantidad = p.get("cantidad", 1)
+            if prod_id and cantidad and int(cantidad) > 0:
+                product = Product.objects.filter(
+                    pk=prod_id, barbershop=barbershop, is_active=True,
+                ).first()
+                if product:
+                    ServicioProducto.objects.create(
+                        servicio=service,
+                        producto=product,
+                        cantidad_consumida=int(cantidad),
+                    )
 
         return JsonResponse({
             "message": "Servicio creado",
@@ -405,6 +445,24 @@ class ServiceUpdateAPI(LoginRequiredMixin, View):
                 price=service.price,
                 changed_by=request.user,
             )
+
+        # Update product consumption
+        productos = data.get("productos")
+        if productos is not None:
+            service.productos_consumidos.all().delete()
+            for p in productos:
+                prod_id = p.get("producto_id")
+                cantidad = p.get("cantidad", 1)
+                if prod_id and cantidad and int(cantidad) > 0:
+                    product = Product.objects.filter(
+                        pk=prod_id, barbershop=barbershop, is_active=True,
+                    ).first()
+                    if product:
+                        ServicioProducto.objects.create(
+                            servicio=service,
+                            producto=product,
+                            cantidad_consumida=int(cantidad),
+                        )
 
         return JsonResponse({"ok": True})
 

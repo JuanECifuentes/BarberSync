@@ -105,6 +105,41 @@
         font-family: 'Poppins', sans-serif;
     }
 
+    /* Product tags */
+    .prod-tag {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 10px;
+        border-radius: 9999px;
+        font-size: 11px;
+        font-weight: 500;
+        line-height: 1;
+        background-color: rgba(59, 130, 246, 0.12);
+        color: #93c5fd;
+        white-space: nowrap;
+    }
+    .prod-tags-wrap {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px;
+        overflow: hidden;
+        max-height: 44px;
+        width: 100%;
+    }
+    .venta-tag {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 10px;
+        border-radius: 9999px;
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1;
+        background-color: rgba(168, 85, 247, 0.15);
+        color: #c084fc;
+        white-space: nowrap;
+    }
+
     /* Service tags */
     .svc-tag {
         display: inline-flex;
@@ -186,18 +221,21 @@
     /* Modals */
     .modal-backdrop {
         position: fixed; inset: 0;
-        background: rgba(0, 0, 0, 0.7);
-        backdrop-filter: blur(4px);
+        background: rgba(0, 0, 0, 0.6);
         z-index: 50;
         display: flex; align-items: center; justify-content: center;
+        padding: 1rem;
+        overflow-y: auto;
     }
     .modal-content {
         background: #1a1a1c;
         border: 1px solid #3d3d41;
         border-radius: 12px;
-        width: 100%; max-width: 600px; max-height: 95vh;
+        width: 100%; max-width: 42rem; /* max-w-2xl — same as barberos modal */
+        max-height: 90vh;
         overflow-y: auto; padding: 24px;
         box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+        margin: auto;
     }
     .confirm-backdrop {
         position: fixed; inset: 0;
@@ -391,6 +429,13 @@
                     <svg class="w-4 h-4 text-neutral-500 flex-shrink-0 ml-1" :class="dropdowns.servicios ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="transition: transform 0.2s"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                 </button>
                 <div class="ms-panel" x-show="dropdowns.servicios" x-transition>
+                    <label class="ms-option">
+                        <input type="checkbox" :checked="filters.servicios.includes('venta')"
+                               @change="toggleFilter('servicios', 'venta')">
+                        <span class="flex items-center gap-2">
+                            <span class="venta-tag" style="padding:3px 8px;font-size:10px;">Venta</span>
+                        </span>
+                    </label>
                     {% for service in services %}
                     <label class="ms-option">
                         <input type="checkbox" :checked="filters.servicios.includes({{ service.pk }})"
@@ -567,6 +612,19 @@
                         </div>
                     </div>
 
+                    <!-- Productos (dinámico) -->
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-300 mb-1">Productos (Opcional)</label>
+                        <div class="space-y-2 max-h-40 overflow-y-auto pr-1" id="modal-productos-container">
+                            <!-- Dynamic rows -->
+                        </div>
+                        <button type="button" @click="addProductRow()"
+                                class="mt-2 text-xs text-brand hover:text-white border border-neutral-700 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                            Agregar producto
+                        </button>
+                    </div>
+
                     <!-- Sucursal -->
                     <div>
                         <label class="block text-sm font-medium text-neutral-300 mb-1">Sucursal</label>
@@ -642,6 +700,18 @@
         </div>
     </template>
 </div>
+
+<!-- Hidden template: product select options grouped by category -->
+<template id="interv-producto-options-tpl">
+    <option value="">Seleccionar producto...</option>
+    {% for cat_name, prods in grouped_products.items %}
+    <optgroup label="{{ cat_name }}">
+        {% for prod in prods %}
+        <option value="{{ prod.pk }}" data-price="{{ prod.price }}">{{ prod.name }}</option>
+        {% endfor %}
+    </optgroup>
+    {% endfor %}
+</template>
 
 <script>
 const CSRF_TOKEN = '{{ csrf_token }}';
@@ -728,6 +798,10 @@ let gridApi = null;
 
 function serviciosCellRenderer(params) {
     if (!params.value || !params.value.length) {
+        // Show "Venta" tag if the intervention has products but no services
+        if (params.data?.productos?.length) {
+            return '<div class="flex items-center w-full h-full"><span class="venta-tag">Venta</span></div>';
+        }
         return '<div class="flex items-center w-full h-full"><span class="text-neutral-500 text-xs">—</span></div>';
     }
     const wrapper = document.createElement('div');
@@ -809,12 +883,54 @@ function precioTotalCellRenderer(params) {
     return el;
 }
 
+function productosCellRenderer(params) {
+    if (!params.value || !params.value.length) {
+        return '<div class="flex items-center w-full h-full"><span class="text-neutral-500 text-xs">—</span></div>';
+    }
+    const wrapper = document.createElement('div');
+    wrapper.className = 'flex items-center w-full h-full';
+    const container = document.createElement('div');
+    container.className = 'prod-tags-wrap';
+    const prods = params.value;
+    const maxWidth = params.column.getActualWidth() - 20;
+    let totalWidth = 0;
+    let fitsAll = true;
+    for (const p of prods) {
+        const label = `${p.nombre} x${p.cantidad}`;
+        totalWidth += (label.length * 8) + 32;
+        if (totalWidth > maxWidth) { fitsAll = false; break; }
+    }
+    if (fitsAll) {
+        for (const p of prods) {
+            const tag = document.createElement('span');
+            tag.className = 'prod-tag';
+            tag.textContent = `${p.nombre} x${p.cantidad}`;
+            container.appendChild(tag);
+        }
+    } else {
+        const first = document.createElement('span');
+        first.className = 'prod-tag';
+        first.textContent = `${prods[0].nombre} x${prods[0].cantidad}`;
+        container.appendChild(first);
+        if (prods.length > 1) {
+            const badge = document.createElement('span');
+            badge.className = 'svc-count-badge';
+            badge.textContent = `+${prods.length - 1} más`;
+            badge.title = prods.map(p => `${p.nombre} x${p.cantidad}`).join(', ');
+            container.appendChild(badge);
+        }
+    }
+    wrapper.appendChild(container);
+    return wrapper;
+}
+
 // Column definitions — NO internal filters
 const columnDefs = [
     { headerName: 'Fecha',     field: 'fecha',     sortable: true,  minWidth: 150, maxWidth: 180 },
     { headerName: 'Cliente',   field: 'cliente',   sortable: true,  minWidth: 140, flex: 1 },
     { headerName: 'Barbero',   field: 'barbero',   sortable: true,  minWidth: 140, flex: 1 },
-    { headerName: 'Servicios', field: 'servicios', sortable: false, minWidth: 180, flex: 1.5, cellRenderer: serviciosCellRenderer },
+    { headerName: 'Servicios', field: 'servicios', sortable: false, minWidth: 160, flex: 1.2, cellRenderer: serviciosCellRenderer },
+    { headerName: 'Productos', field: 'productos', sortable: false, minWidth: 160, flex: 1.2, cellRenderer: productosCellRenderer },
     { headerName: 'Sucursal',  field: 'sucursal',  sortable: true,  minWidth: 120, flex: 0.8 },
     { headerName: 'Total',     field: 'precio_total', sortable: false, minWidth: 100, maxWidth: 120, cellRenderer: precioTotalCellRenderer },
     { headerName: 'Estado',    field: 'estado',    sortable: true,  minWidth: 120, maxWidth: 150, cellRenderer: estadoCellRenderer },
@@ -925,10 +1041,11 @@ function intervencionesApp() {
             notas: '',
             estado: 'pendiente',
             sucursal_id: '{{ current_barbershop_id }}',
+            productCount: 0,
         },
 
         get canSubmit() {
-            return this.form.barber_id && this.form.selectedClient && this.form.service_ids.length > 0;
+            return this.form.barber_id && this.form.selectedClient && (this.form.service_ids.length > 0 || this.form.productCount > 0);
         },
 
         get hasActiveFilters() {
@@ -1020,6 +1137,7 @@ function intervencionesApp() {
                 service_ids: [], fecha: new Date().toISOString().slice(0, 16),
                 notas: '', estado: 'pendiente',
                 sucursal_id: '{{ current_barbershop_id }}',
+                productCount: 0,
             };
             this.formError = '';
             this.clientSearch = '';
@@ -1031,6 +1149,7 @@ function intervencionesApp() {
             this.resetForm();
             this.showModal = true;
             this.$nextTick(() => {
+                this.clearProductRows();
                 this.initFlatpickr();
                 this.formatModalPrices();
                 initModalAccordions();
@@ -1054,6 +1173,10 @@ function intervencionesApp() {
                 this.form.sucursal_id = data.sucursal_id ? data.sucursal_id.toString() : '{{ current_barbershop_id }}';
                 this.showModal = true;
                 this.$nextTick(() => {
+                    this.clearProductRows();
+                    if (data.productos && data.productos.length > 0) {
+                        data.productos.forEach(p => this.addProductRow(p.producto_id, p.cantidad, p.auto));
+                    }
                     this.initFlatpickr();
                     this.formatModalPrices();
                     initModalAccordions();
@@ -1104,6 +1227,64 @@ function intervencionesApp() {
             });
         },
 
+        /* ── Product rows logic ── */
+        getProductOptionsHTML() {
+            const tpl = document.getElementById('interv-producto-options-tpl');
+            return tpl ? tpl.innerHTML : '<option value="">Sin productos</option>';
+        },
+
+        addProductRow(productoId, cantidad, autoConsumed) {
+            const container = document.getElementById('modal-productos-container');
+            const row = document.createElement('div');
+            row.className = 'flex items-center gap-2 interv-producto-row';
+            row.innerHTML = `
+                ${autoConsumed
+                    ? '<span class="text-[10px] font-semibold uppercase tracking-wider text-blue-400 bg-blue-400/10 border border-blue-400/20 px-2 py-1 rounded flex-shrink-0" title="Agregado automáticamente por el servicio">Auto</span>'
+                    : ''
+                }
+                <select class="iprod-select flex-1 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                    ${this.getProductOptionsHTML()}
+                </select>
+                <input type="number" min="1" value="${cantidad || 1}" placeholder="Cant."
+                       class="iprod-qty w-20 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm text-center focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                <button type="button" class="text-red-400 hover:text-red-300 p-1 transition-colors flex-shrink-0 iprod-remove-btn">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            `;
+            container.appendChild(row);
+            if (productoId) {
+                row.querySelector('.iprod-select').value = productoId;
+            }
+            // Bind remove
+            row.querySelector('.iprod-remove-btn').addEventListener('click', () => {
+                row.remove();
+                this.form.productCount = this.getProductRows().length;
+            });
+            // Bind select change
+            row.querySelector('.iprod-select').addEventListener('change', () => {
+                this.form.productCount = this.getProductRows().length;
+            });
+            this.form.productCount = this.getProductRows().length;
+        },
+
+        getProductRows() {
+            const rows = document.querySelectorAll('#modal-productos-container .interv-producto-row');
+            const items = [];
+            rows.forEach(row => {
+                const prodId = row.querySelector('.iprod-select').value;
+                const qty = parseInt(row.querySelector('.iprod-qty').value) || 0;
+                if (prodId && qty > 0) {
+                    items.push({ producto_id: parseInt(prodId), cantidad: qty });
+                }
+            });
+            return items;
+        },
+
+        clearProductRows() {
+            const container = document.getElementById('modal-productos-container');
+            if (container) container.innerHTML = '';
+        },
+
         async searchClients() {
             if (this.clientSearch.length < 2) { this.clientResults = []; return; }
             try {
@@ -1138,6 +1319,7 @@ function intervencionesApp() {
                         barber_id: parseInt(this.form.barber_id),
                         client_id: this.form.selectedClient.id,
                         service_ids: this.form.service_ids,
+                        productos: this.getProductRows(),
                         fecha: this.form.fecha,
                         notas: this.form.notas,
                         estado: this.form.estado,

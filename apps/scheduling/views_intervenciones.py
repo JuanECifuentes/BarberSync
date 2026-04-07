@@ -3,11 +3,14 @@ Intervenciones views – CRUD and ag-Grid API.
 """
 
 import json
+from collections import OrderedDict
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Q, Prefetch, Sum
+from django.db import transaction
+from django.db.models import F, Q, Prefetch, Sum, Value
+from django.db.models.functions import Coalesce
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -16,7 +19,11 @@ from django.views.generic import TemplateView
 
 from apps.accounts.models import BarberProfile, Barbershop
 from apps.clients.models import Client
-from .models import CategoriaServicio, Intervencion, IntervencionServicio, Service
+from apps.inventory.models import Product, ProductCategory, StockMovement
+from .models import (
+    CategoriaServicio, Intervencion, IntervencionProducto,
+    IntervencionServicio, Service, ServicioProducto,
+)
 
 
 # ─────────────────────────────────────────────
@@ -44,7 +51,6 @@ class IntervencionListView(LoginRequiredMixin, TemplateView):
         ctx["current_barbershop_id"] = barbershop.pk
 
         # Group services by category for accordion display in modals
-        from collections import OrderedDict
         grouped = OrderedDict()
         for svc_obj in services:
             cat_name = svc_obj.category.name if svc_obj.category else "Sin Categoría"
@@ -53,6 +59,18 @@ class IntervencionListView(LoginRequiredMixin, TemplateView):
                 grouped[cat_name] = {"category_id": cat_id, "services": []}
             grouped[cat_name]["services"].append(svc_obj)
         ctx["grouped_services"] = grouped
+
+        # Products grouped by category for the product selector
+        products = Product.objects.filter(
+            barbershop=barbershop, is_active=True,
+        ).select_related("category").order_by("category__name", "name")
+        grouped_products = OrderedDict()
+        for prod in products:
+            cat_name = prod.category.name if prod.category else "Sin Categoría"
+            if cat_name not in grouped_products:
+                grouped_products[cat_name] = []
+            grouped_products[cat_name].append(prod)
+        ctx["grouped_products"] = grouped_products
 
         return ctx
 
@@ -80,7 +98,11 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
             Prefetch(
                 "servicios",
                 queryset=IntervencionServicio.objects.select_related("servicio"),
-            )
+            ),
+            Prefetch(
+                "productos_usados",
+                queryset=IntervencionProducto.objects.select_related("producto"),
+            ),
         )
 
         # ── Filtros externos (multi-select checkboxes) ──
@@ -92,11 +114,19 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
             if ids:
                 qs = qs.filter(barber_id__in=ids)
 
-        # Servicios (comma-separated IDs) – intervenciones que contengan AL MENOS uno
+        # Servicios (comma-separated IDs or "venta") – intervenciones que contengan AL MENOS uno
         filter_servicios = request.GET.get("filter_servicios", "").strip()
         if filter_servicios:
-            ids = [int(x) for x in filter_servicios.split(",") if x.strip().isdigit()]
-            if ids:
+            values = [v.strip() for v in filter_servicios.split(",") if v.strip()]
+            has_venta = "venta" in values
+            ids = [int(x) for x in values if x.isdigit()]
+            if has_venta and ids:
+                qs = qs.filter(
+                    Q(servicios__servicio_id__in=ids) | Q(servicios__isnull=True)
+                ).distinct()
+            elif has_venta:
+                qs = qs.filter(servicios__isnull=True)
+            elif ids:
                 qs = qs.filter(servicios__servicio_id__in=ids).distinct()
 
         # Sucursales (comma-separated IDs)
@@ -124,12 +154,14 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
         if filter_fecha_hasta:
             qs = qs.filter(fecha__date__lte=filter_fecha_hasta)
 
-        # Precio total rango (requires annotation)
+        # Precio total rango (requires annotation — services + products)
         filter_total_min = request.GET.get("filter_total_min", "").strip()
         filter_total_max = request.GET.get("filter_total_max", "").strip()
         if filter_total_min or filter_total_max:
             qs = qs.annotate(
-                _precio_total=Sum("servicios__precio_cobrado")
+                _total_servicios=Coalesce(Sum("servicios__precio_cobrado"), Value(Decimal("0"))),
+                _total_productos=Coalesce(Sum(F("productos_usados__cantidad") * F("productos_usados__precio_unitario")), Value(Decimal("0"))),
+                _precio_total=F("_total_servicios") + F("_total_productos"),
             )
             if filter_total_min:
                 try:
@@ -173,7 +205,10 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
         rows = []
         for inv in page:
             servicios = list(inv.servicios.all())
-            total = sum(s.precio_cobrado for s in servicios)
+            productos = list(inv.productos_usados.all())
+            total_servicios = sum(s.precio_cobrado for s in servicios)
+            total_productos = sum(p.cantidad * p.precio_unitario for p in productos)
+            total = total_servicios + total_productos
             rows.append({
                 "id": inv.pk,
                 "fecha": inv.fecha.strftime("%d/%m/%Y %H:%M") if inv.fecha else "",
@@ -185,6 +220,10 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
                 "servicios": [
                     {"nombre": s.servicio.name, "precio": str(s.precio_cobrado)}
                     for s in servicios
+                ],
+                "productos": [
+                    {"nombre": p.producto.name, "cantidad": p.cantidad, "precio": str(p.precio_unitario)}
+                    for p in productos
                 ],
                 "sucursal": str(inv.barbershop) if inv.barbershop else "",
                 "precio_total": str(total),
@@ -207,6 +246,34 @@ def _format_money(value):
         return str(value)
 
 
+def _deduct_stock(intervencion, user):
+    """Deduct stock for all products in an intervention. Must be called inside transaction.atomic()."""
+    for ip in intervencion.productos_usados.select_related("producto").all():
+        product = Product.objects.select_for_update().get(pk=ip.producto_id)
+        StockMovement(
+            product=product,
+            quantity=-ip.cantidad,
+            reason=StockMovement.Reason.SALE,
+            notes=f"Intervención #{intervencion.pk}",
+            resulting_stock=0,  # will be set by save()
+            updated_by=user,
+        ).save()
+
+
+def _restore_stock(intervencion, user):
+    """Restore stock for all products in an intervention (for edits/deletes). Must be called inside transaction.atomic()."""
+    for ip in intervencion.productos_usados.select_related("producto").all():
+        product = Product.objects.select_for_update().get(pk=ip.producto_id)
+        StockMovement(
+            product=product,
+            quantity=ip.cantidad,
+            reason=StockMovement.Reason.ADJUSTMENT,
+            notes=f"Reversión Intervención #{intervencion.pk}",
+            resulting_stock=0,
+            updated_by=user,
+        ).save()
+
+
 # ─────────────────────────────────────────────
 # Crear intervención (POST JSON)
 # ─────────────────────────────────────────────
@@ -222,13 +289,17 @@ class IntervencionCreateView(LoginRequiredMixin, View):
         barber_id = data.get("barber_id")
         client_id = data.get("client_id")
         service_ids = data.get("service_ids", [])
+        producto_items = data.get("productos", [])
         notas = data.get("notas", "")
         fecha_str = data.get("fecha")
         estado = data.get("estado", Intervencion.Estado.PENDIENTE)
         sucursal_id = data.get("sucursal_id")
 
-        if not all([barber_id, client_id, service_ids]):
+        # Venta directa: allow no services if at least one product
+        if not barber_id or not client_id:
             return JsonResponse({"error": "Faltan campos requeridos"}, status=400)
+        if not service_ids and not producto_items:
+            return JsonResponse({"error": "Debe incluir al menos un servicio o un producto"}, status=400)
 
         if estado not in dict(Intervencion.Estado.choices):
             estado = Intervencion.Estado.PENDIENTE
@@ -261,31 +332,73 @@ class IntervencionCreateView(LoginRequiredMixin, View):
 
         services = Service.objects.filter(
             pk__in=service_ids, barbershop=barbershop, is_active=True,
-        )
-        if not services.exists():
+        ) if service_ids else Service.objects.none()
+
+        if service_ids and not services.exists():
             return JsonResponse({"error": "No se encontraron servicios válidos"}, status=400)
 
-        total_duration = sum(s.duration_minutes for s in services)
         from datetime import timedelta
-        fecha_fin = fecha + timedelta(minutes=total_duration)
+        total_duration = sum(s.duration_minutes for s in services)
+        fecha_fin = fecha + timedelta(minutes=total_duration) if total_duration else fecha
 
-        intervencion = Intervencion.objects.create(
-            barbershop=target_barbershop,
-            barber=barber,
-            client=client,
-            estado=estado,
-            fecha=fecha,
-            fecha_fin=fecha_fin,
-            notas=notas,
-            updated_by=request.user,
-        )
-
-        for service in services:
-            IntervencionServicio.objects.create(
-                intervencion=intervencion,
-                servicio=service,
-                precio_cobrado=service.price,
+        with transaction.atomic():
+            intervencion = Intervencion.objects.create(
+                barbershop=target_barbershop,
+                barber=barber,
+                client=client,
+                estado=estado,
+                fecha=fecha,
+                fecha_fin=fecha_fin,
+                notas=notas,
+                updated_by=request.user,
             )
+
+            for service in services:
+                IntervencionServicio.objects.create(
+                    intervencion=intervencion,
+                    servicio=service,
+                    precio_cobrado=service.price,
+                )
+
+            # Explicit products from the modal
+            for item in producto_items:
+                prod_id = item.get("producto_id")
+                cantidad = int(item.get("cantidad", 1))
+                if not prod_id or cantidad <= 0:
+                    continue
+                product = Product.objects.select_for_update().filter(
+                    pk=prod_id, barbershop=target_barbershop, is_active=True,
+                ).first()
+                if not product:
+                    continue
+                IntervencionProducto.objects.create(
+                    intervencion=intervencion,
+                    producto=product,
+                    cantidad=cantidad,
+                    precio_unitario=product.price,
+                )
+
+            # Auto-consume products linked to services via ServicioProducto
+            for service in services:
+                for sp in service.productos_consumidos.select_related("producto").all():
+                    product = Product.objects.select_for_update().get(pk=sp.producto_id)
+                    # Check if already added explicitly; if so, add to existing quantity
+                    existing = IntervencionProducto.objects.filter(
+                        intervencion=intervencion, producto=product,
+                    ).first()
+                    if existing:
+                        existing.cantidad += sp.cantidad_consumida
+                        existing.save(update_fields=["cantidad"])
+                    else:
+                        IntervencionProducto.objects.create(
+                            intervencion=intervencion,
+                            producto=product,
+                            cantidad=sp.cantidad_consumida,
+                            precio_unitario=product.price,
+                        )
+
+            # Deduct stock for all products used
+            _deduct_stock(intervencion, request.user)
 
         return JsonResponse({
             "message": "Intervención creada",
@@ -312,21 +425,25 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
         barber_id = data.get("barber_id")
         client_id = data.get("client_id")
         service_ids = data.get("service_ids", [])
+        producto_items = data.get("productos", [])
         notas = data.get("notas", "")
         fecha_str = data.get("fecha")
         estado = data.get("estado")
         sucursal_id = data.get("sucursal_id")
 
-        if not all([barber_id, client_id, service_ids]):
+        if not barber_id or not client_id:
             return JsonResponse({"error": "Faltan campos requeridos"}, status=400)
+        if not service_ids and not producto_items:
+            return JsonResponse({"error": "Debe incluir al menos un servicio o un producto"}, status=400)
 
         # Resolve target barbershop (sucursal)
+        target_barbershop = intervencion.barbershop
         if sucursal_id:
-            target_barbershop = Barbershop.objects.filter(
+            resolved = Barbershop.objects.filter(
                 pk=sucursal_id, organization=org,
             ).first()
-            if target_barbershop:
-                intervencion.barbershop = target_barbershop
+            if resolved:
+                target_barbershop = resolved
 
         barber = BarberProfile.objects.filter(
             pk=barber_id, membership__barbershop__organization=org,
@@ -349,36 +466,66 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
 
         services = Service.objects.filter(
             pk__in=service_ids, barbershop__organization=org, is_active=True,
-        )
-        if not services.exists():
+        ) if service_ids else Service.objects.none()
+
+        if service_ids and not services.exists():
             return JsonResponse({"error": "No se encontraron servicios válidos"}, status=400)
 
-        total_duration = sum(s.duration_minutes for s in services)
         from datetime import timedelta
-        fecha_fin = fecha + timedelta(minutes=total_duration)
+        total_duration = sum(s.duration_minutes for s in services)
+        fecha_fin = fecha + timedelta(minutes=total_duration) if total_duration else fecha
 
-        intervencion.barber = barber
-        intervencion.client = client
-        intervencion.fecha = fecha
-        intervencion.fecha_fin = fecha_fin
-        intervencion.notas = notas
-        intervencion.updated_by = request.user
+        with transaction.atomic():
+            # Restore stock from previous products before replacing
+            _restore_stock(intervencion, request.user)
 
-        if estado and estado in dict(Intervencion.Estado.choices):
-            intervencion.estado = estado
-            if estado == Intervencion.Estado.REALIZADA and not intervencion.fecha_fin:
-                intervencion.fecha_fin = timezone.now()
+            intervencion.barbershop = target_barbershop
+            intervencion.barber = barber
+            intervencion.client = client
+            intervencion.fecha = fecha
+            intervencion.fecha_fin = fecha_fin
+            intervencion.notas = notas
+            intervencion.updated_by = request.user
 
-        intervencion.save()
+            if estado and estado in dict(Intervencion.Estado.choices):
+                intervencion.estado = estado
+                if estado == Intervencion.Estado.REALIZADA and not intervencion.fecha_fin:
+                    intervencion.fecha_fin = timezone.now()
 
-        # Replace services
-        intervencion.servicios.all().delete()
-        for service in services:
-            IntervencionServicio.objects.create(
-                intervencion=intervencion,
-                servicio=service,
-                precio_cobrado=service.price,
-            )
+            intervencion.save()
+
+            # Replace services
+            intervencion.servicios.all().delete()
+            for service in services:
+                IntervencionServicio.objects.create(
+                    intervencion=intervencion,
+                    servicio=service,
+                    precio_cobrado=service.price,
+                )
+
+            # Replace products — the modal sends ALL products (including auto-consumed),
+            # so we just save exactly what the user submitted without auto-adding.
+            intervencion.productos_usados.all().delete()
+
+            for item in producto_items:
+                prod_id = item.get("producto_id")
+                cantidad = int(item.get("cantidad", 1))
+                if not prod_id or cantidad <= 0:
+                    continue
+                product = Product.objects.select_for_update().filter(
+                    pk=prod_id, barbershop=target_barbershop, is_active=True,
+                ).first()
+                if not product:
+                    continue
+                IntervencionProducto.objects.create(
+                    intervencion=intervencion,
+                    producto=product,
+                    cantidad=cantidad,
+                    precio_unitario=product.price,
+                )
+
+            # Deduct stock for updated products
+            _deduct_stock(intervencion, request.user)
 
         return JsonResponse({"message": "Intervención actualizada", "id": intervencion.pk})
 
@@ -394,7 +541,9 @@ class IntervencionDeleteView(LoginRequiredMixin, View):
         intervencion = get_object_or_404(
             Intervencion, pk=pk, barbershop__organization=org,
         )
-        intervencion.delete()
+        with transaction.atomic():
+            _restore_stock(intervencion, request.user)
+            intervencion.delete()
         return JsonResponse({"message": "Intervención eliminada"})
 
 
@@ -477,12 +626,21 @@ class IntervencionDetailAPI(LoginRequiredMixin, View):
                 "barber__membership__user", "client",
             ).prefetch_related(
                 "servicios__servicio",
+                "productos_usados__producto",
             ),
             pk=pk,
             barbershop__organization=org,
         )
 
         servicios = list(intervencion.servicios.all())
+        productos = list(intervencion.productos_usados.all())
+
+        # Identify auto-consumed products (from ServicioProducto links)
+        auto_product_ids = set()
+        for s in servicios:
+            for sp in ServicioProducto.objects.filter(servicio_id=s.servicio_id):
+                auto_product_ids.add(sp.producto_id)
+
         return JsonResponse({
             "id": intervencion.pk,
             "barber_id": intervencion.barber_id,
@@ -497,5 +655,11 @@ class IntervencionDetailAPI(LoginRequiredMixin, View):
             "servicios": [
                 {"id": s.servicio_id, "nombre": s.servicio.name, "precio": str(s.precio_cobrado)}
                 for s in servicios
+            ],
+            "productos": [
+                {"producto_id": p.producto_id, "nombre": p.producto.name,
+                 "cantidad": p.cantidad, "precio": str(p.precio_unitario),
+                 "auto": p.producto_id in auto_product_ids}
+                for p in productos
             ],
         })

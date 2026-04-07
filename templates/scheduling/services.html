@@ -297,6 +297,19 @@
                 </div>
             </div>
         </div>
+        <!-- Consumo de Productos (Opcional) -->
+        <div>
+            <label class="text-xs text-neutral-400 mb-1 block">Consumo de Productos (Opcional)</label>
+            <div id="svc-productos-container" class="space-y-2 max-h-40 overflow-y-auto pr-1">
+                <!-- Dynamic rows inserted here -->
+            </div>
+            <button type="button" onclick="addProductoRow()"
+                    class="mt-2 text-xs text-brand hover:text-white border border-neutral-700 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Agregar producto
+            </button>
+        </div>
+
         <button onclick="saveService()" class="btn-action-primary btn-primary w-full border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm" id="btn-save-service"><span>Crear Servicio</span></button>
     </div>
 </div>
@@ -392,6 +405,18 @@
     </div>
 </div>
 {% endif %}
+
+<!-- Hidden template: product select options grouped by category -->
+<template id="producto-options-tpl">
+    <option value="">Seleccionar producto...</option>
+    {% for cat_name, prods in grouped_products.items %}
+    <optgroup label="{{ cat_name }}">
+        {% for prod in prods %}
+        <option value="{{ prod.pk }}">{{ prod.name }}</option>
+        {% endfor %}
+    </optgroup>
+    {% endfor %}
+</template>
 
 <script>
 function getCookie(name) {
@@ -516,6 +541,52 @@ function clearFilters() {
 }
 
 // ═══════════════════════════════════════
+// PRODUCT CONSUMPTION ROWS
+// ═══════════════════════════════════════
+function getProductoOptionsHTML() {
+    const tpl = document.getElementById('producto-options-tpl');
+    return tpl ? tpl.innerHTML : '<option value="">Sin productos</option>';
+}
+
+function addProductoRow(productoId, cantidad) {
+    const container = document.getElementById('svc-productos-container');
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-2 producto-row';
+    row.innerHTML = `
+        <select class="prod-select flex-1 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+            ${getProductoOptionsHTML()}
+        </select>
+        <input type="number" min="1" value="${cantidad || 1}" placeholder="Cant."
+               class="prod-qty w-20 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm text-center focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+        <button type="button" onclick="this.closest('.producto-row').remove()"
+                class="text-red-400 hover:text-red-300 p-1 transition-colors flex-shrink-0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+    `;
+    container.appendChild(row);
+    if (productoId) {
+        row.querySelector('.prod-select').value = productoId;
+    }
+}
+
+function getProductosFromRows() {
+    const rows = document.querySelectorAll('#svc-productos-container .producto-row');
+    const productos = [];
+    rows.forEach(row => {
+        const prodId = row.querySelector('.prod-select').value;
+        const qty = parseInt(row.querySelector('.prod-qty').value) || 0;
+        if (prodId && qty > 0) {
+            productos.push({ producto_id: parseInt(prodId), cantidad: qty });
+        }
+    });
+    return productos;
+}
+
+function clearProductoRows() {
+    document.getElementById('svc-productos-container').innerHTML = '';
+}
+
+// ═══════════════════════════════════════
 // SERVICE MODAL (Create / Edit)
 // ═══════════════════════════════════════
 function openServiceModal() {
@@ -525,6 +596,7 @@ function openServiceModal() {
     document.getElementById('svc-category').value = '';
     document.getElementById('svc-duration').value = '30';
     document.getElementById('svc-price').value = '';
+    clearProductoRows();
     document.getElementById('modal-service-title').textContent = 'Nuevo Servicio';
     document.getElementById('btn-save-service').querySelector('span').textContent = 'Crear Servicio';
     document.getElementById('modal-service').classList.remove('hidden');
@@ -541,6 +613,11 @@ async function openEditModal(id) {
     document.getElementById('svc-category').value = d.category_id;
     document.getElementById('svc-duration').value = d.duration_minutes;
     document.getElementById('svc-price').value = formatMoney(String(d.price).split('.')[0]);
+    // Populate product consumption rows
+    clearProductoRows();
+    if (d.productos && d.productos.length > 0) {
+        d.productos.forEach(p => addProductoRow(p.producto_id, p.cantidad));
+    }
     document.getElementById('modal-service-title').textContent = 'Editar Servicio';
     document.getElementById('btn-save-service').querySelector('span').textContent = 'Guardar cambios';
     document.getElementById('modal-service').classList.remove('hidden');
@@ -563,6 +640,7 @@ async function saveService() {
         duration_minutes: parseInt(document.getElementById('svc-duration').value) || 30,
         price: parseInt(rawPrice) || 0,
         category_id: document.getElementById('svc-category').value || null,
+        productos: getProductosFromRows(),
     };
 
     const url = editId
