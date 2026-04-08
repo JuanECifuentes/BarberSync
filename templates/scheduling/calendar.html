@@ -375,7 +375,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // ── FullCalendar ──
     const calendar = new FullCalendar.Calendar(calendarEl, {
         locale: 'es',
-        initialView: window.innerWidth < 768 ? 'listWeek' : 'timeGridDay',
+        initialView: window.innerWidth < 768 ? 'listWeek' : 'timeGridWeek',
         headerToolbar: {
             left: 'prev,next today',
             center: 'title',
@@ -460,7 +460,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (props.intervencion_estado) {
                 intervencionHtml = `
                     <div class="flex items-center gap-2">
-                        <span class="text-neutral-400">Intervenci&oacute;n:</span>
+                        <span class="text-neutral-400">Estado:</span>
                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
                             ${props.intervencion_estado === 'realizada' ? 'bg-green-900/50 text-green-300' :
                               props.intervencion_estado === 'en_progreso' ? 'bg-blue-900/50 text-blue-300' :
@@ -493,21 +493,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div><span class="text-neutral-400">Tel&eacute;fono:</span> ${props.client_phone || '&mdash;'}</div>
                     <div><span class="text-neutral-400">Email:</span> ${props.client_email || '&mdash;'}</div>
                     <div><span class="text-neutral-400">Barbero:</span> ${props.barber_name}</div>
-                    <div><span class="text-neutral-400">Estado cita:</span>
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
-                            ${props.status === 'confirmed' ? 'bg-blue-900/50 text-blue-300' :
-                              props.status === 'pending' ? 'bg-amber-900/50 text-amber-300' :
-                              props.status === 'completed' ? 'bg-green-900/50 text-green-300' :
-                              props.status === 'cancelled' ? 'bg-red-900/50 text-red-300' :
-                              'bg-neutral-800 text-neutral-400'}">
-                            ${props.status_display}
-                        </span>
-                    </div>
                 </div>
+                ${intervencionHtml}
                 <hr class="border-neutral-800">
                 ${servicesHtml}
                 ${productsHtml}
-                ${intervencionHtml}
                 ${props.intervencion_notas ? `<div><span class="text-neutral-400">Notas intervenci&oacute;n:</span> <span class="italic text-neutral-400">${props.intervencion_notas}</span></div>` : ''}
                 <hr class="border-neutral-800">
                 ${productConsumptionHtml}
@@ -536,7 +526,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (props.status !== 'completed') {
                     actionsHtml += `<button onclick="appointmentAction(${aptId}, 'complete')"
                         class="border border-green-700 px-4 py-2 rounded-lg text-sm flex-1 text-green-300 font-medium
-                               hover:bg-green-600 hover:text-white hover:border-green-600 hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">Completar</button>`;
+                               hover:bg-green-600 hover:text-white hover:border-green-600 hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">Realizado</button>`;
                 } else {
                     actionsHtml += `<button onclick="appointmentAction(${aptId}, 'reopen')"
                         class="border border-amber-700 px-4 py-2 rounded-lg text-sm flex-1 text-amber-300 font-medium

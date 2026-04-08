@@ -226,20 +226,35 @@ class AppointmentActionAPI(LoginRequiredMixin, View):
         if action == "cancel":
             reason = data.get("reason", "")
             svc.cancel_appointment(appointment, reason=reason, cancelled_by=request.user)
+            # Sync linked Intervencion → cancelada
+            try:
+                intervencion = appointment.intervencion
+                intervencion.estado = Intervencion.Estado.CANCELADA
+                intervencion.updated_by = request.user
+                intervencion.save(update_fields=["estado", "updated_by", "updated_at"])
+            except Intervencion.DoesNotExist:
+                pass
             return JsonResponse({"message": "Cita cancelada"})
 
         elif action == "complete":
             appointment.status = Appointment.Status.COMPLETED
             appointment.updated_by = request.user
             appointment.save()
-            return JsonResponse({"message": "Cita completada"})
+            # Sync linked Intervencion → realizada
+            try:
+                intervencion = appointment.intervencion
+                intervencion.estado = Intervencion.Estado.REALIZADA
+                intervencion.updated_by = request.user
+                intervencion.save(update_fields=["estado", "updated_by", "updated_at"])
+            except Intervencion.DoesNotExist:
+                pass
+            return JsonResponse({"message": "Cita realizada"})
 
         elif action == "reopen":
             appointment.status = Appointment.Status.CONFIRMED
             appointment.updated_by = request.user
             appointment.save()
-            # Also reset linked Intervencion to Pendiente
-            from .models import Intervencion
+            # Sync linked Intervencion → pendiente
             try:
                 intervencion = appointment.intervencion
                 intervencion.estado = Intervencion.Estado.PENDIENTE
