@@ -85,10 +85,10 @@
         background-color: rgba(255, 35, 1, 0.08) !important;
     }
     .fc .fc-col-header-cell.fc-day-today {
-        background-color: rgba(255, 35, 1, 0.20) !important;
+        background-color: #ff2301 !important;
     }
     .fc .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
-        color: #ff2301 !important;
+        color: #ffffff !important;
         font-weight: 700;
     }
     .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
@@ -345,6 +345,18 @@
     </div>
 </div>
 
+<!-- Hidden template: product select options grouped by category -->
+<template id="cal-producto-options-tpl">
+    <option value="">Seleccionar producto...</option>
+    {% for cat_name, prods in grouped_products.items %}
+    <optgroup label="{{ cat_name }}">
+        {% for prod in prods %}
+        <option value="{{ prod.pk }}" data-price="{{ prod.price }}">{{ prod.name }} (${{ prod.price }})</option>
+        {% endfor %}
+    </optgroup>
+    {% endfor %}
+</template>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -460,6 +472,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>`;
             }
 
+            // Product consumption section (editable)
+            let productConsumptionHtml = '';
+            if (props.status !== 'cancelled') {
+                productConsumptionHtml = `
+                    <div class="space-y-2">
+                        <span class="text-neutral-400 text-xs uppercase tracking-wide">Consumo de productos</span>
+                        <div id="cal-productos-container" class="space-y-2 max-h-40 overflow-y-auto pr-1"></div>
+                        <button type="button" onclick="calAddProductRow()"
+                                class="text-xs text-brand hover:text-white border border-neutral-700 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                            Agregar producto
+                        </button>
+                    </div>`;
+            }
+
             document.getElementById('modal-body').innerHTML = `
                 <div class="grid grid-cols-2 gap-2">
                     <div><span class="text-neutral-400">Cliente:</span> ${props.client_name}</div>
@@ -483,9 +510,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 ${intervencionHtml}
                 ${props.intervencion_notas ? `<div><span class="text-neutral-400">Notas intervenci&oacute;n:</span> <span class="italic text-neutral-400">${props.intervencion_notas}</span></div>` : ''}
                 <hr class="border-neutral-800">
+                ${productConsumptionHtml}
+                <hr class="border-neutral-800">
                 <div class="text-lg font-heading font-bold text-brand">$${Math.round(parseFloat(props.total_price || 0)).toLocaleString('de-DE')}</div>
                 ${props.notes ? `<div class="text-neutral-400 italic">${props.notes}</div>` : ''}
             `;
+
+            // Pre-populate existing products in the consumption section
+            if (props.status !== 'cancelled' && props.intervencion_productos && props.intervencion_productos.length > 0) {
+                props.intervencion_productos.forEach(p => {
+                    calAddProductRow(p.product_id, p.cantidad);
+                });
+            }
 
             // Modal actions – allow status changes on any non-cancelled state (including completed)
             const actionsEl = document.getElementById('modal-actions');
@@ -493,6 +529,10 @@ document.addEventListener('DOMContentLoaded', function() {
             let actionsHtml = '';
 
             if (props.status !== 'cancelled') {
+                // Save products button
+                actionsHtml += `<button onclick="saveAppointmentProducts(${aptId})"
+                    class="border border-brand px-4 py-2 rounded-lg text-sm flex-1 text-[#ff2301] font-medium
+                           hover:bg-[#ff2301] hover:text-white hover:border-[#ff2301] hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">Guardar productos</button>`;
                 if (props.status !== 'completed') {
                     actionsHtml += `<button onclick="appointmentAction(${aptId}, 'complete')"
                         class="border border-green-700 px-4 py-2 rounded-lg text-sm flex-1 text-green-300 font-medium
@@ -547,6 +587,87 @@ document.addEventListener('DOMContentLoaded', function() {
             closeModal();
             calendar.refetchEvents();
         });
+    };
+
+    // ── Product consumption in detail modal ──
+    window.calGetProductOptionsHTML = function() {
+        const tpl = document.getElementById('cal-producto-options-tpl');
+        if (!tpl) return '<option value="">Sin productos</option>';
+        
+        // Clonar y formatear los precios
+        const clone = tpl.content.cloneNode(true);
+        clone.querySelectorAll('option[data-price]').forEach(opt => {
+            const price = parseFloat(opt.dataset.price);
+            if (!isNaN(price)) {
+                const idx = opt.textContent.lastIndexOf(" ($");
+                const namePart = idx !== -1 ? opt.textContent.substring(0, idx) : opt.textContent;
+                // 'de-DE' usa "." para miles y "," para decimales. 
+                // con maximumFractionDigits: 2 y minimumFractionDigits: 0 oculta los decimales si son 0
+                const formatted = price.toLocaleString('de-DE', { maximumFractionDigits: 2 });
+                opt.textContent = `${namePart} ($${formatted})`;
+            }
+        });
+        
+        const tempDiv = document.createElement('div');
+        tempDiv.appendChild(clone);
+        return tempDiv.innerHTML;
+    };
+
+    window.calAddProductRow = function(productoId, cantidad) {
+        const container = document.getElementById('cal-productos-container');
+        if (!container) return;
+        const row = document.createElement('div');
+        row.className = 'flex items-center gap-2 cal-producto-row';
+        row.innerHTML = `
+            <select class="cprod-select flex-1 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                ${calGetProductOptionsHTML()}
+            </select>
+            <input type="number" min="1" value="${cantidad || 1}" placeholder="Cant."
+                   class="cprod-qty w-20 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm text-center focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+            <button type="button" class="text-red-400 hover:text-red-300 p-1 transition-colors flex-shrink-0"
+                    onclick="this.closest('.cal-producto-row').remove()">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        `;
+        container.appendChild(row);
+        if (productoId) {
+            row.querySelector('.cprod-select').value = productoId;
+        }
+    };
+
+    window.calGetProductRows = function() {
+        const rows = document.querySelectorAll('#cal-productos-container .cal-producto-row');
+        const items = [];
+        rows.forEach(row => {
+            const prodId = row.querySelector('.cprod-select').value;
+            const qty = parseInt(row.querySelector('.cprod-qty').value) || 0;
+            if (prodId && qty > 0) {
+                items.push({ producto_id: parseInt(prodId), cantidad: qty });
+            }
+        });
+        return items;
+    };
+
+    window.saveAppointmentProducts = function(aptId) {
+        const productos = calGetProductRows();
+        fetch(`/app/schedule/api/appointments/${aptId}/products/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+            },
+            body: JSON.stringify({ productos }),
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+            } else {
+                closeModal();
+                calendar.refetchEvents();
+            }
+        })
+        .catch(() => alert('Error de conexión'));
     };
 
     // ═══════════════════════════════════════════

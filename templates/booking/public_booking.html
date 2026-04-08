@@ -35,11 +35,11 @@
             <h2 class="font-heading font-bold text-xl text-white mb-1">Elige tu barbero</h2>
             <p class="text-sm text-neutral-400 mb-6">Selecciona quién te atenderá</p>
 
-            <div class="space-y-3">
+            <div class="flex flex-col gap-4">
                 {% for barber in barbers %}
                 <button @click="selectBarber({{ barber.pk }}, '{{ barber }}')"
-                        class="card w-full text-left flex items-center gap-4 cursor-pointer hover:border-[#ff2301] hover:-translate-y-1 hover:shadow-lg hover:shadow-brand/10 transition-all duration-300"
-                        :class="selectedBarber?.id === {{ barber.pk }} ? 'border-brand ring-1 ring-brand' : 'border-neutral-800'">
+                        class="w-full text-left flex items-center gap-4 p-4 bg-neutral-900 rounded-xl border cursor-pointer hover:border-[#ff2301] hover:-translate-y-1 hover:shadow-lg hover:shadow-brand/10 transition-all duration-300"
+                        :class="selectedBarber?.id === {{ barber.pk }} ? 'border-brand ring-1 ring-brand' : 'border-neutral-700'">
                     <div class="w-14 h-14 rounded-xl bg-neutral-800 flex items-center justify-center flex-shrink-0 overflow-hidden">
                         {% if barber.photo %}
                         <img src="{{ barber.photo.url }}" class="w-full h-full object-cover" alt="{{ barber }}">
@@ -63,16 +63,27 @@
             <h2 class="font-heading font-bold text-xl text-white mb-1">Elige tus servicios</h2>
             <p class="text-sm text-neutral-400 mb-6">Puedes seleccionar uno o varios</p>
 
-            <div class="space-y-3">
+            <div class="flex flex-col gap-4">
                 <template x-for="svc in barberServices" :key="svc.id">
                     <button @click="toggleService(svc)"
-                            class="card w-full text-left flex items-center justify-between cursor-pointer hover:border-[#ff2301] hover:-translate-y-1 hover:shadow-lg hover:shadow-brand/10 transition-all duration-300"
-                            :class="selectedServices.find(s => s.id === svc.id) ? 'border-brand ring-1 ring-brand' : 'border-neutral-800'">
-                        <div>
-                            <p class="font-medium text-white" x-text="svc.name"></p>
-                            <p class="text-xs text-neutral-400">
-                                <span x-text="svc.duration"></span> min
-                            </p>
+                            class="w-full text-left flex items-center justify-between p-4 bg-neutral-900 rounded-xl border cursor-pointer hover:border-[#ff2301] hover:-translate-y-1 hover:shadow-lg hover:shadow-brand/10 transition-all duration-300"
+                            :class="selectedServices.find(s => s.id === svc.id) ? 'border-brand ring-1 ring-brand' : 'border-neutral-700'">
+                        <div class="flex items-center gap-4">
+                            <!-- Custom Checkbox -->
+                            <div class="w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 transition-colors duration-200"
+                                 :class="selectedServices.find(s => s.id === svc.id) ? 'bg-[#ff2301] border-[#ff2301]' : 'bg-neutral-800 border-neutral-600'">
+                                <svg x-show="selectedServices.find(s => s.id === svc.id)" 
+                                     style="display: none;" 
+                                     class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="font-medium text-white" x-text="svc.name"></p>
+                                <p class="text-xs text-neutral-400">
+                                    <span x-text="svc.duration"></span> min
+                                </p>
+                            </div>
                         </div>
                         <span class="font-heading font-bold text-brand text-lg" x-text="'$' + Math.round(parseFloat(svc.price)).toLocaleString('de-DE')"></span>
                     </button>
@@ -98,10 +109,10 @@
             <p class="text-sm text-neutral-400 mb-6">Elige un horario disponible</p>
 
             <!-- Date picker -->
-            <div class="flex gap-2 overflow-x-auto pb-3 mb-4 -mx-1 px-1 scrollbar-hide">
+            <div class="flex gap-3 overflow-x-auto pb-3 mb-6 -mx-1 px-1 scrollbar-hide">
                 <template x-for="d in availableDates" :key="d.iso">
                     <button @click="selectDate(d.iso)"
-                            class="flex-shrink-0 flex flex-col items-center p-4 rounded-xl border transition-all duration-300 cursor-pointer"
+                            class="flex-shrink-0 flex flex-col items-center p-4 rounded-xl border transition-all duration-300 cursor-pointer hover:shadow-md"
                             :class="selectedDate === d.iso
                                 ? 'bg-brand border-brand text-white'
                                 : 'bg-neutral-900 border-neutral-700 text-neutral-300 hover:border-[#ff2301] hover:-translate-y-1 hover:shadow-lg hover:shadow-brand/10'">
@@ -117,7 +128,7 @@
                 <div class="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>
             </div>
 
-            <div x-show="!loadingSlots && timeSlots.length > 0" class="grid grid-cols-3 gap-2">
+            <div x-show="!loadingSlots && timeSlots.length > 0" class="grid grid-cols-3 gap-3">
                 <template x-for="slot in timeSlots" :key="slot.start">
                     <button @click="selectedSlot = slot"
                             class="p-3 rounded-lg text-sm font-medium text-center transition-all duration-300 cursor-pointer border"
@@ -183,17 +194,17 @@
     <!-- Bottom action bar (mobile-friendly) -->
     <div class="fixed bottom-0 inset-x-0 bg-neutral-900/95 backdrop-blur-md border-t border-neutral-800 p-4 safe-area-pb">
         <div class="max-w-lg mx-auto flex gap-3">
-            <button x-show="step > 1" @click="step--"
+            <button x-show="step > 1 && step < 5" @click="step--"
                     class="border border-neutral-700 px-4 py-2 rounded-lg hover:bg-[#ff2301] hover:text-white hover:border-[#ff2301] hover:-translate-y-1 hover:shadow-md transition-all duration-300 flex-shrink-0 text-white">
                 Atr&aacute;s
             </button>
-            <button x-show="step < 4"
+            <button x-show="step < 4 && step < 5"
                     @click="nextStep()"
                     :disabled="!canAdvance"
                     class="border border-neutral-700 px-4 py-2 rounded-lg hover:bg-[#ff2301] hover:text-white hover:border-[#ff2301] hover:-translate-y-1 hover:shadow-md transition-all duration-300 flex-1 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:bg-transparent disabled:hover:border-neutral-700 text-white">
                 Continuar
             </button>
-            <button x-show="step === 4 && {{ user.is_authenticated|yesno:'true,false' }}"
+            <button x-show="step === 4 && step < 5 && {{ user.is_authenticated|yesno:'true,false' }}"
                     @click="confirmBooking()"
                     :disabled="booking"
                     class="border border-neutral-700 px-4 py-2 rounded-lg hover:bg-[#ff2301] hover:text-white hover:border-[#ff2301] hover:-translate-y-1 hover:shadow-md transition-all duration-300 flex-1 disabled:opacity-60 text-white">
@@ -344,7 +355,7 @@ function bookingApp() {
                                 está confirmada. Te enviaremos un recordatorio.
                             </p>
                             <a href="/book/{{ barbershop.slug }}-{{ barbershop.booking_uid }}/"
-                               class="btn-primary inline-block mt-4">Hacer otra reserva</a>
+                               class="inline-block mt-4 border border-neutral-700 px-4 py-2 rounded-lg hover:bg-[#ff2301] hover:text-white hover:border-[#ff2301] hover:-translate-y-1 hover:shadow-md transition-all duration-300 text-white">Hacer otra reserva</a>
                         </div>
                     `;
                 } else {

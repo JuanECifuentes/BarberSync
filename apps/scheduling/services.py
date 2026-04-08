@@ -417,6 +417,7 @@ def get_calendar_events(
             intervencion_notas = intervencion.notas
             intervencion_productos = [
                 {
+                    "product_id": p.producto_id,
                     "name": p.producto.name,
                     "cantidad": p.cantidad,
                     "subtotal": str(p.subtotal),
@@ -457,5 +458,5 @@ def _status_color(status: str) -> str:
         "confirmed": "#3b82f6",   # blue
         "in_progress": "#ff2301", # brand orange
         "completed": "#10b981",   # green
-        "cancelled": "#6b7280",   # gray
+        "cancelled": "#ef4444",   # red
     }.get(status, "#6b7280")      # gray
