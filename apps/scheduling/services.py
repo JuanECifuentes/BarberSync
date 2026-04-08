@@ -24,6 +24,8 @@ from .models import (
     Appointment,
     AppointmentService,
     BarberService,
+    Intervencion,
+    IntervencionServicio,
     ScheduleException,
     Service,
     WorkSchedule,
@@ -245,15 +247,37 @@ def create_appointment(
     )
 
     # Create service lines with price snapshots
-    for svc in services:
+    service_prices = []
+    for svc_obj in services:
         # Use custom price if barber has one, otherwise service price
-        barber_svc = BarberService.objects.filter(barber=barber, service=svc).first()
-        price = barber_svc.effective_price if barber_svc else svc.price
+        barber_svc = BarberService.objects.filter(barber=barber, service=svc_obj).first()
+        price = barber_svc.effective_price if barber_svc else svc_obj.price
 
         AppointmentService.objects.create(
             appointment=appointment,
-            service=svc,
+            service=svc_obj,
             price_charged=price,
+        )
+        service_prices.append((svc_obj, price))
+
+    # Create linked Intervencion with service snapshots
+    intervencion = Intervencion.objects.create(
+        barbershop=barbershop,
+        appointment=appointment,
+        barber=barber,
+        client=client,
+        estado=Intervencion.Estado.PENDIENTE,
+        fecha=start_time,
+        fecha_fin=end_time,
+        notas=notes,
+        updated_by=created_by,
+    )
+
+    for svc_obj, price in service_prices:
+        IntervencionServicio.objects.create(
+            intervencion=intervencion,
+            servicio=svc_obj,
+            precio_cobrado=price,
         )
 
     # Schedule async reminders (24h + 1h before)
@@ -333,7 +357,11 @@ def get_calendar_events(
             Appointment.Status.IN_PROGRESS,
             Appointment.Status.COMPLETED,
         ],
-    ).select_related("client", "barber__membership__user")
+    ).select_related("client", "barber__membership__user").prefetch_related(
+        "services__service",
+        "intervencion__servicios__servicio",
+        "intervencion__productos_usados__producto",
+    )
 
     if barber is not None:
         qs = qs.filter(barber=barber)
@@ -343,6 +371,38 @@ def get_calendar_events(
         service_names = ", ".join(
             apt.services.values_list("service__name", flat=True)
         )
+
+        # Services detail with prices
+        services_detail = [
+            {"name": s.service.name, "price": str(s.price_charged)}
+            for s in apt.services.all()
+        ]
+
+        # Intervencion data (if exists)
+        intervencion_estado = None
+        intervencion_estado_display = None
+        intervencion_notas = ""
+        intervencion_productos = []
+
+        intervencion = getattr(apt, "intervencion", None)
+        try:
+            intervencion = apt.intervencion
+        except Intervencion.DoesNotExist:
+            intervencion = None
+
+        if intervencion:
+            intervencion_estado = intervencion.estado
+            intervencion_estado_display = intervencion.get_estado_display()
+            intervencion_notas = intervencion.notas
+            intervencion_productos = [
+                {
+                    "name": p.producto.name,
+                    "cantidad": p.cantidad,
+                    "subtotal": str(p.subtotal),
+                }
+                for p in intervencion.productos_usados.all()
+            ]
+
         events.append({
             "id": apt.pk,
             "title": f"{apt.client.name} – {service_names}",
@@ -355,10 +415,15 @@ def get_calendar_events(
                 "client_email": apt.client.email,
                 "barber_name": str(apt.barber),
                 "services": service_names,
+                "services_detail": services_detail,
                 "total_price": str(apt.total_price),
                 "status": apt.status,
                 "status_display": apt.get_status_display(),
                 "notes": apt.notes,
+                "intervencion_estado": intervencion_estado,
+                "intervencion_estado_display": intervencion_estado_display,
+                "intervencion_notas": intervencion_notas,
+                "intervencion_productos": intervencion_productos,
             },
         })
 

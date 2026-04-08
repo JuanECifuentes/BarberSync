@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Reservar – {{ organization.name }}{% endblock %}
+
+{% block public_content %}
+<div class="min-h-screen bg-neutral-950 flex flex-col" x-data="globalBookingApp()" x-init="init()">
+
+    <!-- Header -->
+    <header class="bg-neutral-900 border-b border-neutral-800">
+        <div class="max-w-lg mx-auto px-4 py-4 items-center gap-3">
+            <div class="w-10 h-10 bg-brand rounded-xl flex items-center justify-center">
+                <span class="text-white font-heading font-bold text-xl">B</span>
+            </div>
+            <div>
+                <h1 class="font-heading font-bold text-white text-lg">{{ organization.name }}</h1>
+                <p class="text-xs text-neutral-400">Selecciona una sucursal para reservar</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Branch selection -->
+    <div class="max-w-lg mx-auto w-full px-4 pt-6 pb-32">
+
+        <h2 class="font-heading font-bold text-xl text-white mb-1">Elige la sucursal</h2>
+        <p class="text-sm text-neutral-400 mb-6">Selecciona d&oacute;nde quieres agendar tu cita</p>
+
+        <div class="space-y-3">
+            {% for shop in barbershops %}
+            <a href="/book/{{ shop.slug }}-{{ shop.booking_uid }}/"
+               class="card w-full text-left flex items-center gap-4 cursor-pointer block
+                      border border-neutral-800 hover:border-[#ff2301] hover:-translate-y-1 hover:shadow-lg hover:shadow-brand/10 transition-all duration-300">
+                <div class="w-14 h-14 rounded-xl bg-neutral-800 flex items-center justify-center flex-shrink-0">
+                    <span class="text-xl font-heading font-bold text-neutral-500">{{ shop.name|first|upper }}</span>
+                </div>
+                <div class="flex-1">
+                    <p class="font-medium text-white">{{ shop.name }}</p>
+                    {% if shop.address %}
+                    <p class="text-xs text-neutral-400 line-clamp-1">{{ shop.address }}</p>
+                    {% endif %}
+                    {% if shop.phone %}
+                    <p class="text-xs text-neutral-500">{{ shop.phone }}</p>
+                    {% endif %}
+                </div>
+                <svg class="w-5 h-5 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+            </a>
+            {% empty %}
+            <div class="text-center py-12 text-neutral-500">
+                No hay sucursales disponibles en este momento.
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Alpine.js -->
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+<script>
+function globalBookingApp() {
+    return {
+        init() {},
+    };
+}
+</script>
+{% endblock %}

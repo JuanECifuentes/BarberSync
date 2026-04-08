@@ -12,6 +12,130 @@
 <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.11/locales/es.global.min.js"></script>
 {% endblock %}
 
+{% block extra_css %}
+<style>
+
+    /* ── Animated button (from inventory module) ── */
+    .btn-action-primary {
+        position: relative;
+        overflow: hidden;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .btn-action-primary::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: #ff2301;
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 0;
+        border-radius: inherit;
+    }
+    .btn-action-primary:not(:disabled):hover::before {
+        transform: scaleX(1);
+    }
+    .btn-action-primary:not(:disabled):hover {
+        color: #fff !important;
+        border-color: #ff2301 !important;
+        transform: scale(1.03);
+        box-shadow: 0 4px 16px rgba(255, 35, 1, 0.3);
+    }
+    .btn-action-primary > *,
+    .btn-action-primary span,
+    .btn-action-primary svg {
+        position: relative;
+        z-index: 1;
+    }
+
+
+    /* ── FullCalendar dark-mode overrides ── */
+    /* Column headers (day names) */
+    .fc .fc-col-header-cell {
+        background-color: #2a2a2d !important;
+        border-color: #4a4a4f !important;
+    }
+    .fc .fc-col-header-cell-cushion {
+        color: #f7f7f8 !important;
+        font-weight: 600;
+    }
+    /* General borders & backgrounds */
+    .fc .fc-scrollgrid,
+    .fc .fc-scrollgrid-section > td,
+    .fc .fc-scrollgrid-section > th {
+        border-color: #4a4a4f !important;
+    }
+    .fc td, .fc th {
+        border-color: #3d3d41 !important;
+    }
+    .fc .fc-timegrid-slot {
+        background-color: #1a1a1c !important;
+    }
+    .fc .fc-daygrid-day {
+        background-color: #1a1a1c !important;
+    }
+    .fc .fc-day-today {
+        background-color: rgba(255, 35, 1, 0.06) !important;
+    }
+    /* Toolbar buttons */
+    .fc .fc-button {
+        background-color: #2a2a2d !important;
+        border-color: #4a4a4f !important;
+        color: #f7f7f8 !important;
+        font-weight: 500;
+        text-transform: capitalize;
+    }
+    .fc .fc-button:hover {
+        background-color: #3d3d41 !important;
+        border-color: #59595D !important;
+    }
+    .fc .fc-button-active {
+        background-color: #ff2301 !important;
+        border-color: #ff2301 !important;
+        color: #fff !important;
+    }
+    .fc .fc-toolbar-title {
+        color: #f7f7f8 !important;
+        text-transform: capitalize;
+    }
+    /* Time column labels */
+    .fc .fc-timegrid-slot-label-cushion,
+    .fc .fc-timegrid-axis-cushion {
+        color: #91919a !important;
+    }
+    /* List / Agenda view */
+    .fc .fc-list {
+        border-color: #4a4a4f !important;
+    }
+    .fc .fc-list-day-cushion {
+        background-color: #2a2a2d !important;
+    }
+    .fc .fc-list-day-text,
+    .fc .fc-list-day-side-text {
+        color: #f7f7f8 !important;
+        font-weight: 600;
+    }
+    .fc .fc-list-event:hover td {
+        background-color: #2a2a2d !important;
+        color: #f7f7f8 !important;
+    }
+    .fc .fc-list-event-title a,
+    .fc .fc-list-event-time {
+        color: #d9d9dd !important;
+    }
+    .fc .fc-list-event:hover .fc-list-event-title a,
+    .fc .fc-list-event:hover .fc-list-event-time {
+        color: #ffffff !important;
+    }
+    .fc .fc-list-empty {
+        background-color: #1a1a1c !important;
+    }
+    .fc .fc-list-empty-cushion {
+        color: #91919a !important;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="space-y-4">
 
@@ -35,11 +159,10 @@
         {% endif %}
 
         <button onclick="openNewAppointment()"
-                class="btn-primary text-sm flex items-center gap-2">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-            </svg>
-            Nueva cita
+                class="btn-action-primary border border-neutral-700 px-4 py-2 rounded-lg text-sm text-neutral-300 font-medium transition-all">
+            <span>
+                + Nueva cita
+            </span>
         </button>
     </div>
 
@@ -78,13 +201,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const calendar = new FullCalendar.Calendar(calendarEl, {
         locale: 'es',
-        initialView: window.innerWidth < 768 ? 'listWeek' : 'timeGridWeek',
+        initialView: window.innerWidth < 768 ? 'listWeek' : 'timeGridDay',
         headerToolbar: {
             left: 'prev,next today',
             center: 'title',
             right: window.innerWidth < 768
-                ? 'listWeek,timeGridDay'
-                : 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+                ? 'timeGridDay,listWeek'
+                : 'timeGridDay,timeGridWeek,dayGridMonth,listWeek'
+        },
+        buttonText: {
+            today: 'Hoy',
+            day: 'Día',
+            week: 'Semana',
+            month: 'Mes',
+            list: 'Agenda',
         },
         slotMinTime: '{{ current_barbershop.open_hour|default:"08" }}:00:00',
         slotMaxTime: '{{ current_barbershop.close_hour|default:"20" }}:00:00',
@@ -116,12 +246,63 @@ document.addEventListener('DOMContentLoaded', function() {
         eventClick: function(info) {
             const props = info.event.extendedProps;
             document.getElementById('modal-title').textContent = info.event.title;
+
+            // Build services detail list
+            let servicesHtml = '';
+            if (props.services_detail && props.services_detail.length > 0) {
+                servicesHtml = `
+                    <div class="space-y-1">
+                        <span class="text-neutral-500 text-xs uppercase tracking-wide">Servicios</span>
+                        ${props.services_detail.map(s => `
+                            <div class="flex justify-between text-sm">
+                                <span class="text-neutral-300">${s.name}</span>
+                                <span class="text-white font-medium">$${Math.round(parseFloat(s.price)).toLocaleString('de-DE')}</span>
+                            </div>
+                        `).join('')}
+                    </div>`;
+            } else {
+                servicesHtml = `<div><span class="text-neutral-500">Servicios:</span> ${props.services}</div>`;
+            }
+
+            // Build products list (from intervencion)
+            let productsHtml = '';
+            if (props.intervencion_productos && props.intervencion_productos.length > 0) {
+                productsHtml = `
+                    <div class="space-y-1">
+                        <span class="text-neutral-500 text-xs uppercase tracking-wide">Productos utilizados</span>
+                        ${props.intervencion_productos.map(p => `
+                            <div class="flex justify-between text-sm">
+                                <span class="text-neutral-300">${p.name} x${p.cantidad}</span>
+                                <span class="text-white font-medium">$${Math.round(parseFloat(p.subtotal)).toLocaleString('de-DE')}</span>
+                            </div>
+                        `).join('')}
+                    </div>`;
+            }
+
+            // Intervencion status
+            let intervencionHtml = '';
+            if (props.intervencion_estado) {
+                intervencionHtml = `
+                    <div class="flex items-center gap-2">
+                        <span class="text-neutral-500">Intervención:</span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                            ${props.intervencion_estado === 'realizada' ? 'bg-green-900/50 text-green-300' :
+                              props.intervencion_estado === 'en_progreso' ? 'bg-blue-900/50 text-blue-300' :
+                              props.intervencion_estado === 'pendiente' ? 'bg-amber-900/50 text-amber-300' :
+                              props.intervencion_estado === 'cancelada' ? 'bg-red-900/50 text-red-300' :
+                              'bg-neutral-800 text-neutral-400'}">
+                            ${props.intervencion_estado_display || props.intervencion_estado}
+                        </span>
+                    </div>`;
+            }
+
             document.getElementById('modal-body').innerHTML = `
                 <div class="grid grid-cols-2 gap-2">
                     <div><span class="text-neutral-500">Cliente:</span> ${props.client_name}</div>
                     <div><span class="text-neutral-500">Teléfono:</span> ${props.client_phone || '—'}</div>
+                    <div><span class="text-neutral-500">Email:</span> ${props.client_email || '—'}</div>
                     <div><span class="text-neutral-500">Barbero:</span> ${props.barber_name}</div>
-                    <div><span class="text-neutral-500">Estado:</span>
+                    <div><span class="text-neutral-500">Estado cita:</span>
                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
                             ${props.status === 'confirmed' ? 'bg-blue-900/50 text-blue-300' :
                               props.status === 'pending' ? 'bg-amber-900/50 text-amber-300' :
@@ -131,7 +312,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         </span>
                     </div>
                 </div>
-                <div><span class="text-neutral-500">Servicios:</span> ${props.services}</div>
+                <hr class="border-neutral-800">
+                ${servicesHtml}
+                ${productsHtml}
+                ${intervencionHtml}
+                ${props.intervencion_notas ? `<div><span class="text-neutral-500">Notas intervención:</span> <span class="italic text-neutral-400">${props.intervencion_notas}</span></div>` : ''}
+                <hr class="border-neutral-800">
                 <div class="text-lg font-heading font-bold text-brand">$${Math.round(parseFloat(props.total_price || 0)).toLocaleString('de-DE')}</div>
                 ${props.notes ? `<div class="text-neutral-500 italic">${props.notes}</div>` : ''}
             `;
@@ -140,7 +326,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const aptId = info.event.id;
             if (['pending', 'confirmed'].includes(props.status)) {
                 actionsEl.innerHTML = `
-                    <button onclick="appointmentAction(${aptId}, 'complete')" class="btn-primary text-sm flex-1">Completar</button>
+                    <button onclick="appointmentAction(${aptId}, 'complete')" class="border border-neutral-700 px-4 py-2 rounded-lg hover:bg-[#ff2301] hover:text-white hover:border-[#ff2301] hover:-translate-y-1 hover:shadow-md transition-all duration-300 text-sm flex-1 text-white">Completar</button>
                     <button onclick="appointmentAction(${aptId}, 'cancel')" class="btn-ghost text-sm text-red-400 flex-1">Cancelar</button>
                 `;
             } else {

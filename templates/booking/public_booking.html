@@ -38,8 +38,8 @@
             <div class="space-y-3">
                 {% for barber in barbers %}
                 <button @click="selectBarber({{ barber.pk }}, '{{ barber }}')"
-                        class="card card-hover w-full text-left flex items-center gap-4 cursor-pointer"
-                        :class="selectedBarber?.id === {{ barber.pk }} ? 'border-brand ring-1 ring-brand' : ''">
+                        class="card w-full text-left flex items-center gap-4 cursor-pointer hover:border-[#ff2301] hover:-translate-y-1 hover:shadow-lg hover:shadow-brand/10 transition-all duration-300"
+                        :class="selectedBarber?.id === {{ barber.pk }} ? 'border-brand ring-1 ring-brand' : 'border-neutral-800'">
                     <div class="w-14 h-14 rounded-xl bg-neutral-800 flex items-center justify-center flex-shrink-0 overflow-hidden">
                         {% if barber.photo %}
                         <img src="{{ barber.photo.url }}" class="w-full h-full object-cover" alt="{{ barber }}">
@@ -66,8 +66,8 @@
             <div class="space-y-3">
                 <template x-for="svc in barberServices" :key="svc.id">
                     <button @click="toggleService(svc)"
-                            class="card card-hover w-full text-left flex items-center justify-between cursor-pointer"
-                            :class="selectedServices.find(s => s.id === svc.id) ? 'border-brand ring-1 ring-brand' : ''">
+                            class="card w-full text-left flex items-center justify-between cursor-pointer hover:border-[#ff2301] hover:-translate-y-1 hover:shadow-lg hover:shadow-brand/10 transition-all duration-300"
+                            :class="selectedServices.find(s => s.id === svc.id) ? 'border-brand ring-1 ring-brand' : 'border-neutral-800'">
                         <div>
                             <p class="font-medium text-white" x-text="svc.name"></p>
                             <p class="text-xs text-neutral-400">
@@ -183,19 +183,20 @@
     <!-- Bottom action bar (mobile-friendly) -->
     <div class="fixed bottom-0 inset-x-0 bg-neutral-900/95 backdrop-blur-md border-t border-neutral-800 p-4 safe-area-pb">
         <div class="max-w-lg mx-auto flex gap-3">
-            <button x-show="step > 1" @click="step--" class="btn-secondary flex-shrink-0">
-                Atrás
+            <button x-show="step > 1" @click="step--"
+                    class="border border-neutral-700 px-4 py-2 rounded-lg hover:bg-[#ff2301] hover:text-white hover:border-[#ff2301] hover:-translate-y-1 hover:shadow-md transition-all duration-300 flex-shrink-0 text-white">
+                Atr&aacute;s
             </button>
             <button x-show="step < 4"
                     @click="nextStep()"
                     :disabled="!canAdvance"
-                    class="btn-primary flex-1 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0">
+                    class="border border-neutral-700 px-4 py-2 rounded-lg hover:bg-[#ff2301] hover:text-white hover:border-[#ff2301] hover:-translate-y-1 hover:shadow-md transition-all duration-300 flex-1 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:bg-transparent disabled:hover:border-neutral-700 text-white">
                 Continuar
             </button>
             <button x-show="step === 4 && {{ user.is_authenticated|yesno:'true,false' }}"
                     @click="confirmBooking()"
                     :disabled="booking"
-                    class="btn-primary flex-1 disabled:opacity-60">
+                    class="border border-neutral-700 px-4 py-2 rounded-lg hover:bg-[#ff2301] hover:text-white hover:border-[#ff2301] hover:-translate-y-1 hover:shadow-md transition-all duration-300 flex-1 disabled:opacity-60 text-white">
                 <span x-show="!booking">Confirmar reserva</span>
                 <span x-show="booking" class="flex items-center justify-center gap-2">
                     <div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>

@@ -14,7 +14,7 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
 
-from apps.accounts.models import BarberProfile, Barbershop
+from apps.accounts.models import BarberProfile, Barbershop, Organization
 from apps.clients.models import Client
 from apps.scheduling import services as svc
 from apps.scheduling.models import BarberService, Service
@@ -238,3 +238,52 @@ class MyBookingsAPI(View):
             for apt in appointments
         ]
         return JsonResponse(data, safe=False)
+
+
+# ─────────────────────────────────────────────
+# Global (organization-level) booking
+# ─────────────────────────────────────────────
+class BookingGlobalPageView(TemplateView):
+    """
+    Global booking page – shows branch selection as step 1.
+    URL: /book/org/<org_slug>/
+    """
+
+    template_name = "booking/public_booking_global.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        org_slug = self.kwargs["org_slug"]
+        organization = get_object_or_404(Organization, slug=org_slug, is_active=True)
+
+        barbershops = Barbershop.objects.filter(
+            organization=organization, is_active=True,
+        )
+
+        ctx["organization"] = organization
+        ctx["barbershops"] = barbershops
+        ctx["is_booking_page"] = True
+        return ctx
+
+
+class BookingBarbershopsAPI(View):
+    """Returns active barbershops for an organization."""
+
+    def get(self, request, org_slug):
+        organization = get_object_or_404(Organization, slug=org_slug, is_active=True)
+
+        barbershops = Barbershop.objects.filter(
+            organization=organization, is_active=True,
+        )
+
+        data = [
+            {
+                "id": shop.pk,
+                "name": shop.name,
+                "address": shop.address,
+                "phone": shop.phone,
+                "booking_url": f"/book/{shop.slug}-{shop.booking_uid}/",
+            }
+            for shop in barbershops
+        ]
+        return JsonResponse({"barbershops": data})
