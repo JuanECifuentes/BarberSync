@@ -23,7 +23,7 @@ from apps.accounts.models import BarberProfile
 from . import services as svc
 from apps.inventory.models import Product, ProductCategory
 from .models import (
-    Appointment, CategoriaServicio,
+    Appointment, BarberService, CategoriaServicio,
     HistorialPrecioServicio, Service, ServicioProducto,
 )
 
@@ -219,6 +219,12 @@ class AppointmentActionAPI(LoginRequiredMixin, View):
             appointment.updated_by = request.user
             appointment.save()
             return JsonResponse({"message": "Cita completada"})
+
+        elif action == "reopen":
+            appointment.status = Appointment.Status.CONFIRMED
+            appointment.updated_by = request.user
+            appointment.save()
+            return JsonResponse({"message": "Cita reabierta"})
 
         elif action == "reschedule":
             new_start_str = data.get("new_start_time")
@@ -504,6 +510,37 @@ class CategoryCreateAPI(LoginRequiredMixin, View):
             updated_by=request.user,
         )
         return JsonResponse({"ok": True, "id": cat.pk, "name": cat.name}, status=201)
+
+
+# ─────────────────────────────────────────────
+# Barber services API (for new appointment modal)
+# ─────────────────────────────────────────────
+class BarberServicesAPI(LoginRequiredMixin, View):
+    """Returns services a specific barber can perform."""
+
+    def get(self, request, barber_id):
+        barbershop = request.barbershop
+
+        barber = BarberProfile.objects.filter(
+            pk=barber_id, membership__barbershop=barbershop,
+        ).first()
+        if not barber:
+            return JsonResponse({"error": "Barbero no encontrado"}, status=404)
+
+        barber_services = BarberService.objects.filter(
+            barber=barber, service__is_active=True,
+        ).select_related("service")
+
+        data = [
+            {
+                "id": bs.service.pk,
+                "name": bs.service.name,
+                "duration": bs.service.duration_minutes,
+                "price": str(bs.effective_price),
+            }
+            for bs in barber_services
+        ]
+        return JsonResponse({"services": data})
 
 
 # ─────────────────────────────────────────────

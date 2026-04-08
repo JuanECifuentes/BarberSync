@@ -42,7 +42,7 @@
                         <button @click="selectClient(c)" type="button"
                                 class="w-full text-left px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors">
                             <span x-text="c.name" class="font-medium"></span>
-                            <span class="text-neutral-500 text-xs ml-2" x-text="c.email"></span>
+                            <span class="text-neutral-400 text-xs ml-2" x-text="c.email"></span>
                         </button>
                     </template>
                 </div>
@@ -66,7 +66,7 @@
                                class="w-4 h-4 rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-700">
                         <div>
                             <span class="text-sm text-white">{{ service.name }}</span>
-                            <span class="text-xs text-neutral-500 ml-2">{{ service.duration_minutes }} min</span>
+                            <span class="text-xs text-neutral-400 ml-2">{{ service.duration_minutes }} min</span>
                         </div>
                     </div>
                     <span class="text-sm font-heading font-bold text-brand">${{ service.price|money }}</span>

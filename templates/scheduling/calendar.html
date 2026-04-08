@@ -10,6 +10,12 @@
 <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.11/locales/es.global.min.js"></script>
+<!-- Flatpickr for date/time picker -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/confirmDate/confirmDate.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/confirmDate/confirmDate.js"></script>
 {% endblock %}
 
 {% block extra_css %}
@@ -74,8 +80,31 @@
     .fc .fc-daygrid-day {
         background-color: #1a1a1c !important;
     }
+    /* Today highlight - Day & Week views */
     .fc .fc-day-today {
+        background-color: rgba(255, 35, 1, 0.08) !important;
+    }
+    .fc .fc-col-header-cell.fc-day-today {
+        background-color: rgba(255, 35, 1, 0.20) !important;
+    }
+    .fc .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
+        color: #ff2301 !important;
+        font-weight: 700;
+    }
+    .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+        color: #ff2301 !important;
+        font-weight: 700;
+    }
+    .fc .fc-timegrid-col.fc-day-today {
         background-color: rgba(255, 35, 1, 0.06) !important;
+    }
+    /* Now indicator */
+    .fc .fc-timegrid-now-indicator-line {
+        border-color: #ff2301 !important;
+        border-width: 2px !important;
+    }
+    .fc .fc-timegrid-now-indicator-arrow {
+        border-color: #ff2301 !important;
     }
     /* Toolbar buttons */
     .fc .fc-button {
@@ -102,6 +131,16 @@
     .fc .fc-timegrid-slot-label-cushion,
     .fc .fc-timegrid-axis-cushion {
         color: #91919a !important;
+    }
+    /* Overlapping events – side by side */
+    .fc .fc-timegrid-event {
+        border-radius: 6px !important;
+        border-width: 0 !important;
+        border-left: 3px solid var(--fc-event-border-color, currentColor) !important;
+        font-size: 0.8rem;
+    }
+    .fc .fc-timegrid-event .fc-event-main {
+        padding: 2px 4px;
     }
     /* List / Agenda view */
     .fc .fc-list {
@@ -133,6 +172,18 @@
     .fc .fc-list-empty-cushion {
         color: #91919a !important;
     }
+
+    /* Flatpickr confirm button */
+    .flatpickr-confirm {
+        background: #ff2301 !important;
+        color: #fff !important;
+        font-weight: 600;
+        border-radius: 0 0 8px 8px;
+    }
+    .flatpickr-confirm:hover {
+        background: #e01e00 !important;
+    }
+    .flatpickr-confirm svg { display: none; }
 </style>
 {% endblock %}
 
@@ -170,7 +221,9 @@
     <div id="calendar" class="card !p-2 sm:!p-4"></div>
 </div>
 
-<!-- Appointment detail modal -->
+<!-- ═══════════════════════════════════════════ -->
+<!-- Appointment detail modal                   -->
+<!-- ═══════════════════════════════════════════ -->
 <div id="apt-modal" class="fixed inset-0 z-50 hidden">
     <div class="absolute inset-0 bg-black/70" onclick="closeModal()"></div>
     <div class="absolute bottom-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2
@@ -191,6 +244,107 @@
     </div>
 </div>
 
+<!-- ═══════════════════════════════════════════ -->
+<!-- New appointment modal                      -->
+<!-- ═══════════════════════════════════════════ -->
+<div id="new-apt-modal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black/70" onclick="closeNewAptModal()"></div>
+    <div class="absolute bottom-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2
+                w-full sm:max-w-lg bg-neutral-900 border border-neutral-700 rounded-t-2xl sm:rounded-2xl
+                shadow-2xl max-h-[85vh] overflow-y-auto">
+        <div class="p-5 space-y-5">
+            <!-- Header -->
+            <div class="flex items-center justify-between">
+                <h3 class="font-heading font-bold text-lg text-white">Nueva Cita</h3>
+                <button onclick="closeNewAptModal()" class="p-1 text-neutral-400 hover:text-white">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Form -->
+            <form id="new-apt-form" class="space-y-4" onsubmit="return submitNewAppointment(event)">
+                {% csrf_token %}
+
+                <!-- Client search -->
+                <div>
+                    <label class="block text-xs text-neutral-400 mb-1 font-medium">Cliente</label>
+                    <div class="relative">
+                        <input type="text" id="new-apt-client-search" autocomplete="off" placeholder="Buscar por nombre o email..."
+                               class="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2.5 focus:ring-brand focus:border-brand transition-colors">
+                        <input type="hidden" id="new-apt-client-id">
+                        <div id="new-apt-client-results" class="absolute z-10 w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl hidden max-h-40 overflow-y-auto"></div>
+                    </div>
+                </div>
+
+                <!-- Barber -->
+                <div>
+                    <label class="block text-xs text-neutral-400 mb-1 font-medium">Barbero</label>
+                    <select id="new-apt-barber"
+                            class="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2.5 focus:ring-brand focus:border-brand transition-colors"
+                            onchange="loadBarberServices()">
+                        <option value="">Selecciona un barbero</option>
+                        {% for barber in barbers %}
+                        <option value="{{ barber.pk }}">{{ barber }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Services -->
+                <div>
+                    <label class="block text-xs text-neutral-400 mb-1 font-medium">Servicios</label>
+                    <div id="new-apt-services" class="space-y-2 max-h-36 overflow-y-auto pr-1">
+                        <p class="text-xs text-neutral-400 italic">Selecciona un barbero primero</p>
+                    </div>
+                    <div id="new-apt-services-summary" class="hidden mt-2 p-2 bg-brand/10 border border-brand/20 rounded-lg text-xs">
+                        <span class="text-neutral-300">Total: </span>
+                        <span id="new-apt-total-price" class="font-bold text-brand">$0</span>
+                        <span class="text-neutral-400 ml-2">|</span>
+                        <span id="new-apt-total-duration" class="text-neutral-300 ml-2">0 min</span>
+                    </div>
+                </div>
+
+                <!-- Date & Time -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs text-neutral-400 mb-1 font-medium">Fecha</label>
+                        <input type="text" id="new-apt-date" placeholder="Fecha"
+                               class="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2.5 focus:ring-brand focus:border-brand transition-colors">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-neutral-400 mb-1 font-medium">Hora</label>
+                        <input type="text" id="new-apt-time" placeholder="Hora"
+                               class="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2.5 focus:ring-brand focus:border-brand transition-colors">
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div>
+                    <label class="block text-xs text-neutral-400 mb-1 font-medium">Notas <span class="text-neutral-400">(opcional)</span></label>
+                    <textarea id="new-apt-notes" rows="2" placeholder="Notas adicionales..."
+                              class="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2.5 focus:ring-brand focus:border-brand transition-colors resize-none"></textarea>
+                </div>
+
+                <!-- Error -->
+                <div id="new-apt-error" class="hidden p-3 bg-red-900/50 text-red-300 border border-red-800 rounded-lg text-sm"></div>
+
+                <!-- Actions -->
+                <div class="flex gap-3 pt-1">
+                    <button type="button" onclick="closeNewAptModal()"
+                            class="btn-action-primary border border-neutral-700 px-4 py-2.5 rounded-lg text-sm text-neutral-300 font-medium flex-1">
+                        <span>Cancelar</span>
+                    </button>
+                    <button type="submit" id="new-apt-submit"
+                            class="btn-action-primary border border-green-700 px-4 py-2.5 rounded-lg text-sm text-green-300 font-medium flex-1" style="--btn-bg: #16a34a;">
+                        <span>Crear Cita</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -198,7 +352,15 @@
 document.addEventListener('DOMContentLoaded', function() {
     const calendarEl = document.getElementById('calendar');
     const barberFilter = document.getElementById('barber-filter');
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+            || '{{ csrf_token }}';
 
+    // ── Flatpickr helpers ──
+    function makeFpConfirmPlugin() {
+        return confirmDatePlugin({ confirmText: 'Aceptar', showAlways: true });
+    }
+
+    // ── FullCalendar ──
     const calendar = new FullCalendar.Calendar(calendarEl, {
         locale: 'es',
         initialView: window.innerWidth < 768 ? 'listWeek' : 'timeGridDay',
@@ -227,6 +389,8 @@ document.addEventListener('DOMContentLoaded', function() {
         selectable: false,
         slotDuration: '00:30:00',
         height: 'auto',
+        slotEventOverlap: false,
+        eventMaxStack: 3,
 
         // Event source: fetches from our API
         events: function(info, successCallback, failureCallback) {
@@ -252,7 +416,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (props.services_detail && props.services_detail.length > 0) {
                 servicesHtml = `
                     <div class="space-y-1">
-                        <span class="text-neutral-500 text-xs uppercase tracking-wide">Servicios</span>
+                        <span class="text-neutral-400 text-xs uppercase tracking-wide">Servicios</span>
                         ${props.services_detail.map(s => `
                             <div class="flex justify-between text-sm">
                                 <span class="text-neutral-300">${s.name}</span>
@@ -261,7 +425,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         `).join('')}
                     </div>`;
             } else {
-                servicesHtml = `<div><span class="text-neutral-500">Servicios:</span> ${props.services}</div>`;
+                servicesHtml = `<div><span class="text-neutral-400">Servicios:</span> ${props.services}</div>`;
             }
 
             // Build products list (from intervencion)
@@ -269,7 +433,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (props.intervencion_productos && props.intervencion_productos.length > 0) {
                 productsHtml = `
                     <div class="space-y-1">
-                        <span class="text-neutral-500 text-xs uppercase tracking-wide">Productos utilizados</span>
+                        <span class="text-neutral-400 text-xs uppercase tracking-wide">Productos utilizados</span>
                         ${props.intervencion_productos.map(p => `
                             <div class="flex justify-between text-sm">
                                 <span class="text-neutral-300">${p.name} x${p.cantidad}</span>
@@ -284,7 +448,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (props.intervencion_estado) {
                 intervencionHtml = `
                     <div class="flex items-center gap-2">
-                        <span class="text-neutral-500">Intervención:</span>
+                        <span class="text-neutral-400">Intervenci&oacute;n:</span>
                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
                             ${props.intervencion_estado === 'realizada' ? 'bg-green-900/50 text-green-300' :
                               props.intervencion_estado === 'en_progreso' ? 'bg-blue-900/50 text-blue-300' :
@@ -298,15 +462,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
             document.getElementById('modal-body').innerHTML = `
                 <div class="grid grid-cols-2 gap-2">
-                    <div><span class="text-neutral-500">Cliente:</span> ${props.client_name}</div>
-                    <div><span class="text-neutral-500">Teléfono:</span> ${props.client_phone || '—'}</div>
-                    <div><span class="text-neutral-500">Email:</span> ${props.client_email || '—'}</div>
-                    <div><span class="text-neutral-500">Barbero:</span> ${props.barber_name}</div>
-                    <div><span class="text-neutral-500">Estado cita:</span>
+                    <div><span class="text-neutral-400">Cliente:</span> ${props.client_name}</div>
+                    <div><span class="text-neutral-400">Tel&eacute;fono:</span> ${props.client_phone || '&mdash;'}</div>
+                    <div><span class="text-neutral-400">Email:</span> ${props.client_email || '&mdash;'}</div>
+                    <div><span class="text-neutral-400">Barbero:</span> ${props.barber_name}</div>
+                    <div><span class="text-neutral-400">Estado cita:</span>
                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
                             ${props.status === 'confirmed' ? 'bg-blue-900/50 text-blue-300' :
                               props.status === 'pending' ? 'bg-amber-900/50 text-amber-300' :
                               props.status === 'completed' ? 'bg-green-900/50 text-green-300' :
+                              props.status === 'cancelled' ? 'bg-red-900/50 text-red-300' :
                               'bg-neutral-800 text-neutral-400'}">
                             ${props.status_display}
                         </span>
@@ -316,23 +481,33 @@ document.addEventListener('DOMContentLoaded', function() {
                 ${servicesHtml}
                 ${productsHtml}
                 ${intervencionHtml}
-                ${props.intervencion_notas ? `<div><span class="text-neutral-500">Notas intervención:</span> <span class="italic text-neutral-400">${props.intervencion_notas}</span></div>` : ''}
+                ${props.intervencion_notas ? `<div><span class="text-neutral-400">Notas intervenci&oacute;n:</span> <span class="italic text-neutral-400">${props.intervencion_notas}</span></div>` : ''}
                 <hr class="border-neutral-800">
                 <div class="text-lg font-heading font-bold text-brand">$${Math.round(parseFloat(props.total_price || 0)).toLocaleString('de-DE')}</div>
-                ${props.notes ? `<div class="text-neutral-500 italic">${props.notes}</div>` : ''}
+                ${props.notes ? `<div class="text-neutral-400 italic">${props.notes}</div>` : ''}
             `;
 
+            // Modal actions – allow status changes on any non-cancelled state (including completed)
             const actionsEl = document.getElementById('modal-actions');
             const aptId = info.event.id;
-            if (['pending', 'confirmed'].includes(props.status)) {
-                actionsEl.innerHTML = `
-                    <button onclick="appointmentAction(${aptId}, 'complete')" class="border border-neutral-700 px-4 py-2 rounded-lg hover:bg-[#ff2301] hover:text-white hover:border-[#ff2301] hover:-translate-y-1 hover:shadow-md transition-all duration-300 text-sm flex-1 text-white">Completar</button>
-                    <button onclick="appointmentAction(${aptId}, 'cancel')" class="btn-ghost text-sm text-red-400 flex-1">Cancelar</button>
-                `;
-            } else {
-                actionsEl.innerHTML = '';
+            let actionsHtml = '';
+
+            if (props.status !== 'cancelled') {
+                if (props.status !== 'completed') {
+                    actionsHtml += `<button onclick="appointmentAction(${aptId}, 'complete')"
+                        class="border border-green-700 px-4 py-2 rounded-lg text-sm flex-1 text-green-300 font-medium
+                               hover:bg-green-600 hover:text-white hover:border-green-600 hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">Completar</button>`;
+                } else {
+                    actionsHtml += `<button onclick="appointmentAction(${aptId}, 'reopen')"
+                        class="border border-amber-700 px-4 py-2 rounded-lg text-sm flex-1 text-amber-300 font-medium
+                               hover:bg-amber-600 hover:text-white hover:border-amber-600 hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">Reabrir</button>`;
+                }
+                actionsHtml += `<button onclick="appointmentAction(${aptId}, 'cancel')"
+                    class="border border-red-700 px-4 py-2 rounded-lg text-sm flex-1 text-red-300 font-medium
+                           hover:bg-red-600 hover:text-white hover:border-red-600 hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">Cancelar</button>`;
             }
 
+            actionsEl.innerHTML = actionsHtml;
             document.getElementById('apt-modal').classList.remove('hidden');
         },
 
@@ -357,11 +532,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Global functions
+    // ── Appointment action ──
     window.appointmentAction = function(aptId, action) {
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
-            || '{{ csrf_token }}';
-
         fetch(`/app/schedule/api/appointments/${aptId}/action/`, {
             method: 'POST',
             headers: {
@@ -377,14 +549,222 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     };
 
-    window.openNewAppointment = function() {
-        // TODO: open appointment creation form/modal
-        alert('Próximamente: formulario de nueva cita');
+    // ═══════════════════════════════════════════
+    // New appointment modal logic
+    // ═══════════════════════════════════════════
+    let newAptSelectedServices = [];
+    let newAptBarberServices = [];
+
+    // Init flatpickr date/time pickers
+    flatpickr('#new-apt-date', {
+        locale: 'es',
+        dateFormat: 'Y-m-d',
+        minDate: 'today',
+        plugins: [makeFpConfirmPlugin()],
+    });
+    flatpickr('#new-apt-time', {
+        locale: 'es',
+        enableTime: true,
+        noCalendar: true,
+        dateFormat: 'H:i',
+        time_24hr: true,
+        minuteIncrement: 15,
+        plugins: [makeFpConfirmPlugin()],
+    });
+
+    // Client search
+    let clientSearchTimeout;
+    const clientSearchInput = document.getElementById('new-apt-client-search');
+    const clientResults = document.getElementById('new-apt-client-results');
+    const clientIdInput = document.getElementById('new-apt-client-id');
+
+    clientSearchInput.addEventListener('input', function() {
+        clearTimeout(clientSearchTimeout);
+        const q = this.value.trim();
+        if (q.length < 2) {
+            clientResults.classList.add('hidden');
+            return;
+        }
+        clientSearchTimeout = setTimeout(() => {
+            fetch(`/app/clients/api/search/?q=${encodeURIComponent(q)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.length === 0) {
+                        clientResults.innerHTML = '<div class="px-3 py-2 text-sm text-neutral-400">Sin resultados</div>';
+                    } else {
+                        clientResults.innerHTML = data.map(c => `
+                            <button type="button" onclick="selectClient(${c.id}, '${c.name.replace(/'/g, "\\'")}')"
+                                    class="w-full text-left px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors">
+                                <span class="font-medium">${c.name}</span>
+                                <span class="text-neutral-400 text-xs ml-2">${c.email || c.phone || ''}</span>
+                            </button>
+                        `).join('');
+                    }
+                    clientResults.classList.remove('hidden');
+                });
+        }, 300);
+    });
+
+    window.selectClient = function(id, name) {
+        clientIdInput.value = id;
+        clientSearchInput.value = name;
+        clientResults.classList.add('hidden');
     };
+
+    // Load barber services
+    window.loadBarberServices = function() {
+        const barberId = document.getElementById('new-apt-barber').value;
+        const container = document.getElementById('new-apt-services');
+        newAptSelectedServices = [];
+        updateServicesSummary();
+
+        if (!barberId) {
+            container.innerHTML = '<p class="text-xs text-neutral-400 italic">Selecciona un barbero primero</p>';
+            return;
+        }
+
+        container.innerHTML = '<p class="text-xs text-neutral-400 italic">Cargando servicios...</p>';
+
+        fetch(`/app/schedule/api/barber-services/${barberId}/`)
+            .then(r => r.json())
+            .then(data => renderBarberServices(data.services || []))
+            .catch(() => {
+                container.innerHTML = '<p class="text-xs text-red-400">Error al cargar servicios</p>';
+            });
+    };
+
+    function renderBarberServices(services) {
+        const container = document.getElementById('new-apt-services');
+        if (services.length === 0) {
+            container.innerHTML = '<p class="text-xs text-neutral-400 italic">Este barbero no tiene servicios asignados</p>';
+            return;
+        }
+        newAptBarberServices = services;
+        container.innerHTML = services.map(s => `
+            <label class="flex items-center justify-between p-3 rounded-lg border border-neutral-700 cursor-pointer
+                          hover:border-[#ff2301] hover:bg-brand/5 transition-all duration-200">
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" value="${s.id}" data-price="${s.price}" data-duration="${s.duration}"
+                           onchange="toggleNewAptService(this)"
+                           class="w-4 h-4 rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-800">
+                    <div>
+                        <span class="text-sm text-white">${s.name}</span>
+                        <span class="text-xs text-neutral-400 ml-2">${s.duration} min</span>
+                    </div>
+                </div>
+                <span class="text-sm font-bold text-brand">$${Math.round(parseFloat(s.price)).toLocaleString('de-DE')}</span>
+            </label>
+        `).join('');
+    }
+
+    window.toggleNewAptService = function(cb) {
+        const svcId = parseInt(cb.value);
+        if (cb.checked) {
+            newAptSelectedServices.push({
+                id: svcId,
+                price: parseFloat(cb.dataset.price),
+                duration: parseInt(cb.dataset.duration),
+            });
+        } else {
+            newAptSelectedServices = newAptSelectedServices.filter(s => s.id !== svcId);
+        }
+        updateServicesSummary();
+    };
+
+    function updateServicesSummary() {
+        const summary = document.getElementById('new-apt-services-summary');
+        if (newAptSelectedServices.length === 0) {
+            summary.classList.add('hidden');
+            return;
+        }
+        summary.classList.remove('hidden');
+        const totalPrice = newAptSelectedServices.reduce((s, v) => s + v.price, 0);
+        const totalDuration = newAptSelectedServices.reduce((s, v) => s + v.duration, 0);
+        document.getElementById('new-apt-total-price').textContent = '$' + Math.round(totalPrice).toLocaleString('de-DE');
+        document.getElementById('new-apt-total-duration').textContent = totalDuration + ' min';
+    }
+
+    window.openNewAppointment = function() {
+        // Reset form
+        document.getElementById('new-apt-form').reset();
+        document.getElementById('new-apt-client-id').value = '';
+        document.getElementById('new-apt-services').innerHTML = '<p class="text-xs text-neutral-400 italic">Selecciona un barbero primero</p>';
+        document.getElementById('new-apt-services-summary').classList.add('hidden');
+        document.getElementById('new-apt-error').classList.add('hidden');
+        newAptSelectedServices = [];
+
+        document.getElementById('new-apt-modal').classList.remove('hidden');
+    };
+
+    window.submitNewAppointment = function(e) {
+        e.preventDefault();
+        const errorEl = document.getElementById('new-apt-error');
+        errorEl.classList.add('hidden');
+
+        const clientId = document.getElementById('new-apt-client-id').value;
+        const barberId = document.getElementById('new-apt-barber').value;
+        const dateVal = document.getElementById('new-apt-date').value;
+        const timeVal = document.getElementById('new-apt-time').value;
+        const notes = document.getElementById('new-apt-notes').value;
+
+        if (!clientId) { showNewAptError('Selecciona un cliente'); return false; }
+        if (!barberId) { showNewAptError('Selecciona un barbero'); return false; }
+        if (newAptSelectedServices.length === 0) { showNewAptError('Selecciona al menos un servicio'); return false; }
+        if (!dateVal || !timeVal) { showNewAptError('Selecciona fecha y hora'); return false; }
+
+        const startTime = `${dateVal}T${timeVal}:00`;
+
+        const submitBtn = document.getElementById('new-apt-submit');
+        submitBtn.disabled = true;
+        submitBtn.querySelector('span').textContent = 'Creando...';
+
+        fetch('{% url "scheduling:api_appointment_create" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+            },
+            body: JSON.stringify({
+                client_id: parseInt(clientId),
+                barber_id: parseInt(barberId),
+                start_time: startTime,
+                service_ids: newAptSelectedServices.map(s => s.id),
+                notes: notes,
+            }),
+        })
+        .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+        .then(({ ok, data }) => {
+            submitBtn.disabled = false;
+            submitBtn.querySelector('span').textContent = 'Crear Cita';
+
+            if (ok) {
+                closeNewAptModal();
+                calendar.refetchEvents();
+            } else {
+                showNewAptError(data.error || 'Error al crear la cita');
+            }
+        })
+        .catch(() => {
+            submitBtn.disabled = false;
+            submitBtn.querySelector('span').textContent = 'Crear Cita';
+            showNewAptError('Error de conexi&oacute;n');
+        });
+
+        return false;
+    };
+
+    function showNewAptError(msg) {
+        const el = document.getElementById('new-apt-error');
+        el.textContent = msg;
+        el.classList.remove('hidden');
+    }
 });
 
 function closeModal() {
     document.getElementById('apt-modal').classList.add('hidden');
+}
+function closeNewAptModal() {
+    document.getElementById('new-apt-modal').classList.add('hidden');
 }
 </script>
 {% endblock %}

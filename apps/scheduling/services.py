@@ -190,8 +190,11 @@ def create_appointment(
     Stores price snapshots per service.
     Raises ValueError on conflicts.
     """
-    # Validate services exist and barber can perform them
-    services = Service.objects.filter(pk__in=service_ids, barbershop=barbershop, is_active=True)
+    # Validate services exist and barber can perform them 
+    services = Service.objects.filter(pk__in=service_ids, is_active=True) #POR AHORA LOS SERVICIOS FUNCIONAN SIN DISCRIMINAR LA BARBERIA , FALTA AGREGAR PARA HACER ESTA DISCRIMINACION barbershop=barbershop
+    print(barbershop)
+    print(services.count())
+    print(len(service_ids))
     if services.count() != len(service_ids):
         raise ValueError("Uno o más servicios no existen o no están activos.")
 
@@ -347,17 +350,35 @@ def get_calendar_events(
     if end_date is None:
         end_date = timezone.localdate() + timedelta(days=30)
 
+    today = timezone.localdate()
+
+    # Active statuses: always show
+    active_statuses = [
+        Appointment.Status.PENDING,
+        Appointment.Status.CONFIRMED,
+        Appointment.Status.IN_PROGRESS,
+        Appointment.Status.COMPLETED,
+    ]
+
+    # Base queryset: all non-cancelled in the range
     qs = Appointment.objects.filter(
         barbershop=barbershop,
         start_time__date__gte=start_date,
         start_time__date__lte=end_date,
-        status__in=[
-            Appointment.Status.PENDING,
-            Appointment.Status.CONFIRMED,
-            Appointment.Status.IN_PROGRESS,
-            Appointment.Status.COMPLETED,
-        ],
-    ).select_related("client", "barber__membership__user").prefetch_related(
+        status__in=active_statuses,
+    )
+
+    # Also include cancelled events from today onward (not past)
+    cancelled_qs = Appointment.objects.filter(
+        barbershop=barbershop,
+        start_time__date__gte=today,
+        start_time__date__lte=end_date,
+        status=Appointment.Status.CANCELLED,
+    )
+
+    qs = (qs | cancelled_qs).select_related(
+        "client", "barber__membership__user"
+    ).prefetch_related(
         "services__service",
         "intervencion__servicios__servicio",
         "intervencion__productos_usados__producto",
@@ -436,4 +457,5 @@ def _status_color(status: str) -> str:
         "confirmed": "#3b82f6",   # blue
         "in_progress": "#ff2301", # brand orange
         "completed": "#10b981",   # green
+        "cancelled": "#6b7280",   # gray
     }.get(status, "#6b7280")      # gray

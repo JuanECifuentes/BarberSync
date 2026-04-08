@@ -10,7 +10,7 @@
     <div class="card flex items-center justify-between">
         <div>
             <p class="text-sm font-medium text-white">Venta #{{ sale.pk }}</p>
-            <p class="text-xs text-neutral-500">
+            <p class="text-xs text-neutral-400">
                 {{ sale.completed_at|date:"d/m/Y H:i" }} · {{ sale.get_sale_type_display }}
                 {% if sale.barber %} · {{ sale.barber }}{% endif %}
             </p>
@@ -18,7 +18,7 @@
         <span class="font-heading font-bold text-brand">${{ sale.total|money }}</span>
     </div>
     {% empty %}
-    <div class="text-center py-12 text-neutral-500">No hay ventas registradas.</div>
+    <div class="text-center py-12 text-neutral-400">No hay ventas registradas.</div>
     {% endfor %}
 
     {% if page_obj.has_other_pages %}

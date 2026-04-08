@@ -31,7 +31,7 @@
                class="card w-full text-left flex items-center gap-4 cursor-pointer block
                       border border-neutral-800 hover:border-[#ff2301] hover:-translate-y-1 hover:shadow-lg hover:shadow-brand/10 transition-all duration-300">
                 <div class="w-14 h-14 rounded-xl bg-neutral-800 flex items-center justify-center flex-shrink-0">
-                    <span class="text-xl font-heading font-bold text-neutral-500">{{ shop.name|first|upper }}</span>
+                    <span class="text-xl font-heading font-bold text-neutral-400">{{ shop.name|first|upper }}</span>
                 </div>
                 <div class="flex-1">
                     <p class="font-medium text-white">{{ shop.name }}</p>
@@ -39,15 +39,15 @@
                     <p class="text-xs text-neutral-400 line-clamp-1">{{ shop.address }}</p>
                     {% endif %}
                     {% if shop.phone %}
-                    <p class="text-xs text-neutral-500">{{ shop.phone }}</p>
+                    <p class="text-xs text-neutral-400">{{ shop.phone }}</p>
                     {% endif %}
                 </div>
-                <svg class="w-5 h-5 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                 </svg>
             </a>
             {% empty %}
-            <div class="text-center py-12 text-neutral-500">
+            <div class="text-center py-12 text-neutral-400">
                 No hay sucursales disponibles en este momento.
             </div>
             {% endfor %}
