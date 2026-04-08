@@ -487,6 +487,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>`;
             }
 
+            // Calculate grand total (services + products)
+            const productsTotal = (props.intervencion_productos || []).reduce((sum, p) => sum + parseFloat(p.subtotal || 0), 0);
+            const grandTotal = parseFloat(props.total_price || 0) + productsTotal;
+
             document.getElementById('modal-body').innerHTML = `
                 <div class="grid grid-cols-2 gap-2">
                     <div><span class="text-neutral-400">Cliente:</span> ${props.client_name}</div>
@@ -502,7 +506,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <hr class="border-neutral-800">
                 ${productConsumptionHtml}
                 <hr class="border-neutral-800">
-                <div class="text-lg font-heading font-bold text-brand">$${Math.round(parseFloat(props.total_price || 0)).toLocaleString('de-DE')}</div>
+                <div class="text-lg font-heading font-bold text-brand">$${Math.round(grandTotal).toLocaleString('de-DE')}</div>
                 ${props.notes ? `<div class="text-neutral-400 italic">${props.notes}</div>` : ''}
             `;
 

@@ -192,9 +192,6 @@ def create_appointment(
     """
     # Validate services exist and barber can perform them 
     services = Service.objects.filter(pk__in=service_ids, is_active=True) #POR AHORA LOS SERVICIOS FUNCIONAN SIN DISCRIMINAR LA BARBERIA , FALTA AGREGAR PARA HACER ESTA DISCRIMINACION barbershop=barbershop
-    print(barbershop)
-    print(services.count())
-    print(len(service_ids))
     if services.count() != len(service_ids):
         raise ValueError("Uno o más servicios no existen o no están activos.")
 
