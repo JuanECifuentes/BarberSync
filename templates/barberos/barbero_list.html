@@ -185,9 +185,9 @@
                 </div>
                 <div class="min-w-0 flex-1">
                     <p class="font-medium text-white truncate">{{ b.display_name|default:b.user.get_full_name }}</p>
-                    <p class="text-xs text-neutral-500 truncate">{{ b.user.email }}</p>
+                    <p class="text-xs text-neutral-400 truncate">{{ b.user.email }}</p>
                     {% if b.phone %}
-                    <p class="text-xs text-neutral-500">{{ b.phone }}</p>
+                    <p class="text-xs text-neutral-400">{{ b.phone }}</p>
                     {% endif %}
                 </div>
 
@@ -241,7 +241,7 @@
             </div>
         </div>
         {% empty %}
-        <div class="col-span-full text-center py-12 text-neutral-500">
+        <div class="col-span-full text-center py-12 text-neutral-400">
             No hay barberos registrados.
         </div>
         {% endfor %}
@@ -251,7 +251,7 @@
     {% if barberos_inactivos %}
     <div class="mt-4">
         <button onclick="document.getElementById('inactivos-section').classList.toggle('hidden')"
-            class="text-sm text-neutral-500 hover:text-neutral-300 transition-colors flex items-center gap-1">
+            class="text-sm text-neutral-400 hover:text-neutral-300 transition-colors flex items-center gap-1">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
             </svg>
@@ -351,7 +351,7 @@
                                 class="bb-servicio-check rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-700">
                             <span class="text-sm text-white">{{ svc.name }}</span>
                         </span>
-                        <span class="text-xs text-neutral-500">${{ svc.price|money }}</span>
+                        <span class="text-xs text-neutral-400">${{ svc.price|money }}</span>
                     </label>
                     {% endfor %}
                 </div>
@@ -405,7 +405,7 @@
             </div>
         </div>
 
-        <p class="text-xs text-neutral-500">Marca los días que trabaja y establece sus horas. Los días sin marcar se
+        <p class="text-xs text-neutral-400">Marca los días que trabaja y establece sus horas. Los días sin marcar se
             consideran libres.</p>
 
         <!-- Weekly schedule (accordion style) -->
@@ -915,7 +915,7 @@
         } else {
             content.classList.remove('open');
             icon.style.transform = 'rotate(0deg)';
-            label.innerHTML = '<span class="text-xs text-neutral-500 bg-neutral-800 px-2 py-0.5 rounded-full hover:bg-neutral-750 transition-colors">Libre</span>';
+            label.innerHTML = '<span class="text-xs text-neutral-400 bg-neutral-800 px-2 py-0.5 rounded-full hover:bg-neutral-750 transition-colors">Libre</span>';
             content.querySelectorAll('input[type=text]').forEach(t => t.disabled = true);
         }
     }
@@ -932,7 +932,7 @@
             const endVal = s ? s.end_time : '20:00';
             const isOpen = s ? 'open' : '';
             const iconRotate = s ? 'style="transform: rotate(180deg)"' : '';
-            const freeLabel = !s ? '<span class="text-xs text-neutral-500 bg-neutral-800 px-2 py-0.5 rounded-full hover:bg-neutral-750 transition-colors">Libre</span>' : '';
+            const freeLabel = !s ? '<span class="text-xs text-neutral-400 bg-neutral-800 px-2 py-0.5 rounded-full hover:bg-neutral-750 transition-colors">Libre</span>' : '';
 
             return `
         <div class="rounded-lg border border-neutral-800 overflow-hidden">
@@ -952,12 +952,12 @@
             <div id="accordion-content-${i}" class="accordion-content ${isOpen}">
                 <div class="flex items-center gap-3 px-4 py-3">
                     <div class="flex-1">
-                        <label class="text-[10px] text-neutral-500 mb-1 block uppercase tracking-wider">Entrada</label>
+                        <label class="text-[10px] text-neutral-400 mb-1 block uppercase tracking-wider">Entrada</label>
                         <input type="text" class="sched-start sched-time-input w-full px-3 py-2 bg-neutral-700 border border-neutral-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand transition-colors" data-day="${i}" value="${startVal}" ${!s ? 'disabled' : ''}>
                     </div>
-                    <span class="text-neutral-500 text-xs mt-4">a</span>
+                    <span class="text-neutral-400 text-xs mt-4">a</span>
                     <div class="flex-1">
-                        <label class="text-[10px] text-neutral-500 mb-1 block uppercase tracking-wider">Salida</label>
+                        <label class="text-[10px] text-neutral-400 mb-1 block uppercase tracking-wider">Salida</label>
                         <input type="text" class="sched-end sched-time-input w-full px-3 py-2 bg-neutral-700 border border-neutral-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand transition-colors" data-day="${i}" value="${endVal}" ${!s ? 'disabled' : ''}>
                     </div>
                 </div>
@@ -1000,7 +1000,7 @@
     function renderExceptions(exceptions) {
         const container = document.getElementById('exceptions-list');
         if (!exceptions.length) {
-            container.innerHTML = '<p class="text-sm text-neutral-500 text-center py-4">No hay excepciones registradas.</p>';
+            container.innerHTML = '<p class="text-sm text-neutral-400 text-center py-4">No hay excepciones registradas.</p>';
             return;
         }
         container.innerHTML = exceptions.map(e => {
@@ -1012,10 +1012,10 @@
             <div class="min-w-0">
                 <div class="flex items-center gap-2">
                     <span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium bg-brand/10 text-brand">${EXC_TYPES[e.exception_type] || e.exception_type}</span>
-                    ${e.is_recurring ? '<span class="text-[10px] text-neutral-500">🔁 Recurrente</span>' : ''}
+                    ${e.is_recurring ? '<span class="text-[10px] text-neutral-400">🔁 Recurrente</span>' : ''}
                 </div>
                 <p class="text-xs text-neutral-400 mt-1">${fmt(start)} → ${fmt(end)}</p>
-                ${e.description ? `<p class="text-xs text-neutral-500 mt-0.5">${e.description}</p>` : ''}
+                ${e.description ? `<p class="text-xs text-neutral-400 mt-0.5">${e.description}</p>` : ''}
             </div>
             <button onclick="deleteException(${e.id})" class="text-xs text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0 ml-2">Eliminar</button>
         </div>`;

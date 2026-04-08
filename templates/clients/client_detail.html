@@ -26,7 +26,7 @@
                     {{ client.phone }}
                 </p>
                 {% endif %}
-                <p class="text-xs text-neutral-500 mt-2">Cliente desde {{ client.created_at|date:"d/m/Y" }} · Origen: {{ client.source }}</p>
+                <p class="text-xs text-neutral-400 mt-2">Cliente desde {{ client.created_at|date:"d/m/Y" }} · Origen: {{ client.source }}</p>
             </div>
         </div>
         {% if client.notes %}
@@ -67,7 +67,7 @@
                 </span>
             </div>
             {% empty %}
-            <p class="text-sm text-neutral-500">Sin citas registradas en los últimos 6 meses.</p>
+            <p class="text-sm text-neutral-400">Sin citas registradas en los últimos 6 meses.</p>
             {% endfor %}
         </div>
     </div>

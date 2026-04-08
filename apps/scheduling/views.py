@@ -14,6 +14,7 @@ from collections import OrderedDict
 from datetime import datetime, date
 
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.http import JsonResponse
 from django.utils import timezone
 from django.views import View
@@ -21,10 +22,11 @@ from django.views.generic import TemplateView
 
 from apps.accounts.models import BarberProfile
 from . import services as svc
-from apps.inventory.models import Product, ProductCategory
+from apps.inventory.models import Product, ProductCategory, StockMovement
 from .models import (
-    Appointment, CategoriaServicio,
-    HistorialPrecioServicio, Service, ServicioProducto,
+    Appointment, BarberService, CategoriaServicio,
+    HistorialPrecioServicio, Intervencion, IntervencionProducto,
+    Service, ServicioProducto,
 )
 
 
@@ -55,6 +57,18 @@ class CalendarView(LoginRequiredMixin, TemplateView):
             )
             if ctx["selected_barber_id"]:
                 ctx["selected_barber_id"] = ctx["selected_barber_id"].pk
+
+        # Products grouped by category for product consumption in modal
+        products = Product.objects.filter(
+            barbershop=barbershop, is_active=True,
+        ).select_related("category").order_by("category__name", "name")
+        grouped_products = OrderedDict()
+        for prod in products:
+            cat_name = prod.category.name if prod.category else "Sin Categoría"
+            if cat_name not in grouped_products:
+                grouped_products[cat_name] = []
+            grouped_products[cat_name].append(prod)
+        ctx["grouped_products"] = grouped_products
 
         return ctx
 
@@ -212,13 +226,43 @@ class AppointmentActionAPI(LoginRequiredMixin, View):
         if action == "cancel":
             reason = data.get("reason", "")
             svc.cancel_appointment(appointment, reason=reason, cancelled_by=request.user)
+            # Sync linked Intervencion → cancelada
+            try:
+                intervencion = appointment.intervencion
+                intervencion.estado = Intervencion.Estado.CANCELADA
+                intervencion.updated_by = request.user
+                intervencion.save(update_fields=["estado", "updated_by", "updated_at"])
+            except Intervencion.DoesNotExist:
+                pass
             return JsonResponse({"message": "Cita cancelada"})
 
         elif action == "complete":
             appointment.status = Appointment.Status.COMPLETED
             appointment.updated_by = request.user
             appointment.save()
-            return JsonResponse({"message": "Cita completada"})
+            # Sync linked Intervencion → realizada
+            try:
+                intervencion = appointment.intervencion
+                intervencion.estado = Intervencion.Estado.REALIZADA
+                intervencion.updated_by = request.user
+                intervencion.save(update_fields=["estado", "updated_by", "updated_at"])
+            except Intervencion.DoesNotExist:
+                pass
+            return JsonResponse({"message": "Cita realizada"})
+
+        elif action == "reopen":
+            appointment.status = Appointment.Status.CONFIRMED
+            appointment.updated_by = request.user
+            appointment.save()
+            # Sync linked Intervencion → pendiente
+            try:
+                intervencion = appointment.intervencion
+                intervencion.estado = Intervencion.Estado.PENDIENTE
+                intervencion.updated_by = request.user
+                intervencion.save(update_fields=["estado", "updated_by", "updated_at"])
+            except Intervencion.DoesNotExist:
+                pass
+            return JsonResponse({"message": "Cita reabierta"})
 
         elif action == "reschedule":
             new_start_str = data.get("new_start_time")
@@ -504,6 +548,112 @@ class CategoryCreateAPI(LoginRequiredMixin, View):
             updated_by=request.user,
         )
         return JsonResponse({"ok": True, "id": cat.pk, "name": cat.name}, status=201)
+
+
+# ─────────────────────────────────────────────
+# Barber services API (for new appointment modal)
+# ─────────────────────────────────────────────
+class BarberServicesAPI(LoginRequiredMixin, View):
+    """Returns services a specific barber can perform."""
+
+    def get(self, request, barber_id):
+        barbershop = request.barbershop
+
+        barber = BarberProfile.objects.filter(
+            pk=barber_id, membership__barbershop=barbershop,
+        ).first()
+        if not barber:
+            return JsonResponse({"error": "Barbero no encontrado"}, status=404)
+
+        barber_services = BarberService.objects.filter(
+            barber=barber, service__is_active=True,
+        ).select_related("service")
+
+        data = [
+            {
+                "id": bs.service.pk,
+                "name": bs.service.name,
+                "duration": bs.service.duration_minutes,
+                "price": str(bs.effective_price),
+            }
+            for bs in barber_services
+        ]
+        return JsonResponse({"services": data})
+
+
+# ─────────────────────────────────────────────
+# Appointment product consumption
+# ─────────────────────────────────────────────
+class AppointmentProductsAPI(LoginRequiredMixin, View):
+    """Add/replace products on an appointment's linked Intervencion."""
+
+    def post(self, request, pk):
+        barbershop = request.barbershop
+        appointment = Appointment.objects.filter(
+            pk=pk, barbershop=barbershop,
+        ).first()
+        if not appointment:
+            return JsonResponse({"error": "Cita no encontrada"}, status=404)
+
+        try:
+            intervencion = appointment.intervencion
+        except Intervencion.DoesNotExist:
+            return JsonResponse({"error": "Sin intervención vinculada"}, status=404)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "JSON inválido"}, status=400)
+
+        productos = data.get("productos", [])
+
+        with transaction.atomic():
+            # Restore stock for existing products
+            for ip in intervencion.productos_usados.select_related("producto").all():
+                product = Product.objects.select_for_update().get(pk=ip.producto_id)
+                StockMovement(
+                    product=product,
+                    quantity=ip.cantidad,
+                    reason=StockMovement.Reason.ADJUSTMENT,
+                    notes=f"Reversión Agenda Cita #{appointment.pk}",
+                    resulting_stock=0,
+                    updated_by=request.user,
+                ).save()
+
+            # Clear old products
+            intervencion.productos_usados.all().delete()
+
+            # Add new products
+            for item in productos:
+                prod_id = item.get("producto_id")
+                cantidad = int(item.get("cantidad", 1))
+                if not prod_id or cantidad <= 0:
+                    continue
+                product = Product.objects.select_for_update().filter(
+                    pk=prod_id, barbershop=barbershop, is_active=True,
+                ).first()
+                if not product:
+                    continue
+                IntervencionProducto.objects.create(
+                    intervencion=intervencion,
+                    producto=product,
+                    cantidad=cantidad,
+                    precio_unitario=product.price,
+                )
+
+            # Deduct stock for new products
+            for ip in intervencion.productos_usados.select_related("producto").all():
+                product = Product.objects.select_for_update().get(pk=ip.producto_id)
+                StockMovement(
+                    product=product,
+                    quantity=-ip.cantidad,
+                    reason=StockMovement.Reason.SALE,
+                    notes=f"Agenda Cita #{appointment.pk}",
+                    resulting_stock=0,
+                    updated_by=request.user,
+                ).save()
+
+        return JsonResponse({"message": "Productos actualizados"})
 
 
 # ─────────────────────────────────────────────

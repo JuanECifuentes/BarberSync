@@ -14,10 +14,12 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
 
-from apps.accounts.models import BarberProfile, Barbershop
+from django.db.models import Q
+
+from apps.accounts.models import BarberProfile, Barbershop, Organization
 from apps.clients.models import Client
 from apps.scheduling import services as svc
-from apps.scheduling.models import BarberService, Service
+from apps.scheduling.models import BarberService, Service, WorkSchedule
 
 
 def _get_barbershop(booking_uid):
@@ -38,10 +40,17 @@ class BookingPageView(TemplateView):
         uid = self.kwargs["booking_uid"]
         barbershop = _get_barbershop(uid)
 
+        # Barbers assigned to this barbershop (via membership OR sucursales M2M)
+        # who have at least one WorkSchedule entry
+        barbers_with_schedule = WorkSchedule.objects.values_list(
+            "barber_id", flat=True
+        ).distinct()
+
         barbers = BarberProfile.objects.filter(
-            membership__barbershop=barbershop,
+            Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
             is_active=True,
-        ).select_related("membership__user")
+            pk__in=barbers_with_schedule,
+        ).select_related("membership__user").distinct()
 
         services = Service.objects.filter(barbershop=barbershop, is_active=True)
 
@@ -56,15 +65,19 @@ class BookingBarbersAPI(View):
     """Returns barbers + their services for a barbershop."""
 
     def get(self, request, booking_uid):
-        print(f"DEBUG: BookingBarbersAPI called for booking_uid: {booking_uid}")
         barbershop = _get_barbershop(booking_uid)
 
-        print(f"DEBUG: Barbershop found: {barbershop}")
+        # Barbers assigned to this barbershop (via membership OR sucursales M2M)
+        # who have at least one WorkSchedule entry
+        barbers_with_schedule = WorkSchedule.objects.values_list(
+            "barber_id", flat=True
+        ).distinct()
 
         barbers = BarberProfile.objects.filter(
-            membership__barbershop=barbershop,
+            Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
             is_active=True,
-        ).select_related("membership__user")
+            pk__in=barbers_with_schedule,
+        ).select_related("membership__user").distinct()
 
         data = []
         for barber in barbers:
@@ -103,7 +116,8 @@ class BookingSlotsAPI(View):
             return JsonResponse({"error": "barber_id y date requeridos"}, status=400)
 
         barber = BarberProfile.objects.filter(
-            pk=barber_id, membership__barbershop=barbershop,
+            Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
+            pk=barber_id,
         ).first()
         if not barber:
             return JsonResponse({"error": "Barbero no encontrado"}, status=404)
@@ -156,7 +170,8 @@ class BookingCreateAPI(View):
             return JsonResponse({"error": "Faltan campos"}, status=400)
 
         barber = BarberProfile.objects.filter(
-            pk=barber_id, membership__barbershop=barbershop,
+            Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
+            pk=barber_id,
         ).first()
         if not barber:
             return JsonResponse({"error": "Barbero no encontrado"}, status=404)
@@ -238,3 +253,52 @@ class MyBookingsAPI(View):
             for apt in appointments
         ]
         return JsonResponse(data, safe=False)
+
+
+# ─────────────────────────────────────────────
+# Global (organization-level) booking
+# ─────────────────────────────────────────────
+class BookingGlobalPageView(TemplateView):
+    """
+    Global booking page – shows branch selection as step 1.
+    URL: /book/org/<org_slug>/
+    """
+
+    template_name = "booking/public_booking_global.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        org_slug = self.kwargs["org_slug"]
+        organization = get_object_or_404(Organization, slug=org_slug, is_active=True)
+
+        barbershops = Barbershop.objects.filter(
+            organization=organization, is_active=True,
+        )
+
+        ctx["organization"] = organization
+        ctx["barbershops"] = barbershops
+        ctx["is_booking_page"] = True
+        return ctx
+
+
+class BookingBarbershopsAPI(View):
+    """Returns active barbershops for an organization."""
+
+    def get(self, request, org_slug):
+        organization = get_object_or_404(Organization, slug=org_slug, is_active=True)
+
+        barbershops = Barbershop.objects.filter(
+            organization=organization, is_active=True,
+        )
+
+        data = [
+            {
+                "id": shop.pk,
+                "name": shop.name,
+                "address": shop.address,
+                "phone": shop.phone,
+                "booking_url": f"/book/{shop.slug}-{shop.booking_uid}/",
+            }
+            for shop in barbershops
+        ]
+        return JsonResponse({"barbershops": data})

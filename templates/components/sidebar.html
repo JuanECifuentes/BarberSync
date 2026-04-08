@@ -20,7 +20,7 @@
 
         <!-- Categoria: Principal -->
         <div>
-            <p class="px-3 mb-2 text-[10px] font-semibold text-neutral-500 uppercase tracking-widest">Principal</p>
+            <p class="px-3 mb-2 text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">Principal</p>
             <div class="space-y-1">
                 <a href="{% url 'scheduling:calendar' %}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
                           {% if request.resolver_match.app_name == 'scheduling' and request.resolver_match.url_name == 'calendar' %}bg-brand/10 text-brand{% else %}text-neutral-400 hover:text-white hover:bg-neutral-800{% endif %}
@@ -46,7 +46,7 @@
 
         <!-- Categoria: Gestion -->
         <div>
-            <p class="px-3 mb-2 text-[10px] font-semibold text-neutral-500 uppercase tracking-widest">Gesti&oacute;n</p>
+            <p class="px-3 mb-2 text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">Gesti&oacute;n</p>
             <div class="space-y-1">
                 <a href="{% url 'barberos:list' %}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
                           {% if request.resolver_match.app_name == 'barberos' %}bg-brand/10 text-brand{% else %}text-neutral-400 hover:text-white hover:bg-neutral-800{% endif %}
@@ -99,7 +99,7 @@
         <!-- Categoria: Sistema (admin only) -->
         {% if is_admin %}
         <div>
-            <p class="px-3 mb-2 text-[10px] font-semibold text-neutral-500 uppercase tracking-widest">Sistema</p>
+            <p class="px-3 mb-2 text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">Sistema</p>
             <div class="space-y-1">
                 <a href="{% url 'configuracion:index' %}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
                           {% if request.resolver_match.app_name == 'configuracion' %}bg-brand/10 text-brand{% else %}text-neutral-400 hover:text-white hover:bg-neutral-800{% endif %}
@@ -130,7 +130,7 @@
             </div>
             {% endif %}
             <div class="min-w-0">
-                <p class="text-xs text-neutral-500 leading-none">Organizaci&oacute;n</p>
+                <p class="text-xs text-neutral-400 leading-none">Organizaci&oacute;n</p>
                 <p class="text-sm font-medium text-white truncate mt-0.5">{{ current_organization.name }}</p>
             </div>
         </div>
