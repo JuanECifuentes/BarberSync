@@ -237,17 +237,24 @@ class AppointmentActionAPI(LoginRequiredMixin, View):
             return JsonResponse({"message": "Cita cancelada"})
 
         elif action == "complete":
-            appointment.status = Appointment.Status.COMPLETED
-            appointment.updated_by = request.user
-            appointment.save()
-            # Sync linked Intervencion → realizada
-            try:
-                intervencion = appointment.intervencion
-                intervencion.estado = Intervencion.Estado.REALIZADA
-                intervencion.updated_by = request.user
-                intervencion.save(update_fields=["estado", "updated_by", "updated_at"])
-            except Intervencion.DoesNotExist:
-                pass
+            with transaction.atomic():
+                appointment.status = Appointment.Status.COMPLETED
+                appointment.updated_by = request.user
+                appointment.save()
+                # Sync linked Intervencion → realizada & freeze product prices
+                try:
+                    intervencion = appointment.intervencion
+                    intervencion.estado = Intervencion.Estado.REALIZADA
+                    if not intervencion.fecha_fin:
+                        intervencion.fecha_fin = timezone.now()
+                    intervencion.updated_by = request.user
+                    intervencion.save(update_fields=["estado", "fecha_fin", "updated_by", "updated_at"])
+                    # Freeze product prices at the moment of completion
+                    for ip in intervencion.productos_usados.select_related("producto").all():
+                        ip.precio_unitario = ip.producto.price
+                        ip.save(update_fields=["precio_unitario"])
+                except Intervencion.DoesNotExist:
+                    pass
             return JsonResponse({"message": "Cita realizada"})
 
         elif action == "reopen":

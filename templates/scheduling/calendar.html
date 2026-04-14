@@ -12,6 +12,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.11/locales/es.global.min.js"></script>
 <!-- Flatpickr for date/time picker -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/confirmDate/confirmDate.css">
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
@@ -73,6 +74,9 @@
     }
     .fc td, .fc th {
         border-color: #3d3d41 !important;
+    }
+    .fc .fc-timegrid-axis {
+        background-color: #1a1a1c !important;
     }
     .fc .fc-timegrid-slot {
         background-color: #1a1a1c !important;
@@ -171,6 +175,91 @@
     }
     .fc .fc-list-empty-cushion {
         color: #91919a !important;
+    }
+
+    /* ── Calendar events: clickable look ── */
+    .fc .fc-event {
+        cursor: pointer !important;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+    }
+    .fc .fc-event:hover {
+        transform: scale(1.03);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        filter: brightness(1.15);
+        z-index: 10 !important;
+    }
+    .fc .fc-list-event {
+        cursor: pointer !important;
+    }
+
+    /* ── Flatpickr dark overrides ── */
+    .flatpickr-calendar {
+        background: #2a2a2d !important;
+        border-color: #4a4a4f !important;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+    }
+    .flatpickr-months .flatpickr-month,
+    .flatpickr-current-month .flatpickr-monthDropdown-months {
+        background: #2a2a2d !important;
+        color: #f7f7f8 !important;
+    }
+    .flatpickr-current-month input.cur-year {
+        color: #f7f7f8 !important;
+    }
+    .flatpickr-months .flatpickr-prev-month,
+    .flatpickr-months .flatpickr-next-month {
+        color: #f7f7f8 !important;
+        fill: #f7f7f8 !important;
+    }
+    .flatpickr-months .flatpickr-prev-month:hover,
+    .flatpickr-months .flatpickr-next-month:hover {
+        color: #ff2301 !important;
+    }
+    .flatpickr-months .flatpickr-prev-month:hover svg,
+    .flatpickr-months .flatpickr-next-month:hover svg {
+        fill: #ff2301 !important;
+    }
+    span.flatpickr-weekday {
+        color: #91919a !important;
+        background: #2a2a2d !important;
+    }
+    .flatpickr-day {
+        color: #d9d9dd !important;
+        border-color: transparent !important;
+    }
+    .flatpickr-day:hover {
+        background: #3d3d41 !important;
+        border-color: #3d3d41 !important;
+    }
+    .flatpickr-day.today {
+        border-color: #ff2301 !important;
+    }
+    .flatpickr-day.selected,
+    .flatpickr-day.startRange,
+    .flatpickr-day.endRange {
+        background: #ff2301 !important;
+        border-color: #ff2301 !important;
+        color: #fff !important;
+    }
+    .flatpickr-day.flatpickr-disabled,
+    .flatpickr-day.prevMonthDay,
+    .flatpickr-day.nextMonthDay {
+        color: #4a4a4f !important;
+    }
+    .flatpickr-time {
+        border-top-color: #3d3d41 !important;
+    }
+    .flatpickr-time input,
+    .flatpickr-time .flatpickr-am-pm {
+        color: #f7f7f8 !important;
+        background: #2a2a2d !important;
+    }
+    .flatpickr-time .flatpickr-am-pm:hover {
+        background: #3d3d41 !important;
+    }
+    .flatpickr-time input:hover,
+    .flatpickr-time input:focus {
+        background: #3d3d41 !important;
     }
 
     /* Flatpickr confirm button */
@@ -351,7 +440,7 @@
     {% for cat_name, prods in grouped_products.items %}
     <optgroup label="{{ cat_name }}">
         {% for prod in prods %}
-        <option value="{{ prod.pk }}" data-price="{{ prod.price }}">{{ prod.name }} (${{ prod.price }})</option>
+        <option value="{{ prod.pk }}" data-price="{{ prod.price }}">{{ prod.name }}</option>
         {% endfor %}
     </optgroup>
     {% endfor %}
@@ -390,6 +479,8 @@ document.addEventListener('DOMContentLoaded', function() {
             month: 'Mes',
             list: 'Agenda',
         },
+        slotLabelFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
+        eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
         slotMinTime: '{{ current_barbershop.open_hour|default:"08" }}:00:00',
         slotMaxTime: '{{ current_barbershop.close_hour|default:"20" }}:00:00',
         allDaySlot: false,
@@ -423,12 +514,38 @@ document.addEventListener('DOMContentLoaded', function() {
             const props = info.event.extendedProps;
             document.getElementById('modal-title').textContent = info.event.title;
 
+            // Store current event data globally for dynamic updates
+            window._currentModalEvent = {
+                servicesTotal: parseFloat(props.total_price || 0),
+                intervencionEstado: props.intervencion_estado,
+                intervencionProductos: props.intervencion_productos || [],
+            };
+
+            // Tooltip helper (? icon with hover tooltip)
+            const tooltipIcon = (text) => `
+                <span class="relative inline-flex ml-1.5 group/tip">
+                    <svg class="w-3.5 h-3.5 text-neutral-500 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01"/>
+                        <circle cx="12" cy="12" r="10" stroke-width="2"/>
+                    </svg>
+                    <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-200 pointer-events-none z-50 shadow-xl text-center leading-relaxed">${text}</span>
+                </span>`;
+
+            // Format time helper (AM/PM)
+            const fmtTime = (d) => {
+                if (!d) return '—';
+                return d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', hour12: false });
+            };
+
             // Build services detail list
             let servicesHtml = '';
             if (props.services_detail && props.services_detail.length > 0) {
                 servicesHtml = `
                     <div class="space-y-1">
-                        <span class="text-neutral-400 text-xs uppercase tracking-wide">Servicios</span>
+                        <div class="flex items-center">
+                            <span class="text-neutral-400 text-xs uppercase tracking-wide">Servicios</span>
+                            ${tooltipIcon('Estos precios son históricos, registrados al momento de crear la cita.')}
+                        </div>
                         ${props.services_detail.map(s => `
                             <div class="flex justify-between text-sm">
                                 <span class="text-neutral-300">${s.name}</span>
@@ -444,8 +561,11 @@ document.addEventListener('DOMContentLoaded', function() {
             let productsHtml = '';
             if (props.intervencion_productos && props.intervencion_productos.length > 0) {
                 productsHtml = `
-                    <div class="space-y-1">
-                        <span class="text-neutral-400 text-xs uppercase tracking-wide">Productos utilizados</span>
+                    <div class="space-y-1" id="cal-productos-display">
+                        <div class="flex items-center">
+                            <span class="text-neutral-400 text-xs uppercase tracking-wide">Productos utilizados</span>
+                            ${tooltipIcon('Estos precios son históricos, registrados al momento de completar el servicio.')}
+                        </div>
                         ${props.intervencion_productos.map(p => `
                             <div class="flex justify-between text-sm">
                                 <span class="text-neutral-300">${p.name} x${p.cantidad}</span>
@@ -491,25 +611,31 @@ document.addEventListener('DOMContentLoaded', function() {
             const productsTotal = (props.intervencion_productos || []).reduce((sum, p) => sum + parseFloat(p.subtotal || 0), 0);
             const grandTotal = parseFloat(props.total_price || 0) + productsTotal;
 
+            // Start / end time
+            const startTime = info.event.start;
+            const endTime = info.event.end;
+
             document.getElementById('modal-body').innerHTML = `
                 <div class="grid grid-cols-2 gap-2">
                     <div><span class="text-neutral-400">Cliente:</span> ${props.client_name}</div>
                     <div><span class="text-neutral-400">Tel&eacute;fono:</span> ${props.client_phone || '&mdash;'}</div>
                     <div><span class="text-neutral-400">Email:</span> ${props.client_email || '&mdash;'}</div>
                     <div><span class="text-neutral-400">Barbero:</span> ${props.barber_name}</div>
+                    <div><span class="text-neutral-400">Inicio:</span> ${fmtTime(startTime)}</div>
+                    <div><span class="text-neutral-400">Fin estimado:</span> ${fmtTime(endTime)}</div>
                 </div>
                 ${intervencionHtml}
                 <hr class="border-neutral-800">
                 ${servicesHtml}
                 ${productsHtml}
-                ${props.intervencion_notas ? `<div><span class="text-neutral-400">Notas intervenci&oacute;n:</span> <span class="italic text-neutral-400">${props.intervencion_notas}</span></div>` : ''}
                 <hr class="border-neutral-800">
                 ${productConsumptionHtml}
                 <hr class="border-neutral-800">
-                <div class="text-lg font-heading font-bold text-brand">$${Math.round(grandTotal).toLocaleString('de-DE')}</div>
-                ${props.notes ? `<div class="text-neutral-400 italic">${props.notes}</div>` : ''}
+                <div id="cal-modal-grand-total" class="text-lg font-heading font-bold text-brand">$${Math.round(grandTotal).toLocaleString('de-DE')}</div>
+                ${props.intervencion_notas ? `<div class="mt-1"><span class="text-neutral-400 text-xs">Notas:</span> <span class="italic text-neutral-400 text-sm">${props.intervencion_notas}</span></div>` : ''}
+                
             `;
-
+            //${props.notes ? `<div class="text-neutral-400 italic text-sm">${props.notes}</div>` : ''}
             // Pre-populate existing products in the consumption section
             if (props.status !== 'cancelled' && props.intervencion_productos && props.intervencion_productos.length > 0) {
                 props.intervencion_productos.forEach(p => {
@@ -587,24 +713,7 @@ document.addEventListener('DOMContentLoaded', function() {
     window.calGetProductOptionsHTML = function() {
         const tpl = document.getElementById('cal-producto-options-tpl');
         if (!tpl) return '<option value="">Sin productos</option>';
-        
-        // Clonar y formatear los precios
-        const clone = tpl.content.cloneNode(true);
-        clone.querySelectorAll('option[data-price]').forEach(opt => {
-            const price = parseFloat(opt.dataset.price);
-            if (!isNaN(price)) {
-                const idx = opt.textContent.lastIndexOf(" ($");
-                const namePart = idx !== -1 ? opt.textContent.substring(0, idx) : opt.textContent;
-                // 'de-DE' usa "." para miles y "," para decimales. 
-                // con maximumFractionDigits: 2 y minimumFractionDigits: 0 oculta los decimales si son 0
-                const formatted = price.toLocaleString('de-DE', { maximumFractionDigits: 2 });
-                opt.textContent = `${namePart} ($${formatted})`;
-            }
-        });
-        
-        const tempDiv = document.createElement('div');
-        tempDiv.appendChild(clone);
-        return tempDiv.innerHTML;
+        return tpl.innerHTML;
     };
 
     window.calAddProductRow = function(productoId, cantidad) {
@@ -618,14 +727,94 @@ document.addEventListener('DOMContentLoaded', function() {
             </select>
             <input type="number" min="1" value="${cantidad || 1}" placeholder="Cant."
                    class="cprod-qty w-20 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm text-center focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-            <button type="button" class="text-red-400 hover:text-red-300 p-1 transition-colors flex-shrink-0"
-                    onclick="this.closest('.cal-producto-row').remove()">
+            <button type="button" class="text-red-400 hover:text-red-300 p-1 transition-colors flex-shrink-0 cprod-remove-btn">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
         `;
         container.appendChild(row);
         if (productoId) {
             row.querySelector('.cprod-select').value = productoId;
+        }
+        // Bind change/remove events for live update
+        row.querySelector('.cprod-select').addEventListener('change', calUpdateProductsDisplay);
+        row.querySelector('.cprod-qty').addEventListener('input', calUpdateProductsDisplay);
+        row.querySelector('.cprod-remove-btn').addEventListener('click', function() {
+            row.remove();
+            calUpdateProductsDisplay();
+        });
+    };
+
+    // ── Live update of "Productos utilizados" and grand total ──
+    window.calUpdateProductsDisplay = function() {
+        const evtData = window._currentModalEvent;
+        if (!evtData) return;
+        const isRealizada = evtData.intervencionEstado === 'realizada';
+
+        // Build products from consumption rows
+        const rows = document.querySelectorAll('#cal-productos-container .cal-producto-row');
+        const products = [];
+        rows.forEach(row => {
+            const sel = row.querySelector('.cprod-select');
+            const qty = parseInt(row.querySelector('.cprod-qty').value) || 0;
+            if (sel.value && qty > 0) {
+                const opt = sel.selectedOptions[0];
+                const catalogPrice = parseFloat(opt?.dataset?.price || 0);
+                // If realizada, use the historical price from the original data
+                let unitPrice = catalogPrice;
+                if (isRealizada) {
+                    const orig = evtData.intervencionProductos.find(p => String(p.product_id) === sel.value);
+                    if (orig) unitPrice = parseFloat(orig.subtotal) / orig.cantidad;
+                    // For new products added to a realizada intervention, use catalog price
+                }
+                products.push({ name: opt.textContent.trim(), cantidad: qty, unitPrice, subtotal: unitPrice * qty });
+            }
+        });
+
+        // Update "Productos utilizados" display section
+        const displayEl = document.getElementById('cal-productos-display');
+        if (products.length > 0) {
+            const tooltipHtml = `
+                <span class="relative inline-flex ml-1.5 group/tip">
+                    <svg class="w-3.5 h-3.5 text-neutral-500 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01"/>
+                        <circle cx="12" cy="12" r="10" stroke-width="2"/>
+                    </svg>
+                    <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-200 pointer-events-none z-50 shadow-xl text-center leading-relaxed">Estos precios son históricos, registrados al momento de completar el servicio.</span>
+                </span>`;
+            const html = `
+                <div class="flex items-center">
+                    <span class="text-neutral-400 text-xs uppercase tracking-wide">Productos utilizados</span>
+                    ${tooltipHtml}
+                </div>
+                ${products.map(p => `
+                    <div class="flex justify-between text-sm">
+                        <span class="text-neutral-300">${p.name} x${p.cantidad}</span>
+                        <span class="text-white font-medium">$${Math.round(p.subtotal).toLocaleString('de-DE')}</span>
+                    </div>
+                `).join('')}`;
+            if (displayEl) {
+                displayEl.innerHTML = html;
+            } else {
+                // Insert before the first <hr> after services
+                const servicesSection = document.querySelector('#modal-body .space-y-1');
+                if (servicesSection) {
+                    const newDiv = document.createElement('div');
+                    newDiv.className = 'space-y-1';
+                    newDiv.id = 'cal-productos-display';
+                    newDiv.innerHTML = html;
+                    servicesSection.after(newDiv);
+                }
+            }
+        } else if (displayEl) {
+            displayEl.remove();
+        }
+
+        // Update grand total
+        const productsTotal = products.reduce((sum, p) => sum + p.subtotal, 0);
+        const grandTotal = evtData.servicesTotal + productsTotal;
+        const totalEl = document.getElementById('cal-modal-grand-total');
+        if (totalEl) {
+            totalEl.textContent = '$' + Math.round(grandTotal).toLocaleString('de-DE');
         }
     };
 

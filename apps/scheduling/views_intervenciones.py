@@ -248,6 +248,14 @@ def _format_money(value):
         return str(value)
 
 
+def _freeze_product_prices(intervencion):
+    """Freeze product prices to current catalog price when intervention is completed.
+    Must be called inside transaction.atomic()."""
+    for ip in intervencion.productos_usados.select_related("producto").all():
+        ip.precio_unitario = ip.producto.price
+        ip.save(update_fields=["precio_unitario"])
+
+
 def _deduct_stock(intervencion, user):
     """Deduct stock for all products in an intervention. Must be called inside transaction.atomic()."""
     for ip in intervencion.productos_usados.select_related("producto").all():
@@ -568,11 +576,15 @@ class IntervencionChangeStatusAPI(LoginRequiredMixin, View):
         if nuevo_estado not in dict(Intervencion.Estado.choices):
             return JsonResponse({"error": "Estado inválido"}, status=400)
 
-        intervencion.estado = nuevo_estado
-        if nuevo_estado == Intervencion.Estado.REALIZADA and not intervencion.fecha_fin:
-            intervencion.fecha_fin = timezone.now()
-        intervencion.updated_by = request.user
-        intervencion.save()
+        with transaction.atomic():
+            intervencion.estado = nuevo_estado
+            if nuevo_estado == Intervencion.Estado.REALIZADA:
+                if not intervencion.fecha_fin:
+                    intervencion.fecha_fin = timezone.now()
+                # Freeze product prices at the moment of completion
+                _freeze_product_prices(intervencion)
+            intervencion.updated_by = request.user
+            intervencion.save()
 
         return JsonResponse({"message": f"Estado actualizado a {intervencion.get_estado_display()}"})
 

@@ -78,3 +78,9 @@ Módulo encargado de exponer las vistas e interfaces para que los clientes pueda
   - **Helper reutilizable:** Definir `function makeFpConfirmPlugin() { return confirmDatePlugin({ confirmText: 'Aceptar', showAlways: true }); }` en cada template que use Flatpickr.
   - **Uso:** Añadir `plugins: [makeFpConfirmPlugin()]` en toda inicialización `flatpickr(...)`.
   - **Estilos del botón:** `.flatpickr-confirm` con `background: #ff2301`, hover `#e01e00`, SVG oculto, `border-radius: 0 0 8px 8px`, `font-weight: 600`, texto blanco.
+- **Formato de hora – 24 horas – Regla obligatoria:** Todo el proyecto usa formato de 24 horas (militar).
+  - **Django Templates:** Usar `|date:"d/m/Y H:i"` o `|time:"H:i"`.
+  - **Flatpickr:** Siempre `time_24hr: true` y `dateFormat` con `H:i`.
+  - **FullCalendar:** Configurar `slotLabelFormat` y `eventTimeFormat` con `{ hour: '2-digit', minute: '2-digit', hour12: false }`.
+  - **ag-Grid / JavaScript:** Usar `toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', hour12: false })` o `strftime("%H:%M")` en Python.
+  - **APIs Python (strftime):** Usar `%H:%M` para formato display. Mantener ISO 8601 (`%Y-%m-%dT%H:%M`) para valores internos/API.
