@@ -209,10 +209,12 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
             total_servicios = sum(s.precio_cobrado for s in servicios)
             total_productos = sum(p.cantidad * p.precio_unitario for p in productos)
             total = total_servicios + total_productos
+            fecha_local = timezone.localtime(inv.fecha) if inv.fecha else None
+
             rows.append({
                 "id": inv.pk,
-                "fecha": inv.fecha.strftime("%d/%m/%Y %H:%M") if inv.fecha else "",
-                "fecha_iso": inv.fecha.isoformat() if inv.fecha else "",
+                "fecha": fecha_local.strftime("%d/%m/%Y %H:%M") if fecha_local else "",
+                "fecha_iso": fecha_local.isoformat() if fecha_local else "",
                 "cliente": inv.client.name if inv.client else "",
                 "cliente_id": inv.client_id,
                 "barbero": str(inv.barber) if inv.barber else "",
@@ -647,7 +649,7 @@ class IntervencionDetailAPI(LoginRequiredMixin, View):
             "barbero": str(intervencion.barber),
             "client_id": intervencion.client_id,
             "cliente": intervencion.client.name,
-            "fecha": intervencion.fecha.strftime("%Y-%m-%dT%H:%M") if intervencion.fecha else "",
+            "fecha": timezone.localtime(intervencion.fecha).strftime("%Y-%m-%dT%H:%M") if intervencion.fecha else "",
             "estado": intervencion.estado,
             "notas": intervencion.notas,
             "sucursal_id": intervencion.barbershop_id,

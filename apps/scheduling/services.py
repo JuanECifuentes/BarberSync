@@ -25,11 +25,15 @@ from .models import (
     AppointmentService,
     BarberService,
     Intervencion,
+    IntervencionProducto,
     IntervencionServicio,
     ScheduleException,
     Service,
+    ServicioProducto,
     WorkSchedule,
 )
+
+from apps.inventory.models import Product, StockMovement
 
 
 # ─────────────────────────────────────────────
@@ -279,6 +283,38 @@ def create_appointment(
             servicio=svc_obj,
             precio_cobrado=price,
         )
+
+    # Auto-consume products linked to services via ServicioProducto
+    for svc_obj, _price in service_prices:
+        for sp in ServicioProducto.objects.filter(
+            servicio=svc_obj
+        ).select_related("producto"):
+            product = Product.objects.select_for_update().get(pk=sp.producto_id)
+            existing = IntervencionProducto.objects.filter(
+                intervencion=intervencion, producto=product,
+            ).first()
+            if existing:
+                existing.cantidad += sp.cantidad_consumida
+                existing.save(update_fields=["cantidad"])
+            else:
+                IntervencionProducto.objects.create(
+                    intervencion=intervencion,
+                    producto=product,
+                    cantidad=sp.cantidad_consumida,
+                    precio_unitario=product.price,
+                )
+
+    # Deduct stock for all auto-consumed products
+    for ip in intervencion.productos_usados.select_related("producto").all():
+        product = Product.objects.select_for_update().get(pk=ip.producto_id)
+        StockMovement(
+            product=product,
+            quantity=-ip.cantidad,
+            reason=StockMovement.Reason.SALE,
+            notes=f"Reserva online – Intervención #{intervencion.pk}",
+            resulting_stock=0,
+            updated_by=created_by,
+        ).save()
 
     # Schedule async reminders (24h + 1h before)
     schedule_appointment_reminders(appointment.pk)
