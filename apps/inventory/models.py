@@ -6,6 +6,7 @@ Product          – a physical product for sale
 StockMovement    – every stock change is tracked (in/out)
 """
 
+from django.conf import settings
 from django.db import models
 from django.core.validators import MinValueValidator
 
@@ -69,6 +70,39 @@ class Product(TenantModel):
     @property
     def is_low_stock(self):
         return self.stock_quantity <= self.low_stock_threshold
+
+
+class HistorialPrecioProducto(models.Model):
+    """Tracks price and cost changes for a product over time."""
+
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name="price_history",
+    )
+    price = models.DecimalField(
+        "precio venta", max_digits=10, decimal_places=2,
+    )
+    cost = models.DecimalField(
+        "costo", max_digits=10, decimal_places=2,
+    )
+    changed_at = models.DateTimeField("fecha de cambio", auto_now_add=True)
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    class Meta:
+        db_table = "inventory_historial_precio_producto"
+        verbose_name = "historial de precio de producto"
+        verbose_name_plural = "historial de precios de producto"
+        ordering = ["-changed_at"]
+
+    def __str__(self):
+        return f"{self.product.name}: ${self.price} / ${self.cost} @ {self.changed_at:%d/%m/%Y}"
 
 
 class StockMovement(AuditModel):

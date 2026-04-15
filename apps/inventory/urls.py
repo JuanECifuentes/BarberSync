@@ -10,5 +10,6 @@ urlpatterns = [
     path("api/products/<int:pk>/", views.ProductDetailAPI.as_view(), name="api_product_detail"),
     path("api/products/<int:pk>/update/", views.ProductUpdateAPI.as_view(), name="api_product_update"),
     path("api/products/<int:pk>/delete/", views.ProductDeleteAPI.as_view(), name="api_product_delete"),
+    path("api/products/<int:pk>/price-history/", views.ProductPriceHistoryAPI.as_view(), name="api_product_price_history"),
     path("api/categories/", views.CategoryCreateAPI.as_view(), name="api_categories"),
 ]

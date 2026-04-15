@@ -14,7 +14,7 @@ from django.views.generic import TemplateView
 from apps.core.mixins import TenantViewMixin, RoleRequiredMixin
 from apps.accounts.models import Barbershop
 
-from .models import Product, ProductCategory, StockMovement
+from .models import Product, ProductCategory, StockMovement, HistorialPrecioProducto
 
 
 class ProductListView(LoginRequiredMixin, TemplateView):
@@ -110,6 +110,15 @@ class ProductCreateAPI(View):
             low_stock_threshold=data.get("low_stock_threshold", 5),
             updated_by=request.user,
         )
+
+        # Record initial price/cost in history
+        HistorialPrecioProducto.objects.create(
+            product=product,
+            price=product.price,
+            cost=product.cost,
+            changed_by=request.user,
+        )
+
         return JsonResponse({"message": "Producto creado", "id": product.pk}, status=201)
 
 
@@ -138,6 +147,9 @@ class ProductUpdateAPI(View):
         elif category_id == "" or category_id is None:
             product.category = None
 
+        old_price = product.price
+        old_cost = product.cost
+
         product.name = name
         product.description = data.get("description", product.description)
         product.sku = data.get("sku", product.sku)
@@ -146,6 +158,19 @@ class ProductUpdateAPI(View):
         product.low_stock_threshold = data.get("low_stock_threshold", product.low_stock_threshold)
         product.updated_by = request.user
         product.save()
+
+        # Record price/cost change in history if either changed
+        from decimal import Decimal
+        new_price = Decimal(str(product.price))
+        new_cost = Decimal(str(product.cost))
+        if new_price != old_price or new_cost != old_cost:
+            HistorialPrecioProducto.objects.create(
+                product=product,
+                price=product.price,
+                cost=product.cost,
+                changed_by=request.user,
+            )
+
         return JsonResponse({"ok": True})
 
 
@@ -188,6 +213,42 @@ class ProductDetailAPI(View):
         }
 
         return JsonResponse(response)
+
+
+class ProductPriceHistoryAPI(View):
+    """Paginated price/cost history for a product (30 per page)."""
+
+    def get(self, request, pk):
+        from django.core.paginator import Paginator
+
+        org = request.organization
+        try:
+            product = Product.objects.get(pk=pk, barbershop__organization=org, is_active=True)
+        except Product.DoesNotExist:
+            return JsonResponse({"error": "Producto no encontrado"}, status=404)
+
+        qs = HistorialPrecioProducto.objects.filter(product=product).select_related("changed_by")
+        paginator = Paginator(qs, 30)
+        page_num = request.GET.get("page", 1)
+        page = paginator.get_page(page_num)
+
+        items = []
+        for h in page:
+            who = ""
+            if h.changed_by:
+                who = " ".join(filter(None, [h.changed_by.first_name, h.changed_by.last_name])) or "Sistema"
+            items.append({
+                "price": str(h.price),
+                "cost": str(h.cost),
+                "changed_at": h.changed_at.isoformat(),
+                "changed_by": who or "Sistema",
+            })
+
+        return JsonResponse({
+            "results": items,
+            "page": page.number,
+            "has_next": page.has_next(),
+        })
 
 
 class CategoryCreateAPI(View):

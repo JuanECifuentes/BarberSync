@@ -518,6 +518,41 @@ class ServiceUpdateAPI(LoginRequiredMixin, View):
         return JsonResponse({"ok": True})
 
 
+class ServicePriceHistoryAPI(LoginRequiredMixin, View):
+    """Paginated price history for a service (30 per page)."""
+
+    def get(self, request, pk):
+        from django.core.paginator import Paginator
+
+        barbershop = request.barbershop
+        try:
+            service = Service.objects.get(pk=pk, barbershop=barbershop, is_active=True)
+        except Service.DoesNotExist:
+            return JsonResponse({"error": "Servicio no encontrado"}, status=404)
+
+        qs = HistorialPrecioServicio.objects.filter(service=service).select_related("changed_by")
+        paginator = Paginator(qs, 30)
+        page_num = request.GET.get("page", 1)
+        page = paginator.get_page(page_num)
+
+        items = []
+        for h in page:
+            who = ""
+            if h.changed_by:
+                who = " ".join(filter(None, [h.changed_by.first_name, h.changed_by.last_name])) or "Sistema"
+            items.append({
+                "price": str(h.price),
+                "changed_at": h.changed_at.isoformat(),
+                "changed_by": who or "Sistema",
+            })
+
+        return JsonResponse({
+            "results": items,
+            "page": page.number,
+            "has_next": page.has_next(),
+        })
+
+
 class ServiceDeleteAPI(LoginRequiredMixin, View):
     """Soft-delete a service."""
 

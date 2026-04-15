@@ -40,6 +40,49 @@
         position: relative;
         z-index: 1;
     }
+    /* Custom tooltip styling */
+    [data-tooltip] {
+        position: relative;
+    }
+    [data-tooltip]::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: calc(100% + 8px);
+        left: 50%;
+        transform: translateX(-50%) scale(0.95);
+        padding: 6px 12px;
+        background: #2a2a2d;
+        border: 1px solid #4a4a4f;
+        color: #fff;
+        font-size: 11px;
+        font-family: 'Poppins', sans-serif;
+        font-weight: 500;
+        border-radius: 8px;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+        z-index: 50;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+    [data-tooltip]::before {
+        content: '';
+        position: absolute;
+        bottom: calc(100% + 2px);
+        left: 50%;
+        transform: translateX(-50%) scale(0.95);
+        border: 5px solid transparent;
+        border-top-color: #4a4a4f;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+        z-index: 50;
+    }
+    [data-tooltip]:hover::after,
+    [data-tooltip]:hover::before {
+        opacity: 1;
+        transform: translateX(-50%) scale(1);
+    }
 </style>
 {% endblock %}
 
@@ -218,16 +261,22 @@
 
                             {% if is_admin %}
                             <!-- Action buttons -->
-                            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <div class="flex items-center gap-1">
                                 <button onclick="openEditModal({{ product.pk }})"
-                                        class="px-3 py-1.5 rounded-lg text-xs font-medium text-brand bg-brand/10 border border-brand/20
-                                               hover:bg-brand/20 hover:border-brand/40 transition-all duration-150">
-                                    Editar
+                                        data-tooltip="Editar Producto"
+                                        class="border border-neutral-700 px-3 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-400 hover:text-white">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                    </svg>
                                 </button>
                                 <button onclick="confirmDelete({{ product.pk }}, '{{ product.name|escapejs }}')"
-                                        class="px-3 py-1.5 rounded-lg text-xs font-medium text-red-400 bg-red-900/20 border border-red-800/30
-                                               hover:bg-red-900/40 hover:border-red-700/50 transition-all duration-150">
-                                    Borrar
+                                        data-tooltip="Eliminar Producto"
+                                        class="border border-neutral-700 px-3 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-red-400 hover:text-red-300">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                    </svg>
                                 </button>
                             </div>
                             {% endif %}
@@ -322,6 +371,33 @@
                        class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
             </div>
         </div>
+        <!-- Historial de Precios y Costos (accordion, only in edit mode) -->
+        <div id="prod-history-accordion" class="hidden">
+            <button type="button" onclick="toggleProdHistoryAccordion()"
+                    class="w-full flex items-center justify-between px-3 py-2.5 bg-neutral-800 border border-neutral-700 rounded-lg hover:bg-neutral-700/60 transition-colors">
+                <span class="flex items-center gap-2 text-xs font-semibold text-neutral-300">
+                    <svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                    </svg>
+                    Historial de Precios y Costos
+                </span>
+                <svg id="prod-history-chevron" class="w-4 h-4 text-neutral-400 transition-transform duration-200 -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
+            <div id="prod-history-body" class="hidden mt-2 max-h-52 overflow-y-auto rounded-lg border border-neutral-700 bg-neutral-800/40">
+                <div id="prod-history-list" class="space-y-0.5 p-2">
+                    <!-- Populated by JS infinite scroll -->
+                </div>
+                <div id="prod-history-sentinel" class="flex justify-center py-3">
+                    <svg class="w-5 h-5 text-brand animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
         <button onclick="saveProduct()" class="btn-action-primary btn-primary w-full border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm" id="btn-save-product"><span>Crear Producto</span></button>
     </div>
 </div>
@@ -540,6 +616,7 @@ function openProductModal() {
     document.getElementById('prod-threshold').value = '5';
     document.getElementById('prod-sucursal-wrapper').style.display = '';
     document.getElementById('prod-sucursal').selectedIndex = 0;
+    document.getElementById('prod-history-accordion').classList.add('hidden');
     document.getElementById('modal-product-title').textContent = 'Nuevo Producto';
     document.getElementById('btn-save-product').querySelector('span').textContent = 'Crear Producto';
     document.getElementById('modal-product').classList.remove('hidden');
@@ -561,6 +638,11 @@ async function openEditModal(id) {
     document.getElementById('prod-sku').value = d.sku;
     document.getElementById('prod-threshold').value = d.low_stock_threshold;
     document.getElementById('prod-sucursal-wrapper').style.display = 'none';
+
+    // Show and reset price history accordion
+    resetProdHistoryState(id);
+    document.getElementById('prod-history-accordion').classList.remove('hidden');
+
     document.getElementById('modal-product-title').textContent = 'Editar Producto';
     document.getElementById('btn-save-product').querySelector('span').textContent = 'Guardar cambios';
     document.getElementById('modal-product').classList.remove('hidden');
@@ -625,6 +707,100 @@ async function createCategory() {
     });
     if (res.ok) location.reload();
     else alert((await res.json()).error || 'Error');
+}
+
+// ═══════════════════════════════════════
+// PRICE HISTORY ACCORDION + INFINITE SCROLL
+// ═══════════════════════════════════════
+function formatMoneyDisplay(val) {
+    const n = Math.round(parseFloat(val));
+    return isNaN(n) ? val : n.toLocaleString('de-DE');
+}
+
+let _prodHistoryState = { page: 1, hasNext: false, loading: false, observer: null, id: null };
+
+function toggleProdHistoryAccordion() {
+    const body = document.getElementById('prod-history-body');
+    const chevron = document.getElementById('prod-history-chevron');
+    const isHidden = body.classList.contains('hidden');
+    body.classList.toggle('hidden');
+    chevron.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(-90deg)';
+    if (isHidden && _prodHistoryState.page === 1) {
+        loadProdPriceHistory();
+    }
+}
+
+function resetProdHistoryState(productId) {
+    if (_prodHistoryState.observer) _prodHistoryState.observer.disconnect();
+    _prodHistoryState = { page: 1, hasNext: false, loading: false, observer: null, id: productId };
+    document.getElementById('prod-history-list').innerHTML = '';
+    document.getElementById('prod-history-body').classList.add('hidden');
+    document.getElementById('prod-history-chevron').style.transform = 'rotate(-90deg)';
+    document.getElementById('prod-history-sentinel').classList.remove('hidden');
+}
+
+async function loadProdPriceHistory() {
+    const st = _prodHistoryState;
+    if (st.loading || !st.id) return;
+    st.loading = true;
+
+    const res = await fetch(`/app/inventory/api/products/${st.id}/price-history/?page=${st.page}`);
+    if (!res.ok) { st.loading = false; return; }
+    const data = await res.json();
+
+    const container = document.getElementById('prod-history-list');
+    if (data.results.length === 0 && st.page === 1) {
+        container.innerHTML = '<p class="text-xs text-neutral-500 text-center py-4">Sin historial de precios.</p>';
+        document.getElementById('prod-history-sentinel').classList.add('hidden');
+        st.loading = false;
+        return;
+    }
+
+    data.results.forEach(h => {
+        const d = new Date(h.changed_at);
+        const fmt = d.toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700/60 transition-colors';
+        row.innerHTML = `
+            <div class="flex items-center gap-3">
+                <div>
+                    <span class="text-xs text-neutral-400">Precio:</span>
+                    <span class="text-sm font-heading font-bold text-brand ml-1">$${formatMoneyDisplay(h.price)}</span>
+                </div>
+                <div>
+                    <span class="text-xs text-neutral-400">Costo:</span>
+                    <span class="text-sm font-heading font-bold text-neutral-300 ml-1">$${formatMoneyDisplay(h.cost)}</span>
+                </div>
+            </div>
+            <div class="text-right">
+                <div class="text-xs text-neutral-400">${fmt}</div>
+                <div class="text-xs text-neutral-500">${h.changed_by}</div>
+            </div>`;
+        container.appendChild(row);
+    });
+
+    st.hasNext = data.has_next;
+    st.page++;
+    st.loading = false;
+
+    const sentinel = document.getElementById('prod-history-sentinel');
+    if (!st.hasNext) {
+        sentinel.classList.add('hidden');
+        if (st.observer) st.observer.disconnect();
+    } else {
+        setupProdHistoryObserver();
+    }
+}
+
+function setupProdHistoryObserver() {
+    if (_prodHistoryState.observer) _prodHistoryState.observer.disconnect();
+    const sentinel = document.getElementById('prod-history-sentinel');
+    _prodHistoryState.observer = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && _prodHistoryState.hasNext && !_prodHistoryState.loading) {
+            loadProdPriceHistory();
+        }
+    }, { root: document.getElementById('prod-history-body'), threshold: 0.1 });
+    _prodHistoryState.observer.observe(sentinel);
 }
 </script>
 {% endblock %}

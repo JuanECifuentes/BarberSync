@@ -14,6 +14,7 @@ urlpatterns = [
     path("api/services/<int:pk>/", views.ServiceDetailAPI.as_view(), name="api_service_detail"),
     path("api/services/<int:pk>/update/", views.ServiceUpdateAPI.as_view(), name="api_service_update"),
     path("api/services/<int:pk>/delete/", views.ServiceDeleteAPI.as_view(), name="api_service_delete"),
+    path("api/services/<int:pk>/price-history/", views.ServicePriceHistoryAPI.as_view(), name="api_service_price_history"),
 
     # Category APIs
     path("api/categories/create/", views.CategoryCreateAPI.as_view(), name="api_category_create"),

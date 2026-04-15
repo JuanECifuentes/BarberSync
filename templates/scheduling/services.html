@@ -310,6 +310,33 @@
             </button>
         </div>
 
+        <!-- Historial de Precios (accordion, only in edit mode) -->
+        <div id="svc-history-accordion" class="hidden">
+            <button type="button" onclick="toggleHistoryAccordion('svc')"
+                    class="w-full flex items-center justify-between px-3 py-2.5 bg-neutral-800 border border-neutral-700 rounded-lg hover:bg-neutral-700/60 transition-colors">
+                <span class="flex items-center gap-2 text-xs font-semibold text-neutral-300">
+                    <svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                    </svg>
+                    Historial de Precios
+                </span>
+                <svg id="svc-history-chevron" class="w-4 h-4 text-neutral-400 transition-transform duration-200 -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
+            <div id="svc-history-body" class="hidden mt-2 max-h-52 overflow-y-auto rounded-lg border border-neutral-700 bg-neutral-800/40">
+                <div id="svc-history-list" class="space-y-0.5 p-2">
+                    <!-- Populated by JS infinite scroll -->
+                </div>
+                <div id="svc-history-sentinel" class="flex justify-center py-3">
+                    <svg class="w-5 h-5 text-brand animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
         <button onclick="saveService()" class="btn-action-primary btn-primary w-full border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm" id="btn-save-service"><span>Crear Servicio</span></button>
     </div>
 </div>
@@ -597,6 +624,7 @@ function openServiceModal() {
     document.getElementById('svc-duration').value = '30';
     document.getElementById('svc-price').value = '';
     clearProductoRows();
+    document.getElementById('svc-history-accordion').classList.add('hidden');
     document.getElementById('modal-service-title').textContent = 'Nuevo Servicio';
     document.getElementById('btn-save-service').querySelector('span').textContent = 'Crear Servicio';
     document.getElementById('modal-service').classList.remove('hidden');
@@ -618,6 +646,10 @@ async function openEditModal(id) {
     if (d.productos && d.productos.length > 0) {
         d.productos.forEach(p => addProductoRow(p.producto_id, p.cantidad));
     }
+    // Show and reset price history accordion
+    resetSvcHistoryState(id);
+    document.getElementById('svc-history-accordion').classList.remove('hidden');
+
     document.getElementById('modal-service-title').textContent = 'Editar Servicio';
     document.getElementById('btn-save-service').querySelector('span').textContent = 'Guardar cambios';
     document.getElementById('modal-service').classList.remove('hidden');
@@ -736,6 +768,85 @@ async function deleteService() {
         method: 'POST', headers, body: '{}',
     });
     if (res.ok) location.reload();
+}
+
+// ═══════════════════════════════════════
+// PRICE HISTORY ACCORDION + INFINITE SCROLL
+// ═══════════════════════════════════════
+let _svcHistoryState = { page: 1, hasNext: false, loading: false, observer: null, id: null };
+
+function toggleHistoryAccordion(prefix) {
+    const body = document.getElementById(`${prefix}-history-body`);
+    const chevron = document.getElementById(`${prefix}-history-chevron`);
+    const isHidden = body.classList.contains('hidden');
+    body.classList.toggle('hidden');
+    chevron.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(-90deg)';
+    if (isHidden && _svcHistoryState.page === 1) {
+        loadServicePriceHistory();
+    }
+}
+
+function resetSvcHistoryState(serviceId) {
+    _svcHistoryState = { page: 1, hasNext: false, loading: false, observer: null, id: serviceId };
+    document.getElementById('svc-history-list').innerHTML = '';
+    document.getElementById('svc-history-body').classList.add('hidden');
+    document.getElementById('svc-history-chevron').style.transform = 'rotate(-90deg)';
+    document.getElementById('svc-history-sentinel').classList.remove('hidden');
+}
+
+async function loadServicePriceHistory() {
+    const st = _svcHistoryState;
+    if (st.loading || !st.id) return;
+    st.loading = true;
+
+    const res = await fetch(`/app/schedule/api/services/${st.id}/price-history/?page=${st.page}`);
+    if (!res.ok) { st.loading = false; return; }
+    const data = await res.json();
+
+    const container = document.getElementById('svc-history-list');
+    if (data.results.length === 0 && st.page === 1) {
+        container.innerHTML = '<p class="text-xs text-neutral-500 text-center py-4">Sin historial de precios.</p>';
+        document.getElementById('svc-history-sentinel').classList.add('hidden');
+        st.loading = false;
+        return;
+    }
+
+    data.results.forEach(h => {
+        const d = new Date(h.changed_at);
+        const fmt = d.toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700/60 transition-colors';
+        row.innerHTML = `
+            <div>
+                <span class="text-sm font-heading font-bold text-brand">$${formatMoney(String(h.price).split('.')[0])}</span>
+                <span class="text-xs text-neutral-400 ml-2">${fmt}</span>
+            </div>
+            <span class="text-xs text-neutral-400">${h.changed_by}</span>`;
+        container.appendChild(row);
+    });
+
+    st.hasNext = data.has_next;
+    st.page++;
+    st.loading = false;
+
+    const sentinel = document.getElementById('svc-history-sentinel');
+    if (!st.hasNext) {
+        sentinel.classList.add('hidden');
+        if (st.observer) st.observer.disconnect();
+    } else {
+        setupSvcHistoryObserver();
+    }
+}
+
+function setupSvcHistoryObserver() {
+    if (_svcHistoryState.observer) _svcHistoryState.observer.disconnect();
+    const sentinel = document.getElementById('svc-history-sentinel');
+    _svcHistoryState.observer = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && _svcHistoryState.hasNext && !_svcHistoryState.loading) {
+            loadServicePriceHistory();
+        }
+    }, { root: document.getElementById('svc-history-body'), threshold: 0.1 });
+    _svcHistoryState.observer.observe(sentinel);
 }
 </script>
 {% endblock %}
