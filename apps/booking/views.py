@@ -40,22 +40,26 @@ class BookingPageView(TemplateView):
         uid = self.kwargs["booking_uid"]
         barbershop = _get_barbershop(uid)
 
-        # Barbers assigned to this barbershop (via membership OR sucursales M2M)
-        # who have at least one WorkSchedule entry
-        barbers_with_schedule = WorkSchedule.objects.values_list(
-            "barber_id", flat=True
-        ).distinct()
+        # All barbers assigned to this barbershop (via membership OR sucursales M2M)
+        barbers_with_schedule = set(
+            WorkSchedule.objects.values_list("barber_id", flat=True).distinct()
+        )
 
         barbers = BarberProfile.objects.filter(
             Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
             is_active=True,
-            pk__in=barbers_with_schedule,
         ).select_related("membership__user").distinct()
+
+        # Annotate each barber with availability info
+        barbers_list = []
+        for barber in barbers:
+            barber.has_schedule = barber.pk in barbers_with_schedule
+            barbers_list.append(barber)
 
         services = Service.objects.filter(barbershop=barbershop, is_active=True)
 
         ctx["barbershop"] = barbershop
-        ctx["barbers"] = barbers
+        ctx["barbers"] = barbers_list
         ctx["services"] = services
         ctx["is_booking_page"] = True
         return ctx
@@ -67,16 +71,14 @@ class BookingBarbersAPI(View):
     def get(self, request, booking_uid):
         barbershop = _get_barbershop(booking_uid)
 
-        # Barbers assigned to this barbershop (via membership OR sucursales M2M)
-        # who have at least one WorkSchedule entry
-        barbers_with_schedule = WorkSchedule.objects.values_list(
-            "barber_id", flat=True
-        ).distinct()
+        # All barbers assigned to this barbershop
+        barbers_with_schedule = set(
+            WorkSchedule.objects.values_list("barber_id", flat=True).distinct()
+        )
 
         barbers = BarberProfile.objects.filter(
             Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
             is_active=True,
-            pk__in=barbers_with_schedule,
         ).select_related("membership__user").distinct()
 
         data = []
@@ -89,11 +91,12 @@ class BookingBarbersAPI(View):
                 "id": barber.pk,
                 "name": str(barber),
                 "photo": barber.photo.url if barber.photo else None,
+                "has_schedule": barber.pk in barbers_with_schedule,
                 "services": [
                     {
                         "id": bs.service.pk,
                         "name": bs.service.name,
-                        "duration": bs.service.duration_minutes,
+                        "duration": bs.effective_duration,
                         "price": str(bs.effective_price),
                     }
                     for bs in barber_services

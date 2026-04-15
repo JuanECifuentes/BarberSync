@@ -194,21 +194,23 @@ def create_appointment(
     Stores price snapshots per service.
     Raises ValueError on conflicts.
     """
-    # Validate services exist and barber can perform them 
+    # Validate services exist and barber can perform them
     services = Service.objects.filter(pk__in=service_ids, is_active=True) #POR AHORA LOS SERVICIOS FUNCIONAN SIN DISCRIMINAR LA BARBERIA , FALTA AGREGAR PARA HACER ESTA DISCRIMINACION barbershop=barbershop
     if services.count() != len(service_ids):
         raise ValueError("Uno o más servicios no existen o no están activos.")
 
-    barber_service_ids = set(
-        BarberService.objects.filter(barber=barber, service__in=services)
-        .values_list("service_id", flat=True)
-    )
-    for svc in services:
-        if svc.pk not in barber_service_ids:
-            raise ValueError(f"El barbero no realiza el servicio: {svc.name}")
+    barber_service_map = {
+        bs.service_id: bs
+        for bs in BarberService.objects.filter(barber=barber, service__in=services)
+    }
+    for svc_obj in services:
+        if svc_obj.pk not in barber_service_map:
+            raise ValueError(f"El barbero no realiza el servicio: {svc_obj.name}")
 
-    # Calculate total duration
-    total_minutes = sum(s.duration_minutes for s in services)
+    # Calculate total duration using custom durations where available
+    total_minutes = sum(
+        barber_service_map[s.pk].effective_duration for s in services
+    )
     buffer = timedelta(minutes=barber.buffer_minutes)
     end_time = start_time + timedelta(minutes=total_minutes)
 
@@ -254,7 +256,7 @@ def create_appointment(
     service_prices = []
     for svc_obj in services:
         # Use custom price if barber has one, otherwise service price
-        barber_svc = BarberService.objects.filter(barber=barber, service=svc_obj).first()
+        barber_svc = barber_service_map.get(svc_obj.pk)
         price = barber_svc.effective_price if barber_svc else svc_obj.price
 
         AppointmentService.objects.create(

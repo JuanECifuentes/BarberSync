@@ -279,7 +279,7 @@
 <!-- ═══════════════════════════════════════════════════ -->
 <div id="modal-barbero"
     class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 overflow-y-auto">
-    <div class="w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4 my-8">
+    <div class="w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4 my-8 max-h-[95vh] overflow-y-auto overflow-x-hidden">
         <div class="flex items-center justify-between">
             <h3 id="modal-barbero-title" class="font-heading font-bold text-lg text-white">Nuevo Barbero</h3>
             <button onclick="closeBarberModal()" class="text-neutral-400 hover:text-white transition-colors">
@@ -325,14 +325,11 @@
         <div id="tab-assign" class="tab-panel hidden space-y-4">
             <!-- Sucursales -->
             <div>
-                <label class="text-xs text-neutral-400 mb-2 block font-medium uppercase tracking-wider">Sucursales
-                    asignadas</label>
-                <div class="space-y-2 max-h-32 overflow-y-auto" id="bb-sucursales-list">
+                <label class="text-xs text-neutral-400 mb-2 block font-medium uppercase tracking-wider">Sucursales asignadas</label>
+                <div class="space-y-2 max-h-32 overflow-y-auto pr-1" id="bb-sucursales-list">
                     {% for s in sucursales %}
-                    <label
-                        class="flex items-center gap-2 px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-750 cursor-pointer transition-colors">
-                        <input type="checkbox" value="{{ s.pk }}"
-                            class="bb-sucursal-check rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-700">
+                    <label class="flex items-center gap-2 px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-750 cursor-pointer transition-colors">
+                        <input type="checkbox" value="{{ s.pk }}" class="bb-sucursal-check rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-700">
                         <span class="text-sm text-white">{{ s.name }}</span>
                     </label>
                     {% endfor %}
@@ -340,20 +337,112 @@
             </div>
             <!-- Servicios -->
             <div>
-                <label class="text-xs text-neutral-400 mb-2 block font-medium uppercase tracking-wider">Servicios que
-                    realiza</label>
-                <div class="space-y-2 max-h-40 overflow-y-auto" id="bb-servicios-list">
-                    {% for svc in servicios %}
-                    <label
-                        class="flex items-center justify-between px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-750 cursor-pointer transition-colors">
-                        <span class="flex items-center gap-2">
-                            <input type="checkbox" value="{{ svc.pk }}"
-                                class="bb-servicio-check rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-700">
-                            <span class="text-sm text-white">{{ svc.name }}</span>
-                        </span>
-                        <span class="text-xs text-neutral-400">${{ svc.price|money }}</span>
-                    </label>
+                <label class="text-xs text-neutral-400 mb-2 block font-medium uppercase tracking-wider">Servicios que realiza</label>
+                <!-- Search filter -->
+                <div class="relative mb-2">
+                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                    <input id="bb-service-search" type="text" placeholder="Buscar servicio..."
+                        class="w-full pl-9 pr-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors"
+                        oninput="filterServices(this.value)">
+                </div>
+                <div class="space-y-1 max-h-48 overflow-y-auto pr-1" id="bb-servicios-list">
+                    {% for cat_name, cat_data in grouped_servicios.items %}
+                    <div class="svc-category-group" data-category="{{ cat_name|lower }}">
+                        <!-- Category accordion header -->
+                        <button type="button" onclick="toggleSvcCategory(this)"
+                            class="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-neutral-800/50 hover:bg-neutral-750 transition-colors">
+                            <span class="text-xs font-medium text-neutral-300 uppercase tracking-wider">{{ cat_name }}</span>
+                            <svg class="svc-cat-icon w-3.5 h-3.5 text-neutral-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+                        <!-- Category services -->
+                        <div class="svc-cat-content space-y-1 mt-1 ml-2">
+                            {% for svc in cat_data.services %}
+                            <div class="svc-item" data-svc-name="{{ svc.name|lower }}" data-svc-id="{{ svc.pk }}">
+                                <label class="flex items-center justify-between px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-750 cursor-pointer transition-colors">
+                                    <span class="flex items-center gap-2 min-w-0">
+                                        <input type="checkbox" value="{{ svc.pk }}" class="bb-servicio-check rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-700 flex-shrink-0">
+                                        <span class="text-sm text-white truncate">{{ svc.name }}</span>
+                                    </span>
+                                    <div class="flex items-center gap-2 flex-shrink-0">
+                                        <span class="text-xs text-neutral-400">${{ svc.price|money }}</span>
+                                        <!-- Personalizar button (only visible when checked) -->
+                                        <button type="button" onclick="event.preventDefault(); event.stopPropagation(); openCustomizePanel({{ svc.pk }})"
+                                            class="svc-customize-btn hidden border border-neutral-700 px-2 py-1 rounded-md text-[10px] text-neutral-400 hover:text-white hover:border-brand transition-all"
+                                            data-svc-id="{{ svc.pk }}"
+                                            title="Personalizar precio y duración para este barbero">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
                     {% endfor %}
+                </div>
+            </div>
+
+            <!-- Customization panel (shown when "Personalizar" is clicked) -->
+            <div id="customize-panel" class="hidden border border-neutral-700 rounded-xl p-4 space-y-3 bg-neutral-800/50">
+                <div class="flex items-center justify-between">
+                    <h4 class="font-heading font-bold text-sm text-white flex items-center gap-2">
+                        <svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+                        </svg>
+                        <span id="customize-service-name"></span>
+                    </h4>
+                    <button onclick="closeCustomizePanel()" class="text-neutral-400 hover:text-white transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <input type="hidden" id="customize-bs-id" value="">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs text-neutral-400 mb-1 block">Precio personalizado</label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm">$</span>
+                            <input id="customize-price" type="text" placeholder="Usar global"
+                                class="w-full pl-7 pr-4 py-2 bg-neutral-700 border border-neutral-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand transition-colors"
+                                oninput="formatPriceInput(this)">
+                        </div>
+                        <p class="text-[10px] text-neutral-500 mt-1">Global: $<span id="customize-global-price"></span></p>
+                    </div>
+                    <div>
+                        <label class="text-xs text-neutral-400 mb-1 block">Duración personalizada</label>
+                        <div class="relative">
+                            <input id="customize-duration" type="number" min="5" placeholder="Usar global"
+                                class="w-full px-3 pr-10 py-2 bg-neutral-700 border border-neutral-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand transition-colors">
+                            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 text-xs">min</span>
+                        </div>
+                        <p class="text-[10px] text-neutral-500 mt-1">Global: <span id="customize-global-duration"></span> min</p>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="saveCustomization()" class="btn-action-primary flex-1 text-xs border border-neutral-700 px-3 py-2 rounded-lg transition-all shadow-sm text-neutral-300"><span>Guardar personalización</span></button>
+                    <button onclick="clearCustomization()" class="text-xs border border-neutral-700 px-3 py-2 rounded-lg text-neutral-400 hover:text-neutral-200 hover:border-neutral-500 transition-all">Limpiar</button>
+                </div>
+
+                <!-- History section -->
+                <div class="border-t border-neutral-700 pt-3 mt-3">
+                    <div class="flex items-center gap-2 mb-2">
+                        <h5 class="text-xs font-medium text-neutral-400 uppercase tracking-wider">Historial de cambios</h5>
+                        <div class="relative" title="Los precios históricos muestran los valores configurados en el momento del cambio y pueden diferir del precio cobrado en citas pasadas, que se congelan al crear la reserva.">
+                            <svg class="w-3.5 h-3.5 text-neutral-500 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div id="customize-history" class="space-y-1 max-h-36 overflow-y-auto pr-1" onscroll="onHistoryScroll(this)">
+                        <p class="text-xs text-neutral-500 text-center py-2">Sin cambios registrados.</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -713,6 +802,12 @@
         document.getElementById('bb-instagram').value = '';
         document.querySelectorAll('.bb-sucursal-check').forEach(c => c.checked = false);
         document.querySelectorAll('.bb-servicio-check').forEach(c => c.checked = false);
+        currentBarberServiceConfigs = [];
+        pendingCustomizations = {};
+        updateCustomizeButtons();
+        closeCustomizePanel();
+        document.getElementById('bb-service-search').value = '';
+        filterServices('');
         document.getElementById('modal-barbero-title').textContent = 'Nuevo Barbero';
         document.getElementById('btn-save-barber').querySelector('span').textContent = 'Crear Barbero';
         showTab('tab-info');
@@ -720,6 +815,8 @@
     }
 
     // ── Edit Modal ──
+    let currentBarberServiceConfigs = [];
+
     async function openEditModal(id) {
         const res = await fetch(`/app/barberos/api/${id}/`);
         if (!res.ok) return;
@@ -742,6 +839,12 @@
             c.checked = d.servicio_ids.includes(parseInt(c.value));
         });
 
+        // Store barber service configs for customization
+        currentBarberServiceConfigs = d.barber_service_configs || [];
+        pendingCustomizations = {};
+        updateCustomizeButtons();
+        closeCustomizePanel();
+
         document.getElementById('modal-barbero-title').textContent = 'Editar Barbero';
         document.getElementById('btn-save-barber').querySelector('span').textContent = 'Guardar cambios';
         showTab('tab-info');
@@ -757,6 +860,14 @@
         const sucursalIds = [...document.querySelectorAll('.bb-sucursal-check:checked')].map(c => parseInt(c.value));
         const servicioIds = [...document.querySelectorAll('.bb-servicio-check:checked')].map(c => parseInt(c.value));
 
+        // Build customizations map: only include for checked services
+        const customizations = {};
+        for (const svcId of servicioIds) {
+            if (pendingCustomizations[svcId]) {
+                customizations[svcId] = pendingCustomizations[svcId];
+            }
+        }
+
         const payload = {
             first_name: document.getElementById('bb-first-name').value.trim(),
             last_name: document.getElementById('bb-last-name').value.trim(),
@@ -767,6 +878,7 @@
             instagram: document.getElementById('bb-instagram').value.trim(),
             sucursal_ids: sucursalIds,
             servicio_ids: servicioIds,
+            customizations: customizations,
         };
 
         const url = editId ? `/app/barberos/api/${editId}/update/` : '{% url "barberos:api_create" %}';
@@ -1059,6 +1171,291 @@
             method: 'POST', headers, body: '{}',
         });
         if (res.ok) openScheduleModal(parseInt(id));
+    }
+
+    // ═══════════════════════════════════════════════════
+    // SERVICE SEARCH FILTER
+    // ═══════════════════════════════════════════════════
+    function filterServices(query) {
+        const q = query.toLowerCase().trim();
+        document.querySelectorAll('.svc-category-group').forEach(group => {
+            let anyVisible = false;
+            group.querySelectorAll('.svc-item').forEach(item => {
+                const name = item.dataset.svcName;
+                const match = !q || name.includes(q);
+                item.style.display = match ? '' : 'none';
+                if (match) anyVisible = true;
+            });
+            group.style.display = anyVisible ? '' : 'none';
+            // Auto-expand matching categories during search
+            if (q && anyVisible) {
+                group.querySelector('.svc-cat-content').style.display = '';
+                const icon = group.querySelector('.svc-cat-icon');
+                if (icon) icon.style.transform = 'rotate(180deg)';
+            }
+        });
+    }
+
+    function toggleSvcCategory(btn) {
+        const group = btn.closest('.svc-category-group');
+        const content = group.querySelector('.svc-cat-content');
+        const icon = group.querySelector('.svc-cat-icon');
+        const isHidden = content.style.display === 'none';
+        content.style.display = isHidden ? '' : 'none';
+        icon.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+    }
+
+    // ═══════════════════════════════════════════════════
+    // CUSTOMIZE BUTTONS VISIBILITY
+    // ═══════════════════════════════════════════════════
+    function updateCustomizeButtons() {
+        document.querySelectorAll('.bb-servicio-check').forEach(chk => {
+            const svcId = parseInt(chk.value);
+            const btn = document.querySelector(`.svc-customize-btn[data-svc-id="${svcId}"]`);
+            if (btn) {
+                btn.classList.toggle('hidden', !chk.checked);
+            }
+        });
+    }
+
+    // Listen for checkbox changes to toggle customize buttons
+    document.addEventListener('change', (e) => {
+        if (e.target.classList.contains('bb-servicio-check')) {
+            updateCustomizeButtons();
+            // Close customize panel if unchecking the currently customized service
+            const custPanel = document.getElementById('customize-panel');
+            if (!custPanel.classList.contains('hidden')) {
+                const bsId = document.getElementById('customize-bs-id').value;
+                const cfg = currentBarberServiceConfigs.find(c => c.barber_service_id == bsId);
+                if (cfg && parseInt(e.target.value) === cfg.service_id && !e.target.checked) {
+                    closeCustomizePanel();
+                }
+            }
+        }
+    });
+
+    // ═══════════════════════════════════════════════════
+    // CUSTOMIZATION PANEL
+    // ═══════════════════════════════════════════════════
+    let historyPage = 1;
+    let historyHasNext = false;
+    let historyLoading = false;
+    // Pending customizations for services not yet saved to DB
+    // keyed by service_id: { custom_price, custom_duration }
+    let pendingCustomizations = {};
+    let currentCustomizeServiceId = null;
+
+    function openCustomizePanel(serviceId) {
+        currentCustomizeServiceId = serviceId;
+        const cfg = currentBarberServiceConfigs.find(c => c.service_id === serviceId);
+        const pending = pendingCustomizations[serviceId];
+        const panel = document.getElementById('customize-panel');
+
+        // Get service name from the DOM if no config exists yet
+        const svcItem = document.querySelector(`.svc-item[data-svc-id="${serviceId}"]`);
+        const svcNameEl = svcItem ? svcItem.querySelector('.text-sm.text-white') : null;
+        const svcPriceEl = svcItem ? svcItem.querySelector('.text-xs.text-neutral-400') : null;
+
+        document.getElementById('customize-service-name').textContent = cfg ? cfg.service_name : (svcNameEl ? svcNameEl.textContent.trim() : 'Servicio');
+        document.getElementById('customize-bs-id').value = cfg ? cfg.barber_service_id : '';
+
+        const priceInput = document.getElementById('customize-price');
+        const durInput = document.getElementById('customize-duration');
+
+        if (cfg) {
+            // Existing barber-service: use saved config or pending override
+            const cp = pending ? pending.custom_price : cfg.custom_price;
+            const cd = pending ? pending.custom_duration : cfg.custom_duration;
+            priceInput.value = cp ? formatThousands(cp) : '';
+            durInput.value = cd || '';
+            document.getElementById('customize-global-price').textContent = formatThousands(cfg.global_price);
+            document.getElementById('customize-global-duration').textContent = cfg.global_duration;
+        } else if (pending) {
+            // New service (not yet saved) with pending customization
+            priceInput.value = pending.custom_price ? formatThousands(pending.custom_price) : '';
+            durInput.value = pending.custom_duration || '';
+            // Try to get global values from DOM
+            const rawPrice = svcPriceEl ? svcPriceEl.textContent.replace('$', '').trim() : '-';
+            document.getElementById('customize-global-price').textContent = rawPrice;
+            document.getElementById('customize-global-duration').textContent = '-';
+        } else {
+            // New service, no pending: blank
+            priceInput.value = '';
+            durInput.value = '';
+            const rawPrice = svcPriceEl ? svcPriceEl.textContent.replace('$', '').trim() : '-';
+            document.getElementById('customize-global-price').textContent = rawPrice;
+            document.getElementById('customize-global-duration').textContent = '-';
+        }
+
+        panel.classList.remove('hidden');
+
+        // Load history only for existing configs
+        historyPage = 1;
+        historyHasNext = false;
+        if (cfg && cfg.barber_service_id) {
+            loadHistory(cfg.barber_service_id, true);
+        } else {
+            document.getElementById('customize-history').innerHTML = '<p class="text-xs text-neutral-500 text-center py-2">Sin cambios registrados.</p>';
+        }
+    }
+
+    function closeCustomizePanel() {
+        document.getElementById('customize-panel').classList.add('hidden');
+        currentCustomizeServiceId = null;
+    }
+
+    async function saveCustomization() {
+        const rawPrice = document.getElementById('customize-price').value.replace(/\./g, '').replace(',', '.');
+        const rawDur = document.getElementById('customize-duration').value;
+        const bsId = document.getElementById('customize-bs-id').value;
+        const serviceId = currentCustomizeServiceId;
+
+        const customData = {
+            custom_price: rawPrice || null,
+            custom_duration: rawDur ? parseInt(rawDur) : null,
+        };
+
+        if (bsId) {
+            // Existing barber-service: save to API immediately
+            const payload = {
+                custom_price: rawPrice || null,
+                custom_duration: rawDur || null,
+            };
+
+            const res = await fetch(`/app/schedule/api/barber-service/${bsId}/customize/`, {
+                method: 'POST', headers, body: JSON.stringify(payload),
+            });
+
+            if (res.ok) {
+                const result = await res.json();
+                const cfg = currentBarberServiceConfigs.find(c => c.barber_service_id == bsId);
+                if (cfg) {
+                    cfg.custom_price = rawPrice || null;
+                    cfg.custom_duration = rawDur ? parseInt(rawDur) : null;
+                    cfg.effective_price = result.effective_price;
+                    cfg.effective_duration = result.effective_duration;
+                }
+                // Also store in pending so it survives re-saves
+                if (serviceId) pendingCustomizations[serviceId] = customData;
+                flashSuccess('#customize-panel .btn-action-primary');
+                historyPage = 1;
+                loadHistory(bsId, true);
+            }
+        } else if (serviceId) {
+            // New service (not yet in DB): store pending locally
+            pendingCustomizations[serviceId] = customData;
+            flashSuccess('#customize-panel .btn-action-primary');
+        }
+    }
+
+    function flashSuccess(selector) {
+        const btn = document.querySelector(selector);
+        if (!btn) return;
+        const span = btn.querySelector('span');
+        const orig = span.textContent;
+        span.textContent = '¡Guardado!';
+        btn.classList.add('bg-green-600');
+        setTimeout(() => { span.textContent = orig; btn.classList.remove('bg-green-600'); }, 1500);
+    }
+
+    function clearCustomization() {
+        document.getElementById('customize-price').value = '';
+        document.getElementById('customize-duration').value = '';
+        // Also clear from pending
+        if (currentCustomizeServiceId) {
+            delete pendingCustomizations[currentCustomizeServiceId];
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // HISTORY (infinite scroll, 30 per page)
+    // ═══════════════════════════════════════════════════
+    async function loadHistory(bsId, reset = false) {
+        if (historyLoading) return;
+        historyLoading = true;
+
+        const container = document.getElementById('customize-history');
+        if (reset) {
+            container.innerHTML = '';
+            historyPage = 1;
+        }
+
+        const res = await fetch(`/app/schedule/api/barber-service/${bsId}/history/?page=${historyPage}`);
+        if (!res.ok) { historyLoading = false; return; }
+        const data = await res.json();
+
+        historyHasNext = data.has_next;
+
+        if (data.results.length === 0 && reset) {
+            container.innerHTML = '<p class="text-xs text-neutral-500 text-center py-2">Sin cambios registrados.</p>';
+        } else {
+            const CAMPO_LABELS = {
+                'precio_personalizado': 'Precio',
+                'duracion_personalizada': 'Duración',
+            };
+            data.results.forEach(h => {
+                const dt = new Date(h.created_at);
+                const dateStr = dt.toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+
+                // Format values based on field type
+                const isPrecio = h.campo === 'precio_personalizado';
+                const isDuracion = h.campo === 'duracion_personalizada';
+                let anterior = h.valor_anterior;
+                let nuevo = h.valor_nuevo;
+                if (isPrecio) {
+                    anterior = anterior.includes('heredado') ? anterior : '$' + formatThousands(anterior);
+                    nuevo = nuevo.includes('heredado') ? nuevo : '$' + formatThousands(nuevo);
+                } else if (isDuracion) {
+                    anterior = anterior.includes('heredado') ? anterior : anterior + ' min';
+                    nuevo = nuevo.includes('heredado') ? nuevo : nuevo + ' min';
+                }
+
+                const div = document.createElement('div');
+                div.className = 'flex items-start justify-between px-2 py-1.5 rounded bg-neutral-800/50 text-[11px]';
+                div.innerHTML = `
+                    <div class="min-w-0">
+                        <span class="inline-flex px-1.5 py-0.5 rounded text-[9px] font-medium bg-brand/10 text-brand">${CAMPO_LABELS[h.campo] || h.campo}</span>
+                        <span class="text-neutral-400 ml-1">${anterior}</span>
+                        <span class="text-neutral-500 mx-0.5">→</span>
+                        <span class="text-white">${nuevo}</span>
+                        ${h.motivo ? `<p class="text-neutral-500 mt-0.5 text-[10px]">${h.motivo}</p>` : ''}
+                    </div>
+                    <div class="text-neutral-500 flex-shrink-0 ml-2 text-right">
+                        <p>${dateStr}</p>
+                        <p>${h.changed_by}</p>
+                    </div>`;
+                container.appendChild(div);
+            });
+        }
+        historyLoading = false;
+    }
+
+    function onHistoryScroll(el) {
+        if (!historyHasNext || historyLoading) return;
+        if (el.scrollTop + el.clientHeight >= el.scrollHeight - 20) {
+            historyPage++;
+            const bsId = document.getElementById('customize-bs-id').value;
+            if (bsId) loadHistory(bsId);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // PRICE FORMATTING (thousands with dots)
+    // ═══════════════════════════════════════════════════
+    function formatThousands(val) {
+        if (!val && val !== 0) return '';
+        // val comes as raw number string from Django (e.g. "30000.00")
+        // Parse as float first (decimal dot), THEN format with locale dots
+        const str = String(val);
+        const num = parseFloat(str);
+        if (isNaN(num)) return str;
+        return Math.round(num).toLocaleString('de-DE');
+    }
+
+    function formatPriceInput(input) {
+        let raw = input.value.replace(/[^\d]/g, '');
+        if (!raw) { input.value = ''; return; }
+        input.value = parseInt(raw).toLocaleString('de-DE');
     }
 </script>
 {% endblock %}

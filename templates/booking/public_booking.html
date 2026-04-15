@@ -37,6 +37,7 @@
 
             <div class="flex flex-col gap-4">
                 {% for barber in barbers %}
+                {% if barber.has_schedule %}
                 <button @click="selectBarber({{ barber.pk }}, '{{ barber }}')"
                         class="w-full text-left flex items-center gap-4 p-4 bg-neutral-900 rounded-xl border cursor-pointer hover:border-[#ff2301] hover:-translate-y-1 hover:shadow-lg hover:shadow-brand/10 transition-all duration-300"
                         :class="selectedBarber?.id === {{ barber.pk }} ? 'border-brand ring-1 ring-brand' : 'border-neutral-700'">
@@ -54,6 +55,30 @@
                         {% endif %}
                     </div>
                 </button>
+                {% else %}
+                <!-- Barber without schedule: disabled card -->
+                <div class="relative group">
+                    <div class="w-full text-left flex items-center gap-4 p-4 bg-neutral-900 rounded-xl border border-neutral-800 opacity-40 pointer-events-none select-none">
+                        <div class="w-14 h-14 rounded-xl bg-neutral-800 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                            {% if barber.photo %}
+                            <img src="{{ barber.photo.url }}" class="w-full h-full object-cover grayscale" alt="{{ barber }}">
+                            {% else %}
+                            <span class="text-xl font-heading font-bold text-neutral-500">{{ barber.display_name|first|upper }}</span>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <p class="font-medium text-neutral-400">{{ barber }}</p>
+                            {% if barber.bio %}
+                            <p class="text-xs text-neutral-500 line-clamp-1">{{ barber.bio }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <!-- Tooltip overlay -->
+                    <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                        <span class="px-3 py-1.5 bg-neutral-800 border border-neutral-700 rounded-lg text-xs text-neutral-300 shadow-lg">Sin horarios disponibles</span>
+                    </div>
+                </div>
+                {% endif %}
                 {% endfor %}
             </div>
         </div>
@@ -343,7 +368,7 @@ function bookingApp() {
 
         formatTime(isoStr) {
             const d = new Date(isoStr);
-            return d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', hour12: true });
+            return d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', hour12: false });
         },
 
         async confirmBooking() {

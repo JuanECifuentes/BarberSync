@@ -10,13 +10,14 @@ AppointmentService – individual service line within an appointment
 """
 
 from datetime import timedelta
+from decimal import Decimal
 
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
 
-from apps.core.models import AuditModel, TenantModel
+from apps.core.models import AuditLog, AuditModel, TenantModel
 
 
 # ─────────────────────────────────────────────
@@ -74,6 +75,38 @@ class Service(TenantModel):
 
     def __str__(self):
         return f"{self.name} – ${self.price}"
+
+    def save(self, *args, **kwargs):
+        # Auto-unlink: if global price increased above a barber's custom price,
+        # clear that custom price so the barber inherits the new global price.
+        if self.pk:
+            try:
+                old = Service.objects.get(pk=self.pk)
+            except Service.DoesNotExist:
+                old = None
+
+            if old and Decimal(str(self.price)) != old.price:
+                new_price = Decimal(str(self.price))
+                affected = BarberService.objects.filter(
+                    service=self,
+                    custom_price__isnull=False,
+                    custom_price__lt=new_price,
+                )
+                for bs in affected:
+                    old_custom = bs.custom_price
+                    bs.custom_price = None
+                    bs.save(update_fields=["custom_price", "updated_at"])
+                    # Audit trail for system-initiated price reset
+                    HistorialCambiosConfiguracionBarbero.objects.create(
+                        barber_service=bs,
+                        campo="precio_personalizado",
+                        valor_anterior=str(old_custom),
+                        valor_nuevo="(heredado global)",
+                        motivo=f"Precio global subió de ${old.price} a ${new_price}. "
+                               f"El precio personalizado ${old_custom} fue inferior y se desvinculó.",
+                    )
+
+        super().save(*args, **kwargs)
 
 
 # ─────────────────────────────────────────────
@@ -133,11 +166,17 @@ class BarberService(AuditModel):
         blank=True,
         help_text="Si se deja vacío, se usa el precio del servicio.",
     )
+    custom_duration = models.PositiveIntegerField(
+        "duración personalizada (min)",
+        null=True,
+        blank=True,
+        help_text="Si se deja vacío, se usa la duración del servicio.",
+    )
 
     class Meta:
         db_table = "scheduling_barber_service"
-        verbose_name = "servicio de barbero"
-        verbose_name_plural = "servicios de barbero"
+        verbose_name = "configuración servicio barbero"
+        verbose_name_plural = "configuraciones servicio barbero"
         constraints = [
             models.UniqueConstraint(
                 fields=["barber", "service"],
@@ -151,6 +190,47 @@ class BarberService(AuditModel):
     @property
     def effective_price(self):
         return self.custom_price if self.custom_price is not None else self.service.price
+
+    @property
+    def effective_duration(self):
+        return self.custom_duration if self.custom_duration is not None else self.service.duration_minutes
+
+
+# ─────────────────────────────────────────────
+# Barber service config change history (audit)
+# ─────────────────────────────────────────────
+class HistorialCambiosConfiguracionBarbero(models.Model):
+    """Tracks changes to custom price/duration on a barber-service config."""
+
+    barber_service = models.ForeignKey(
+        BarberService,
+        on_delete=models.CASCADE,
+        related_name="historial_cambios",
+    )
+    campo = models.CharField(
+        "campo modificado", max_length=50,
+        help_text="precio_personalizado o duracion_personalizada",
+    )
+    valor_anterior = models.CharField("valor anterior", max_length=50, blank=True)
+    valor_nuevo = models.CharField("valor nuevo", max_length=50, blank=True)
+    motivo = models.TextField("motivo / nota", blank=True)
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "scheduling_historial_config_barbero"
+        verbose_name = "historial config. barbero"
+        verbose_name_plural = "historial config. barbero"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.barber_service} – {self.campo} @ {self.created_at:%d/%m/%Y %H:%M}"
 
 
 # ─────────────────────────────────────────────

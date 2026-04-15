@@ -4,9 +4,12 @@ CRUD for barbers with modal-based editing, schedule management, and soft delete.
 """
 
 import json
+from collections import OrderedDict
 from datetime import time
+from decimal import Decimal
 
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.http import JsonResponse
 from django.views import View
 from django.views.generic import TemplateView
@@ -14,6 +17,8 @@ from django.views.generic import TemplateView
 from apps.core.mixins import RoleRequiredMixin
 from apps.scheduling.models import (
     BarberService,
+    CategoriaServicio,
+    HistorialCambiosConfiguracionBarbero,
     ScheduleException,
     Service,
     WorkSchedule,
@@ -49,9 +54,19 @@ class BarberoListView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
             is_active=False,
         ).select_related("membership__user")
         ctx["sucursales"] = Barbershop.objects.filter(organization=org, is_active=True)
-        ctx["servicios"] = Service.objects.filter(
+        # Services grouped by category for accordion display
+        servicios_qs = Service.objects.filter(
             barbershop=barbershop, is_active=True
-        ) if barbershop else Service.objects.none()
+        ).select_related("category").order_by("category__name", "name") if barbershop else Service.objects.none()
+        grouped_servicios = OrderedDict()
+        for svc_obj in servicios_qs:
+            cat_name = svc_obj.category.name if svc_obj.category else "Sin Categoría"
+            cat_id = svc_obj.category.pk if svc_obj.category else 0
+            if cat_name not in grouped_servicios:
+                grouped_servicios[cat_name] = {"category_id": cat_id, "services": []}
+            grouped_servicios[cat_name]["services"].append(svc_obj)
+        ctx["grouped_servicios"] = grouped_servicios
+        ctx["servicios"] = servicios_qs
         return ctx
 
 
@@ -76,6 +91,23 @@ class BarberoDetailAPI(LoginRequiredMixin, RoleRequiredMixin, View):
         servicio_names = list(
             BarberService.objects.filter(barber=barber).values_list("service__name", flat=True)
         )
+
+        # Barber service configs (for customization UI)
+        barber_service_configs = []
+        for bs in BarberService.objects.filter(barber=barber).select_related("service", "service__category"):
+            barber_service_configs.append({
+                "barber_service_id": bs.pk,
+                "service_id": bs.service_id,
+                "service_name": bs.service.name,
+                "category_name": bs.service.category.name if bs.service.category else "Sin Categoría",
+                "category_id": bs.service.category_id if bs.service.category else None,
+                "global_price": str(bs.service.price),
+                "global_duration": bs.service.duration_minutes,
+                "custom_price": str(bs.custom_price) if bs.custom_price is not None else None,
+                "custom_duration": bs.custom_duration,
+                "effective_price": str(bs.effective_price),
+                "effective_duration": bs.effective_duration,
+            })
 
         schedules = list(
             WorkSchedule.objects.filter(barber=barber).values(
@@ -112,6 +144,7 @@ class BarberoDetailAPI(LoginRequiredMixin, RoleRequiredMixin, View):
             "sucursal_names": sucursal_names,
             "servicio_ids": servicio_ids,
             "servicio_names": servicio_names,
+            "barber_service_configs": barber_service_configs,
             "schedules": schedules,
             "exceptions": exceptions,
         })
@@ -191,6 +224,11 @@ class BarberoCreateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
                 except Service.DoesNotExist:
                     pass
 
+        # Apply customizations (price/duration per service)
+        customizations = data.get("customizations", {})
+        if customizations:
+            _apply_customizations(barber, customizations, request.user)
+
         return JsonResponse({"ok": True, "id": barber.pk})
 
 
@@ -212,45 +250,51 @@ class BarberoUpdateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
         except json.JSONDecodeError:
             return JsonResponse({"error": "JSON inválido"}, status=400)
 
-        # Update user info
-        user = barber.user
-        if data.get("first_name"):
-            user.first_name = data["first_name"].strip()
-        if data.get("last_name") is not None:
-            user.last_name = data["last_name"].strip()
-        user.save(update_fields=["first_name", "last_name"])
+        with transaction.atomic():
+            # Update user info
+            user = barber.user
+            if data.get("first_name"):
+                user.first_name = data["first_name"].strip()
+            if data.get("last_name") is not None:
+                user.last_name = data["last_name"].strip()
+            user.save(update_fields=["first_name", "last_name"])
 
-        # Update barber profile
-        barber.display_name = data.get("display_name", barber.display_name)
-        barber.phone = data.get("phone", barber.phone)
-        barber.bio = data.get("bio", barber.bio)
-        barber.instagram = data.get("instagram", barber.instagram)
+            # Update barber profile
+            barber.display_name = data.get("display_name", barber.display_name)
+            barber.phone = data.get("phone", barber.phone)
+            barber.bio = data.get("bio", barber.bio)
+            barber.instagram = data.get("instagram", barber.instagram)
 
-        barber.save()
+            barber.save()
 
-        # Update sucursales
-        if "sucursal_ids" in data:
-            sucursales = Barbershop.objects.filter(
-                pk__in=data["sucursal_ids"], organization=org, is_active=True
-            )
-            barber.sucursales.set(sucursales)
+            # Update sucursales
+            if "sucursal_ids" in data:
+                sucursales = Barbershop.objects.filter(
+                    pk__in=data["sucursal_ids"], organization=org, is_active=True
+                )
+                barber.sucursales.set(sucursales)
 
-        # Update services
-        if "servicio_ids" in data:
-            current_ids = set(
-                BarberService.objects.filter(barber=barber).values_list("service_id", flat=True)
-            )
-            new_ids = set(data["servicio_ids"])
+            # Update services
+            if "servicio_ids" in data:
+                current_ids = set(
+                    BarberService.objects.filter(barber=barber).values_list("service_id", flat=True)
+                )
+                new_ids = set(data["servicio_ids"])
 
-            # Remove old
-            BarberService.objects.filter(barber=barber).exclude(service_id__in=new_ids).delete()
-            # Add new
-            for sid in new_ids - current_ids:
-                try:
-                    service = Service.objects.get(pk=sid, is_active=True)
-                    BarberService.objects.get_or_create(barber=barber, service=service)
-                except Service.DoesNotExist:
-                    pass
+                # Remove old
+                BarberService.objects.filter(barber=barber).exclude(service_id__in=new_ids).delete()
+                # Add new
+                for sid in new_ids - current_ids:
+                    try:
+                        service = Service.objects.get(pk=sid, is_active=True)
+                        BarberService.objects.get_or_create(barber=barber, service=service)
+                    except Service.DoesNotExist:
+                        pass
+
+            # Apply customizations (price/duration per service)
+            customizations = data.get("customizations", {})
+            if customizations:
+                _apply_customizations(barber, customizations, request.user)
 
         return JsonResponse({"ok": True})
 
@@ -284,6 +328,54 @@ class BarberoReactivateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
         barber.is_active = True
         barber.save(update_fields=["is_active"])
         return JsonResponse({"ok": True})
+
+
+# ─── Customization helper ──────────────────────────────
+
+def _apply_customizations(barber, customizations, user):
+    """
+    Apply custom price/duration to barber-service configs.
+    customizations: dict keyed by service_id (as string from JSON)
+    with values: { custom_price: str|null, custom_duration: int|null }
+    """
+    for svc_id_str, cust in customizations.items():
+        svc_id = int(svc_id_str)
+        try:
+            bs = BarberService.objects.get(barber=barber, service_id=svc_id)
+        except BarberService.DoesNotExist:
+            continue
+
+        changes = []
+
+        # Custom price
+        raw_price = cust.get("custom_price")
+        new_price = Decimal(str(raw_price)) if raw_price else None
+        if new_price != bs.custom_price:
+            old_val = str(bs.custom_price) if bs.custom_price is not None else "(heredado global)"
+            new_val = str(new_price) if new_price is not None else "(heredado global)"
+            changes.append(("precio_personalizado", old_val, new_val))
+            bs.custom_price = new_price
+
+        # Custom duration
+        raw_dur = cust.get("custom_duration")
+        new_dur = int(raw_dur) if raw_dur else None
+        if new_dur != bs.custom_duration:
+            old_val = str(bs.custom_duration) if bs.custom_duration is not None else "(heredado global)"
+            new_val = str(new_dur) if new_dur is not None else "(heredado global)"
+            changes.append(("duracion_personalizada", old_val, new_val))
+            bs.custom_duration = new_dur
+
+        if changes:
+            bs.updated_by = user
+            bs.save()
+            for campo, old_val, new_val in changes:
+                HistorialCambiosConfiguracionBarbero.objects.create(
+                    barber_service=bs,
+                    campo=campo,
+                    valor_anterior=old_val,
+                    valor_nuevo=new_val,
+                    changed_by=user,
+                )
 
 
 # ─── Horarios ───────────────────────────────────────

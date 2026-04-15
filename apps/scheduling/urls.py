@@ -26,4 +26,6 @@ urlpatterns = [
     path("api/appointments/<int:pk>/action/", views.AppointmentActionAPI.as_view(), name="api_appointment_action"),
     path("api/appointments/<int:pk>/products/", views.AppointmentProductsAPI.as_view(), name="api_appointment_products"),
     path("api/barber-services/<int:barber_id>/", views.BarberServicesAPI.as_view(), name="api_barber_services"),
+    path("api/barber-service/<int:barber_service_id>/customize/", views.BarberServiceCustomizeAPI.as_view(), name="api_barber_service_customize"),
+    path("api/barber-service/<int:barber_service_id>/history/", views.BarberServiceHistoryAPI.as_view(), name="api_barber_service_history"),
 ]

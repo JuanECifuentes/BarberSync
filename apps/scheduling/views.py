@@ -25,8 +25,8 @@ from . import services as svc
 from apps.inventory.models import Product, ProductCategory, StockMovement
 from .models import (
     Appointment, BarberService, CategoriaServicio,
-    HistorialPrecioServicio, Intervencion, IntervencionProducto,
-    Service, ServicioProducto,
+    HistorialCambiosConfiguracionBarbero, HistorialPrecioServicio,
+    Intervencion, IntervencionProducto, Service, ServicioProducto,
 )
 
 
@@ -615,8 +615,12 @@ class BarberServicesAPI(LoginRequiredMixin, View):
             {
                 "id": bs.service.pk,
                 "name": bs.service.name,
-                "duration": bs.service.duration_minutes,
+                "duration": bs.effective_duration,
                 "price": str(bs.effective_price),
+                "global_duration": bs.service.duration_minutes,
+                "global_price": str(bs.service.price),
+                "custom_duration": bs.custom_duration,
+                "custom_price": str(bs.custom_price) if bs.custom_price is not None else None,
             }
             for bs in barber_services
         ]
@@ -696,6 +700,113 @@ class AppointmentProductsAPI(LoginRequiredMixin, View):
                 ).save()
 
         return JsonResponse({"message": "Productos actualizados"})
+
+
+# ─────────────────────────────────────────────
+# Barber service customization
+# ─────────────────────────────────────────────
+class BarberServiceCustomizeAPI(LoginRequiredMixin, View):
+    """Save custom price/duration for a barber-service config."""
+
+    def post(self, request, barber_service_id):
+        from decimal import Decimal
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "JSON inválido"}, status=400)
+
+        try:
+            bs = BarberService.objects.select_related("service").get(pk=barber_service_id)
+        except BarberService.DoesNotExist:
+            return JsonResponse({"error": "Configuración no encontrada"}, status=404)
+
+        changes = []
+
+        # Custom price
+        new_price_raw = data.get("custom_price")
+        if new_price_raw == "" or new_price_raw is None:
+            new_price = None
+        else:
+            new_price = Decimal(str(new_price_raw))
+
+        if new_price != bs.custom_price:
+            old_val = str(bs.custom_price) if bs.custom_price is not None else "(heredado global)"
+            new_val = str(new_price) if new_price is not None else "(heredado global)"
+            changes.append(("precio_personalizado", old_val, new_val))
+            bs.custom_price = new_price
+
+        # Custom duration
+        new_dur_raw = data.get("custom_duration")
+        if new_dur_raw == "" or new_dur_raw is None:
+            new_dur = None
+        else:
+            new_dur = int(new_dur_raw)
+
+        if new_dur != bs.custom_duration:
+            old_val = str(bs.custom_duration) if bs.custom_duration is not None else "(heredado global)"
+            new_val = str(new_dur) if new_dur is not None else "(heredado global)"
+            changes.append(("duracion_personalizada", old_val, new_val))
+            bs.custom_duration = new_dur
+
+        bs.updated_by = request.user
+        bs.save()
+
+        # Record audit entries
+        for campo, old_val, new_val in changes:
+            HistorialCambiosConfiguracionBarbero.objects.create(
+                barber_service=bs,
+                campo=campo,
+                valor_anterior=old_val,
+                valor_nuevo=new_val,
+                changed_by=request.user,
+            )
+
+        return JsonResponse({
+            "ok": True,
+            "effective_price": str(bs.effective_price),
+            "effective_duration": bs.effective_duration,
+        })
+
+
+class BarberServiceHistoryAPI(LoginRequiredMixin, View):
+    """Paginated history for a barber-service config (30 per page, infinite scroll)."""
+
+    def get(self, request, barber_service_id):
+        from django.core.paginator import Paginator
+
+        try:
+            bs = BarberService.objects.get(pk=barber_service_id)
+        except BarberService.DoesNotExist:
+            return JsonResponse({"error": "Configuración no encontrada"}, status=404)
+
+        qs = HistorialCambiosConfiguracionBarbero.objects.filter(
+            barber_service=bs,
+        ).select_related("changed_by")
+
+        paginator = Paginator(qs, 30)
+        page_num = request.GET.get("page", 1)
+        page = paginator.get_page(page_num)
+
+        items = []
+        for h in page:
+            who = ""
+            if h.changed_by:
+                who = " ".join(filter(None, [h.changed_by.first_name, h.changed_by.last_name])) or "Sistema"
+            items.append({
+                "campo": h.campo,
+                "valor_anterior": h.valor_anterior,
+                "valor_nuevo": h.valor_nuevo,
+                "motivo": h.motivo,
+                "changed_by": who or "Sistema",
+                "created_at": h.created_at.isoformat(),
+            })
+
+        return JsonResponse({
+            "results": items,
+            "page": page.number,
+            "has_next": page.has_next(),
+        })
 
 
 # ─────────────────────────────────────────────
