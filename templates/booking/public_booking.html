@@ -39,6 +39,8 @@
                 {% for barber in barbers %}
                 {% if barber.has_schedule %}
                 <button @click="selectBarber({{ barber.pk }}, '{{ barber }}')"
+                        data-barber-id="{{ barber.pk }}"
+                        data-barber-name="{{ barber }}"
                         class="w-full text-left flex items-center gap-4 p-4 bg-neutral-900 rounded-xl border cursor-pointer hover:border-[#ff2301] hover:-translate-y-1 hover:shadow-lg hover:shadow-brand/10 transition-all duration-300"
                         :class="selectedBarber?.id === {{ barber.pk }} ? 'border-brand ring-1 ring-brand' : 'border-neutral-700'">
                     <div class="w-14 h-14 rounded-xl bg-neutral-800 flex items-center justify-center flex-shrink-0 overflow-hidden">
@@ -210,6 +212,7 @@
             </div>
             <div class="mt-4 flex flex-col gap-3">
                 <a href="{% url 'account_login' %}?next={{ request.path }}"
+                   onclick="saveBookingStateForLogin(this.href)"
                    class="w-full flex items-center justify-center gap-3 border border-neutral-700 px-4 py-3 rounded-lg
                           text-white font-medium hover:bg-[#ff2301] hover:text-white hover:border-[#ff2301]
                           hover:-translate-y-1 hover:shadow-md transition-all duration-300">
@@ -223,6 +226,7 @@
                 {% get_providers as socialaccount_providers %}
                 {% if socialaccount_providers %}
                 <a href="{% provider_login_url 'google' process='login' next=request.path %}"
+                   onclick="saveBookingStateForLogin(this.href)"
                    class="w-full flex items-center justify-center gap-3 border border-neutral-700 px-4 py-3 rounded-lg
                           text-white font-medium hover:bg-[#ff2301] hover:text-white hover:border-[#ff2301]
                           hover:-translate-y-1 hover:shadow-md transition-all duration-300">
@@ -271,6 +275,22 @@
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
 
 <script>
+/* Save booking state before redirecting to login (Google OAuth or email/password) */
+function saveBookingStateForLogin(href) {
+    const alpine = document.querySelector('[x-data]')?.__x;
+    if (!alpine) { window.location.href = href; return; }
+    const data = alpine.$data;
+    sessionStorage.setItem('bookingState', JSON.stringify({
+        selectedBarber: data.selectedBarber,
+        selectedServices: data.selectedServices,
+        selectedDate: data.selectedDate,
+        selectedSlot: data.selectedSlot,
+        barberServices: data.barberServices,
+        step: data.step,
+    }));
+    window.location.href = href;
+}
+
 function bookingApp() {
     return {
         step: 1,
@@ -298,12 +318,52 @@ function bookingApp() {
             return true;
         },
 
-        init() {},
+        async init() {
+            // Restore booking state if returning from login/OAuth
+            const saved = sessionStorage.getItem('bookingState');
+            if (saved) {
+                try {
+                    const state = JSON.parse(saved);
+                    this.selectedBarber = state.selectedBarber;
+                    this.selectedServices = state.selectedServices || [];
+                    this.selectedDate = state.selectedDate;
+                    this.selectedSlot = state.selectedSlot;
+                    this.barberServices = state.barberServices || [];
+                    sessionStorage.removeItem('bookingState');
+                    // If we had a slot selected, go to confirmation step
+                    if (this.selectedSlot) {
+                        this.step = 4;
+                        return;
+                    }
+                    // Otherwise go to step 3 (date/time) and fetch slots
+                    if (this.selectedBarber && this.selectedDate) {
+                        this.step = 3;
+                        this.$nextTick(() => this.fetchSlots());
+                        return;
+                    }
+                } catch (e) {
+                    sessionStorage.removeItem('bookingState');
+                }
+            }
+            // User must manually select a barber — no auto-selection
+        },
 
-        selectBarber(id, name) {
+        async selectBarber(id, name, skipFetchSlots) {
             this.selectedBarber = { id, name };
             this.selectedServices = [];
-            this.fetchBarberServices();
+            await this.fetchBarberServices();
+            // Auto-proceed to step 2 when auto-selected on init
+            if (skipFetchSlots) {
+                this.step = 2;
+                // Auto-select first service if only one available
+                this.$nextTick(() => {
+                    if (this.barberServices.length === 1) {
+                        this.toggleService(this.barberServices[0]);
+                        this.step = 3;
+                        this.fetchSlots();
+                    }
+                });
+            }
         },
 
         async fetchBarberServices() {
@@ -325,23 +385,26 @@ function bookingApp() {
         nextStep() {
             if (!this.canAdvance) return;
             this.step++;
+            // Step 3: fetch slots and auto-select the first available date
             if (this.step === 3) this.fetchSlots();
         },
 
         async fetchSlots() {
+            // Determine the date to query: selectedDate takes priority, otherwise use the first available date
+            const today = new Date().toISOString().split('T')[0];
+            const datesToTry = this.selectedDate ? [this.selectedDate] : (this.availableDates.length > 0 ? [this.availableDates[0].iso] : [today]);
+            const targetDate = datesToTry[0];
+
             this.loadingSlots = true;
             const params = new URLSearchParams({
                 barber_id: this.selectedBarber.id,
-                date: this.selectedDate || new Date().toISOString().split('T')[0],
+                date: targetDate,
                 duration: this.totalDuration,
             });
             const res = await fetch(`/book/{{ barbershop.slug }}-{{ barbershop.booking_uid }}/api/slots/?${params}`);
             const data = await res.json();
 
-            this.timeSlots = data.slots || [];
-            this.loadingSlots = false;
-
-            // Build available dates for date picker
+            // Build available dates for the date picker
             if (data.available_dates) {
                 const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
                 const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -354,13 +417,28 @@ function bookingApp() {
                         month: months[d.getMonth()],
                     };
                 });
-                if (!this.selectedDate && this.availableDates.length > 0) {
-                    this.selectedDate = this.availableDates[0].iso;
+            }
+
+            // Auto-select first available date if none selected; reload slots for that date if needed
+            if (!this.selectedDate && this.availableDates.length > 0) {
+                this.selectedDate = this.availableDates[0].iso;
+                if (targetDate !== this.selectedDate) {
+                    // Reload slots for the auto-selected date
+                    params.set('date', this.selectedDate);
+                    const res2 = await fetch(`/book/{{ barbershop.slug }}-{{ barbershop.booking_uid }}/api/slots/?${params}`);
+                    const data2 = await res2.json();
+                    this.timeSlots = data2.slots || [];
+                    this.loadingSlots = false;
+                    return;
                 }
             }
+
+            this.timeSlots = data.slots || [];
+            this.loadingSlots = false;
         },
 
         async selectDate(iso) {
+            if (this.selectedDate === iso || this.loadingSlots) return;
             this.selectedDate = iso;
             this.selectedSlot = null;
             await this.fetchSlots();
@@ -372,6 +450,15 @@ function bookingApp() {
         },
 
         async confirmBooking() {
+            // Persist booking state in case session expires and redirect to login is needed
+            sessionStorage.setItem('bookingState', JSON.stringify({
+                selectedBarber: this.selectedBarber,
+                selectedServices: this.selectedServices,
+                selectedDate: this.selectedDate,
+                selectedSlot: this.selectedSlot,
+                barberServices: this.barberServices,
+                step: 4,
+            }));
             this.booking = true;
             try {
                 const res = await fetch(`/book/{{ barbershop.slug }}-{{ barbershop.booking_uid }}/api/book/`, {
@@ -386,9 +473,25 @@ function bookingApp() {
                         service_ids: this.selectedServices.map(s => s.id),
                     }),
                 });
+
+                if (res.status === 401) {
+                    // Session expired — redirect to login preserving state
+                    sessionStorage.setItem('bookingState', JSON.stringify({
+                        selectedBarber: this.selectedBarber,
+                        selectedServices: this.selectedServices,
+                        selectedDate: this.selectedDate,
+                        selectedSlot: this.selectedSlot,
+                        barberServices: this.barberServices,
+                        step: 4,
+                    }));
+                    window.location.href = "{% url 'account_login' %}?next=/book/{{ barbershop.slug }}-{{ barbershop.booking_uid }}/";
+                    return;
+                }
+
                 const data = await res.json();
 
                 if (res.ok) {
+                    sessionStorage.removeItem('bookingState');
                     this.step = 5;
                     // Show success screen (replace content)
                     document.querySelector('.max-w-lg').innerHTML = `

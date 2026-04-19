@@ -15,6 +15,7 @@ from datetime import datetime, date
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
+from django.db.models import Q
 from django.http import JsonResponse
 from django.utils import timezone
 from django.views import View
@@ -89,8 +90,10 @@ class CalendarEventsAPI(LoginRequiredMixin, View):
         barber = None
         if barber_id:
             barber = BarberProfile.objects.filter(
-                pk=barber_id,
-                membership__barbershop=barbershop,
+                Q(pk=barber_id) & (
+                    Q(membership__barbershop=barbershop) |
+                    Q(sucursales=barbershop)
+                )
             ).first()
 
         # If user is a barber, restrict to their own events
@@ -124,8 +127,8 @@ class AvailableSlotsAPI(LoginRequiredMixin, View):
             return JsonResponse({"error": "barber_id y date son requeridos"}, status=400)
 
         barber = BarberProfile.objects.filter(
-            pk=barber_id,
-            membership__barbershop=barbershop,
+            Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
+            pk=barber_id
         ).first()
 
         if not barber:
@@ -164,7 +167,8 @@ class AppointmentCreateAPI(LoginRequiredMixin, View):
             return JsonResponse({"error": "Faltan campos requeridos"}, status=400)
 
         barber = BarberProfile.objects.filter(
-            pk=barber_id, membership__barbershop=barbershop,
+            Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
+            pk=barber_id
         ).first()
         if not barber:
             return JsonResponse({"error": "Barbero no encontrado"}, status=404)
@@ -603,7 +607,8 @@ class BarberServicesAPI(LoginRequiredMixin, View):
         barbershop = request.barbershop
 
         barber = BarberProfile.objects.filter(
-            pk=barber_id, membership__barbershop=barbershop,
+            Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
+            pk=barber_id
         ).first()
         if not barber:
             return JsonResponse({"error": "Barbero no encontrado"}, status=404)

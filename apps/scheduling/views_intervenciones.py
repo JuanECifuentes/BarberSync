@@ -38,9 +38,9 @@ class IntervencionListView(LoginRequiredMixin, TemplateView):
         barbershop = self.request.barbershop
 
         ctx["barbers"] = BarberProfile.objects.filter(
-            membership__barbershop=barbershop,
+            Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
             is_active=True,
-        ).select_related("membership__user")
+        ).select_related("membership__user").distinct()
         services = Service.objects.filter(
             barbershop=barbershop, is_active=True,
         ).select_related("category")

@@ -36,6 +36,16 @@ Notas BarberSync:
   6. Crear la primera Organization + Barbershop desde el admin
   7. python manage.py qcluster (para las notificaciones async)
 
+- Config OAuth
+
+	En http://127.0.0.1:8000/admin -x Sitios se debe crear un sitio con el dominio y sin el ultimo "/" EJ: http://127.0.0.1:8000
+
+	En Aplicaciones de redes sociales se debe crear un registro con:
+	provider: Google
+	Nombre: {NOMBRE-APP-GOOGLE.CLOUD}
+	Identificador del cliente: {CRED ID CLIENTE}
+	Clave secreta: {CRED SECRETO}
+	Sites: agregar el sitio recien creado
 
 
   Posible competencia:

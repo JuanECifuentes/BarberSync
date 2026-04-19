@@ -1202,7 +1202,7 @@ function intervencionesApp() {
                 if (this.form.barber_id) {
                     this.barberServicesLoading = true;
                     try {
-                        const bsRes = await fetch(`/app/scheduling/api/barber-services/${this.form.barber_id}/`);
+                        const bsRes = await fetch(`/app/intervenciones/api/barber-services/${this.form.barber_id}/`);
                         if (bsRes.ok) {
                             const bsData = await bsRes.json();
                             this.barberServiceIds = bsData.services.map(s => s.id);
@@ -1276,7 +1276,7 @@ function intervencionesApp() {
 
             this.barberServicesLoading = true;
             try {
-                const res = await fetch(`/app/scheduling/api/barber-services/${this.form.barber_id}/`);
+                const res = await fetch(`/app/intervenciones/api/barber-services/${this.form.barber_id}/`);
                 if (!res.ok) throw new Error('Error ' + res.status);
                 const data = await res.json();
                 this.barberServiceIds = (data.services || []).map(s => s.id);
@@ -1301,7 +1301,11 @@ function intervencionesApp() {
 
         getBarberServicePrice(serviceId, defaultPrice) {
             const bs = this.barberServicesData[serviceId];
-            return bs ? bs.price : defaultPrice;
+            let val = bs ? bs.price : defaultPrice;
+            if (typeof val === 'string') {
+                val = val.replace(',', '.');
+            }
+            return Math.round(parseFloat(val)) || 0;
         },
 
         getBarberServiceDuration(serviceId, defaultDuration) {
@@ -1315,11 +1319,11 @@ function intervencionesApp() {
             this.form.service_ids.forEach(id => {
                 const bs = this.barberServicesData[id];
                 if (bs) {
-                    total += parseFloat(bs.price) || 0;
+                    total += parseFloat(String(bs.price).replace(',', '.')) || 0;
                 } else {
                     // Fallback: read from DOM data-raw-price attribute
                     const el = document.querySelector(`[data-service-id="${id}"][data-raw-price]`);
-                    if (el) total += parseFloat(el.getAttribute('data-raw-price')) || 0;
+                    if (el) total += parseFloat(String(el.getAttribute('data-raw-price')).replace(',', '.')) || 0;
                 }
             });
             // Products total: sum from active selects AND deleted product rows
@@ -1348,7 +1352,8 @@ function intervencionesApp() {
         formatModalPrices() {
             document.querySelectorAll('[data-raw-price]').forEach(el => {
                 const raw = el.getAttribute('data-raw-price');
-                const num = parseInt(parseFloat(raw));
+                let val = String(raw).replace(',', '.');
+                const num = Math.round(parseFloat(val)) || 0;
                 el.textContent = '$' + formatMoney(num);
             });
         },
