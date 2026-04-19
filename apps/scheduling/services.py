@@ -452,14 +452,26 @@ def get_calendar_events(
             intervencion_estado = intervencion.estado
             intervencion_estado_display = intervencion.get_estado_display()
             intervencion_notas = intervencion.notas
+            # Build set of auto-consumed product IDs from services
+            servicio_ids = list(
+                intervencion.servicios.values_list("servicio_id", flat=True)
+            )
+            auto_product_ids = set(
+                ServicioProducto.objects.filter(
+                    servicio_id__in=servicio_ids,
+                ).values_list("producto_id", flat=True)
+            )
             intervencion_productos = [
                 {
                     "product_id": p.producto_id,
                     "name": p.producto.name,
                     "cantidad": p.cantidad,
                     "subtotal": str(p.subtotal),
+                    "precio_unitario": str(p.precio_unitario),
+                    "is_deleted": not p.producto.is_active,
+                    "auto": p.producto_id in auto_product_ids,
                 }
-                for p in intervencion.productos_usados.all()
+                for p in intervencion.productos_usados.select_related("producto").all()
             ]
 
         events.append({

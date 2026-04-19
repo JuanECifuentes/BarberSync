@@ -520,6 +520,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 intervencionEstado: props.intervencion_estado,
                 intervencionProductos: props.intervencion_productos || [],
             };
+            // Build deleted product names map for readonly rows
+            window._deletedProductNames = {};
+            if (props.intervencion_productos) {
+                props.intervencion_productos.forEach(p => {
+                    if (p.is_deleted) {
+                        window._deletedProductNames[p.product_id] = p.name;
+                    }
+                });
+            }
 
             // Tooltip helper (? icon with hover tooltip)
             const tooltipIcon = (text) => `
@@ -566,12 +575,19 @@ document.addEventListener('DOMContentLoaded', function() {
                             <span class="text-neutral-400 text-xs uppercase tracking-wide">Productos utilizados</span>
                             ${tooltipIcon('Estos precios son históricos, registrados al momento de completar el servicio.')}
                         </div>
-                        ${props.intervencion_productos.map(p => `
+                        ${props.intervencion_productos.map(p => {
+                            const deletedTooltip = 'Este producto fue eliminado del catálogo pero se mantiene en el historial por ser parte de intervenciones pasadas.';
+                            const autoTooltip = 'Este producto fue agregado automáticamente al seleccionar los servicios.';
+                            return `
                             <div class="flex justify-between text-sm">
-                                <span class="text-neutral-300">${p.name} x${p.cantidad}</span>
+                                <span class="flex items-center gap-1.5 text-neutral-300">
+                                    ${p.name} x${p.cantidad}
+                                    ${p.is_deleted ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/60 text-red-300 border border-red-700/50" title="${deletedTooltip}">Eliminado</span>` : ''}
+                                    ${!p.is_deleted && p.auto ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900/60 text-blue-300 border border-blue-700/50" title="${autoTooltip}">Auto</span>` : ''}
+                                </span>
                                 <span class="text-white font-medium">$${Math.round(parseFloat(p.subtotal)).toLocaleString('de-DE')}</span>
-                            </div>
-                        `).join('')}
+                            </div>`;
+                        }).join('')}
                     </div>`;
             }
 
@@ -639,7 +655,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Pre-populate existing products in the consumption section
             if (props.status !== 'cancelled' && props.intervencion_productos && props.intervencion_productos.length > 0) {
                 props.intervencion_productos.forEach(p => {
-                    calAddProductRow(p.product_id, p.cantidad);
+                    calAddProductRow(p.product_id, p.cantidad, p.auto, p.is_deleted);
                 });
             }
 
@@ -716,11 +732,27 @@ document.addEventListener('DOMContentLoaded', function() {
         return tpl.innerHTML;
     };
 
-    window.calAddProductRow = function(productoId, cantidad) {
+    window.calAddProductRow = function(productoId, cantidad, auto, isDeleted) {
         const container = document.getElementById('cal-productos-container');
         if (!container) return;
         const row = document.createElement('div');
         row.className = 'flex items-center gap-2 cal-producto-row';
+
+        // For deleted products: show readonly with Eliminado tag
+        if (isDeleted) {
+            row.innerHTML = `
+                <div class="flex-1 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-400 text-sm flex items-center gap-2">
+                    <span class="flex-1">${window._deletedProductNames && window._deletedProductNames[productoId] ? window._deletedProductNames[productoId] : 'Producto eliminado'}</span>
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/60 text-red-300 border border-red-700/50" title="Este producto fue eliminado del catálogo pero se mantiene en el historial.">Eliminado</span>
+                </div>
+                <input type="number" min="1" value="${cantidad || 1}" placeholder="Cant."
+                       class="cprod-qty w-20 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-400 text-sm text-center cursor-not-allowed" readonly>
+                <div class="w-6 flex-shrink-0"></div>
+            `;
+            container.appendChild(row);
+            return;
+        }
+
         row.innerHTML = `
             <select class="cprod-select flex-1 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                 ${calGetProductOptionsHTML()}
