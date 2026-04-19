@@ -223,8 +223,8 @@
         position: fixed; inset: 0;
         background: rgba(0, 0, 0, 0.6);
         z-index: 50;
-        display: flex; align-items: center; justify-content: center;
-        padding: 1rem;
+        display: flex; align-items: flex-start; justify-content: center;
+        padding: 2rem 1rem;
         overflow-y: auto;
     }
     .modal-content {
@@ -232,10 +232,10 @@
         border: 1px solid #3d3d41;
         border-radius: 12px;
         width: 100%; max-width: 42rem; /* max-w-2xl — same as barberos modal */
-        max-height: 90vh;
-        overflow-y: auto; padding: 24px;
+        padding: 24px;
         box-shadow: 0 25px 50px rgba(0,0,0,0.5);
         margin: auto;
+        position: relative;
     }
     .confirm-backdrop {
         position: fixed; inset: 0;
@@ -536,7 +536,7 @@
                     <!-- Barbero -->
                     <div>
                         <label class="block text-sm font-medium text-neutral-300 mb-1">Barbero</label>
-                        <select x-model="form.barber_id"
+                        <select x-model="form.barber_id" @change="onBarberChange()"
                                 class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                             <option value="">Seleccionar barbero...</option>
                             {% for barber in barbers %}
@@ -570,12 +570,20 @@
                         </div>
                     </div>
 
-                    <!-- Servicios (acordeones por categoría) -->
+                    <!-- Servicios (acordeones por categoría) — requiere seleccionar barbero primero -->
                     <div>
                         <label class="block text-sm font-medium text-neutral-300 mb-1">Servicios</label>
-                        <div class="space-y-2 max-h-40 overflow-y-auto pr-1" id="modal-services-accordion">
+                        <div x-show="!form.barber_id" class="px-4 py-3 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-500 text-sm text-center">
+                            Selecciona un barbero para ver sus servicios disponibles
+                        </div>
+                        <div x-show="barberServicesLoading" class="px-4 py-3 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-400 text-sm text-center flex items-center justify-center gap-2">
+                            <span class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin inline-block"></span>
+                            Cargando servicios...
+                        </div>
+                        <div x-show="form.barber_id && !barberServicesLoading && barberServiceIds.length > 0" class="space-y-2 max-h-40 overflow-y-auto pr-1" id="modal-services-accordion">
                             {% for cat_name, group in grouped_services.items %}
-                            <div class="modal-svc-group">
+                            <div class="modal-svc-group" data-cat-name="{{ cat_name }}"
+                                 x-show="categoryHasBarberServices([{% for service in group.services %}{{ service.pk }}{% if not forloop.last %},{% endif %}{% endfor %}])">
                                 <button type="button" onclick="toggleModalAccordion(this)"
                                         class="w-full flex items-center justify-between px-3 py-2 hover:bg-neutral-800/50 transition-colors rounded-lg">
                                     <div class="flex items-center gap-3">
@@ -583,13 +591,13 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                                         </svg>
                                         <h3 class="font-heading font-bold text-white text-sm">{{ cat_name }}</h3>
-                                        <span class="cat-count text-xs text-neutral-400 bg-neutral-800 px-2 py-0.5 rounded-full">{{ group.services|length }}</span>
                                     </div>
                                 </button>
                                 <div class="modal-accordion-body" style="max-height:500px;opacity:1;">
                                     <div class="space-y-1 pt-1">
                                         {% for service in group.services %}
                                         <label class="flex items-center justify-between p-3 bg-neutral-800 border border-neutral-700 rounded-lg cursor-pointer hover:border-neutral-600 transition-colors"
+                                               x-show="barberServiceIds.includes({{ service.pk }})"
                                                :class="form.service_ids.includes({{ service.pk }}) ? 'border-brand ring-1 ring-brand' : ''">
                                             <div class="flex items-center gap-3">
                                                 <input type="checkbox"
@@ -598,11 +606,13 @@
                                                        class="w-4 h-4 rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-700">
                                                 <div>
                                                     <span class="text-sm text-white">{{ service.name }}</span>
-                                                    <span class="text-xs text-neutral-400 ml-2">{{ service.duration_minutes }} min</span>
+                                                    <span class="text-xs text-neutral-400 ml-2" x-text="getBarberServiceDuration({{ service.pk }}, {{ service.duration_minutes }}) + ' min'"></span>
                                                 </div>
                                             </div>
                                             <span class="text-sm font-heading font-bold text-brand"
-                                                  data-raw-price="{{ service.price }}">${{ service.price|floatformat:"0" }}</span>
+                                                  data-service-id="{{ service.pk }}"
+                                                  data-raw-price="{{ service.price }}"
+                                                  x-text="'$' + fmtMoney(getBarberServicePrice({{ service.pk }}, '{{ service.price }}'))"></span>
                                         </label>
                                         {% endfor %}
                                     </div>
@@ -610,12 +620,15 @@
                             </div>
                             {% endfor %}
                         </div>
+                        <div x-show="form.barber_id && !barberServicesLoading && barberServiceIds.length === 0" class="px-4 py-3 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-500 text-sm text-center">
+                            Este barbero no tiene servicios asignados
+                        </div>
                     </div>
 
                     <!-- Productos (dinámico) -->
                     <div>
                         <label class="block text-sm font-medium text-neutral-300 mb-1">Productos (Opcional)</label>
-                        <div class="space-y-2 max-h-40 overflow-y-auto pr-1" id="modal-productos-container">
+                        <div class="space-y-2 pr-1" id="modal-productos-container">
                             <!-- Dynamic rows -->
                         </div>
                         <button type="button" @click="addProductRow()"
@@ -623,6 +636,12 @@
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                             Agregar producto
                         </button>
+                    </div>
+
+                    <!-- Total Estimado -->
+                    <div class="p-3 bg-neutral-800/70 border border-neutral-700 rounded-lg flex items-center justify-between">
+                        <span class="text-sm font-medium text-neutral-300">Total Estimado</span>
+                        <span class="text-lg font-heading font-bold text-brand" x-text="totalEstimado"></span>
                     </div>
 
                     <!-- Sucursal -->
@@ -1013,6 +1032,10 @@ function intervencionesApp() {
         clientResults: [],
         flatpickrInstance: null,
         flatpickrRangeInstance: null,
+        barberServiceIds: [],
+        barberServicesData: {},
+        barberServicesLoading: false,
+        totalEstimado: '$0',
 
         // Dropdown open states
         dropdowns: { servicios: false, barberos: false, sucursales: false, estados: false },
@@ -1143,10 +1166,14 @@ function intervencionesApp() {
             this.clientSearch = '';
             this.clientResults = [];
             this.editingId = null;
+            this.barberServiceIds = [];
+            this.barberServicesData = {};
+            this.barberServicesLoading = false;
         },
 
         openCreateModal() {
             this.resetForm();
+            this.totalEstimado = '$0';
             this.showModal = true;
             this.$nextTick(() => {
                 this.clearProductRows();
@@ -1166,20 +1193,36 @@ function intervencionesApp() {
                 this.form.barber_id = data.barber_id.toString();
                 this.form.client_id = data.client_id;
                 this.form.selectedClient = { id: data.client_id, name: data.cliente };
-                this.form.service_ids = data.service_ids;
                 this.form.fecha = data.fecha;
                 this.form.notas = data.notas || '';
                 this.form.estado = data.estado || 'pendiente';
                 this.form.sucursal_id = data.sucursal_id ? data.sucursal_id.toString() : '{{ current_barbershop_id }}';
+
+                // Load barber services before setting service_ids so they're visible
+                if (this.form.barber_id) {
+                    this.barberServicesLoading = true;
+                    try {
+                        const bsRes = await fetch(`/app/intervenciones/api/barber-services/${this.form.barber_id}/`);
+                        if (bsRes.ok) {
+                            const bsData = await bsRes.json();
+                            this.barberServiceIds = bsData.services.map(s => s.id);
+                            bsData.services.forEach(s => { this.barberServicesData[s.id] = s; });
+                        }
+                    } catch (e) { console.error(e); }
+                    this.barberServicesLoading = false;
+                }
+
+                this.form.service_ids = data.service_ids;
                 this.showModal = true;
                 this.$nextTick(() => {
                     this.clearProductRows();
                     if (data.productos && data.productos.length > 0) {
-                        data.productos.forEach(p => this.addProductRow(p.producto_id, p.cantidad, p.auto));
+                        data.productos.forEach(p => this.addProductRow(p.producto_id, p.cantidad, p.auto, p.is_deleted, p.nombre, p.precio));
                     }
                     this.initFlatpickr();
                     this.formatModalPrices();
                     initModalAccordions();
+                    this.$nextTick(() => this.updateTotalEstimado());
                 });
             } catch (e) {
                 console.error(e);
@@ -1217,12 +1260,100 @@ function intervencionesApp() {
             const idx = this.form.service_ids.indexOf(id);
             if (idx >= 0) this.form.service_ids.splice(idx, 1);
             else this.form.service_ids.push(id);
+            this.updateTotalEstimado();
+        },
+
+        // Wrapper so Alpine x-text can call formatMoney (global fn)
+        fmtMoney(val) { return formatMoney(val); },
+
+        async onBarberChange() {
+            // Clear selected services when barber changes
+            this.form.service_ids = [];
+            this.barberServiceIds = [];
+            this.barberServicesData = {};
+            this.updateTotalEstimado();
+            if (!this.form.barber_id) return;
+
+            this.barberServicesLoading = true;
+            try {
+                const res = await fetch(`/app/intervenciones/api/barber-services/${this.form.barber_id}/`);
+                if (!res.ok) throw new Error('Error ' + res.status);
+                const data = await res.json();
+                this.barberServiceIds = (data.services || []).map(s => s.id);
+                (data.services || []).forEach(s => {
+                    this.barberServicesData[s.id] = s;
+                });
+            } catch (e) {
+                console.error('Error loading barber services:', e);
+                this.barberServiceIds = [];
+            }
+            this.barberServicesLoading = false;
+            // Wait for Alpine to render the x-show elements, then init accordions
+            this.$nextTick(() => {
+                setTimeout(() => initModalAccordions(), 50);
+            });
+        },
+
+        categoryHasBarberServices(serviceIds) {
+            if (!serviceIds || !this.barberServiceIds.length) return false;
+            return serviceIds.some(id => this.barberServiceIds.includes(id));
+        },
+
+        getBarberServicePrice(serviceId, defaultPrice) {
+            const bs = this.barberServicesData[serviceId];
+            let val = bs ? bs.price : defaultPrice;
+            if (typeof val === 'string') {
+                val = val.replace(',', '.');
+            }
+            return Math.round(parseFloat(val)) || 0;
+        },
+
+        getBarberServiceDuration(serviceId, defaultDuration) {
+            const bs = this.barberServicesData[serviceId];
+            return bs ? bs.duration : defaultDuration;
+        },
+
+        updateTotalEstimado() {
+            let total = 0;
+            // Services total: use barber-specific prices if available, fallback to data-raw-price
+            this.form.service_ids.forEach(id => {
+                const bs = this.barberServicesData[id];
+                if (bs) {
+                    total += parseFloat(String(bs.price).replace(',', '.')) || 0;
+                } else {
+                    // Fallback: read from DOM data-raw-price attribute
+                    const el = document.querySelector(`[data-service-id="${id}"][data-raw-price]`);
+                    if (el) total += parseFloat(String(el.getAttribute('data-raw-price')).replace(',', '.')) || 0;
+                }
+            });
+            // Products total: sum from active selects AND deleted product rows
+            document.querySelectorAll('#modal-productos-container .interv-producto-row').forEach(row => {
+                const qtyInput = row.querySelector('.iprod-qty');
+                const qty = parseInt(qtyInput.value) || 0;
+                if (qty <= 0) return;
+
+                // Deleted products store unit price in data attribute
+                const storedPrice = row.getAttribute('data-unit-price');
+                if (storedPrice) {
+                    total += parseFloat(storedPrice) * qty;
+                    return;
+                }
+                // Active products: read from select option
+                const sel = row.querySelector('.iprod-select');
+                if (sel && sel.tagName === 'SELECT') {
+                    const option = sel.options[sel.selectedIndex];
+                    const unitPrice = option ? parseFloat(option.getAttribute('data-price')) : 0;
+                    if (unitPrice) total += unitPrice * qty;
+                }
+            });
+            this.totalEstimado = '$' + formatMoney(Math.round(total));
         },
 
         formatModalPrices() {
             document.querySelectorAll('[data-raw-price]').forEach(el => {
                 const raw = el.getAttribute('data-raw-price');
-                const num = parseInt(parseFloat(raw));
+                let val = String(raw).replace(',', '.');
+                const num = Math.round(parseFloat(val)) || 0;
                 el.textContent = '$' + formatMoney(num);
             });
         },
@@ -1233,37 +1364,86 @@ function intervencionesApp() {
             return tpl ? tpl.innerHTML : '<option value="">Sin productos</option>';
         },
 
-        addProductRow(productoId, cantidad, autoConsumed) {
+        addProductRow(productoId, cantidad, autoConsumed, isDeleted, deletedName, unitPrice) {
             const container = document.getElementById('modal-productos-container');
             const row = document.createElement('div');
             row.className = 'flex items-center gap-2 interv-producto-row';
-            row.innerHTML = `
-                ${autoConsumed
-                    ? '<span class="text-[10px] font-semibold uppercase tracking-wider text-blue-400 bg-blue-400/10 border border-blue-400/20 px-2 py-1 rounded flex-shrink-0" title="Agregado automáticamente por el servicio">Auto</span>'
-                    : ''
-                }
-                <select class="iprod-select flex-1 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-                    ${this.getProductOptionsHTML()}
-                </select>
-                <input type="number" min="1" value="${cantidad || 1}" placeholder="Cant."
-                       class="iprod-qty w-20 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm text-center focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-                <button type="button" class="text-red-400 hover:text-red-300 p-1 transition-colors flex-shrink-0 iprod-remove-btn">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
-            `;
+
+            if (isDeleted) {
+                // Deleted product: readonly display with red "Eliminado" tag
+                // unitPrice comes from the historical IntervencionProducto.precio_unitario
+                const qty = cantidad || 1;
+                const price = parseFloat(unitPrice) || 0;
+                const lineTotal = price * qty;
+                row.setAttribute('data-unit-price', price);
+                row.innerHTML = `
+                    <span class="relative group/tipdel flex-shrink-0 cursor-help">
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/60 text-red-300 border border-red-700/50">Eliminado</span>
+                        <span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipdel:opacity-100 group-hover/tipdel:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">
+                            Este producto fue eliminado del catálogo. Se conserva como registro histórico.
+                        </span>
+                    </span>
+                    <input type="hidden" class="iprod-select" value="${productoId}">
+                    <span class="flex-1 px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-500 text-sm line-through">${deletedName || 'Producto eliminado'}</span>
+                    <input type="number" min="1" value="${qty}" readonly
+                           class="iprod-qty w-20 px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-500 text-sm text-center cursor-not-allowed">
+                    <span class="iprod-line-price text-xs text-neutral-500 w-24 text-right flex-shrink-0">${lineTotal > 0 ? '$' + formatMoney(lineTotal) : '—'}</span>
+                    <span class="w-6"></span>
+                `;
+            } else {
+                row.innerHTML = `
+                    ${autoConsumed
+                        ? '<span class="relative group/tipauto flex-shrink-0 cursor-help"><span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900/60 text-blue-300 border border-blue-700/50">Auto</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipauto:opacity-100 group-hover/tipauto:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">Agregado automáticamente por el servicio</span></span>'
+                        : ''
+                    }
+                    <select class="iprod-select flex-1 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                        ${this.getProductOptionsHTML()}
+                    </select>
+                    <input type="number" min="1" value="${cantidad || 1}" placeholder="Cant."
+                           class="iprod-qty w-20 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm text-center focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                    <span class="iprod-line-price text-xs text-brand font-semibold w-24 text-right flex-shrink-0"></span>
+                    <button type="button" class="text-red-400 hover:text-red-300 p-1 transition-colors flex-shrink-0 iprod-remove-btn">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                `;
+            }
             container.appendChild(row);
-            if (productoId) {
+            if (productoId && !isDeleted) {
                 row.querySelector('.iprod-select').value = productoId;
             }
-            // Bind remove
-            row.querySelector('.iprod-remove-btn').addEventListener('click', () => {
-                row.remove();
-                this.form.productCount = this.getProductRows().length;
-            });
-            // Bind select change
-            row.querySelector('.iprod-select').addEventListener('change', () => {
-                this.form.productCount = this.getProductRows().length;
-            });
+            const updateLinePrice = () => {
+                const sel = row.querySelector('.iprod-select');
+                const qtyInput = row.querySelector('.iprod-qty');
+                const lineEl = row.querySelector('.iprod-line-price');
+                const option = sel.tagName === 'SELECT' ? sel.options[sel.selectedIndex] : null;
+                const unitPrice = option ? parseFloat(option.getAttribute('data-price')) : 0;
+                const qty = parseInt(qtyInput.value) || 0;
+                if (unitPrice && qty > 0) {
+                    lineEl.textContent = '$' + formatMoney(unitPrice * qty);
+                } else {
+                    lineEl.textContent = '';
+                }
+                this.updateTotalEstimado();
+            };
+
+            if (!isDeleted) {
+                // Bind remove
+                row.querySelector('.iprod-remove-btn').addEventListener('click', () => {
+                    row.remove();
+                    this.form.productCount = this.getProductRows().length;
+                    this.updateTotalEstimado();
+                });
+                // Bind select change and quantity input
+                row.querySelector('.iprod-select').addEventListener('change', () => {
+                    this.form.productCount = this.getProductRows().length;
+                    updateLinePrice();
+                });
+                row.querySelector('.iprod-qty').addEventListener('input', () => {
+                    updateLinePrice();
+                });
+                // Initial line price
+                this.$nextTick(() => updateLinePrice());
+            }
             this.form.productCount = this.getProductRows().length;
         },
 

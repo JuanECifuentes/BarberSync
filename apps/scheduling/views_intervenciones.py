@@ -38,9 +38,9 @@ class IntervencionListView(LoginRequiredMixin, TemplateView):
         barbershop = self.request.barbershop
 
         ctx["barbers"] = BarberProfile.objects.filter(
-            membership__barbershop=barbershop,
+            Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
             is_active=True,
-        ).select_related("membership__user")
+        ).select_related("membership__user").distinct()
         services = Service.objects.filter(
             barbershop=barbershop, is_active=True,
         ).select_related("category")
@@ -390,7 +390,7 @@ class IntervencionCreateView(LoginRequiredMixin, View):
 
             # Auto-consume products linked to services via ServicioProducto
             for service in services:
-                for sp in service.productos_consumidos.select_related("producto").all():
+                for sp in service.productos_consumidos.select_related("producto").filter(producto__is_active=True):
                     product = Product.objects.select_for_update().get(pk=sp.producto_id)
                     # Check if already added explicitly; if so, add to existing quantity
                     existing = IntervencionProducto.objects.filter(
@@ -522,8 +522,10 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
                 cantidad = int(item.get("cantidad", 1))
                 if not prod_id or cantidad <= 0:
                     continue
+                # Allow both active and inactive (deleted) products in edits
+                # Deleted products are kept as historical records (readonly in UI)
                 product = Product.objects.select_for_update().filter(
-                    pk=prod_id, barbershop=target_barbershop, is_active=True,
+                    pk=prod_id, barbershop=target_barbershop,
                 ).first()
                 if not product:
                     continue
@@ -534,8 +536,19 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
                     precio_unitario=product.price,
                 )
 
-            # Deduct stock for updated products
-            _deduct_stock(intervencion, request.user)
+            # Deduct stock only for active products
+            for ip in intervencion.productos_usados.select_related("producto").all():
+                if not ip.producto.is_active:
+                    continue
+                product = Product.objects.select_for_update().get(pk=ip.producto_id)
+                StockMovement(
+                    product=product,
+                    quantity=-ip.cantidad,
+                    reason=StockMovement.Reason.SALE,
+                    notes=f"Intervención #{intervencion.pk}",
+                    resulting_stock=0,
+                    updated_by=request.user,
+                ).save()
 
         return JsonResponse({"message": "Intervención actualizada", "id": intervencion.pk})
 
@@ -673,7 +686,8 @@ class IntervencionDetailAPI(LoginRequiredMixin, View):
             "productos": [
                 {"producto_id": p.producto_id, "nombre": p.producto.name,
                  "cantidad": p.cantidad, "precio": str(p.precio_unitario),
-                 "auto": p.producto_id in auto_product_ids}
+                 "auto": p.producto_id in auto_product_ids,
+                 "is_deleted": not p.producto.is_active}
                 for p in productos
             ],
         })

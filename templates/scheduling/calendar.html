@@ -313,11 +313,9 @@
 <!-- ═══════════════════════════════════════════ -->
 <!-- Appointment detail modal                   -->
 <!-- ═══════════════════════════════════════════ -->
-<div id="apt-modal" class="fixed inset-0 z-50 hidden">
-    <div class="absolute inset-0 bg-black/70" onclick="closeModal()"></div>
-    <div class="absolute bottom-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2
-                w-full sm:max-w-md bg-neutral-900 border border-neutral-700 rounded-t-2xl sm:rounded-2xl
-                shadow-2xl max-h-[85vh] overflow-y-auto">
+<div id="apt-modal" class="fixed inset-0 z-[100] hidden items-start justify-center p-4 overflow-y-auto bg-black/70">
+    <div class="absolute inset-0" onclick="closeModal()"></div>
+    <div class="relative w-full sm:max-w-md bg-neutral-900 border border-neutral-700 rounded-2xl shadow-2xl my-auto sm:my-8 pointer-events-auto">
         <div class="p-5 space-y-4">
             <div class="flex items-center justify-between">
                 <h3 id="modal-title" class="font-heading font-bold text-lg text-white"></h3>
@@ -520,6 +518,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 intervencionEstado: props.intervencion_estado,
                 intervencionProductos: props.intervencion_productos || [],
             };
+            // Build deleted product names map for readonly rows
+            window._deletedProductNames = {};
+            if (props.intervencion_productos) {
+                props.intervencion_productos.forEach(p => {
+                    if (p.is_deleted) {
+                        window._deletedProductNames[p.product_id] = p.name;
+                    }
+                });
+            }
 
             // Tooltip helper (? icon with hover tooltip)
             const tooltipIcon = (text) => `
@@ -566,12 +573,19 @@ document.addEventListener('DOMContentLoaded', function() {
                             <span class="text-neutral-400 text-xs uppercase tracking-wide">Productos utilizados</span>
                             ${tooltipIcon('Estos precios son históricos, registrados al momento de completar el servicio.')}
                         </div>
-                        ${props.intervencion_productos.map(p => `
+                        ${props.intervencion_productos.map(p => {
+                            const deletedTooltip = 'Este producto fue eliminado del catálogo pero se mantiene en el historial por ser parte de intervenciones pasadas.';
+                            const autoTooltip = 'Este producto fue agregado automáticamente al seleccionar los servicios.';
+                            return `
                             <div class="flex justify-between text-sm">
-                                <span class="text-neutral-300">${p.name} x${p.cantidad}</span>
+                                <span class="flex items-center gap-1.5 text-neutral-300">
+                                    ${p.name} x${p.cantidad}
+                                    ${p.is_deleted ? `<span class="relative group/tipdel"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/60 text-red-300 border border-red-700/50 cursor-help">Eliminado</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipdel:opacity-100 group-hover/tipdel:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">${deletedTooltip}</span></span>` : ''}
+                                    ${!p.is_deleted && p.auto ? `<span class="relative group/tipauto"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900/60 text-blue-300 border border-blue-700/50 cursor-help">Auto</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipauto:opacity-100 group-hover/tipauto:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">${autoTooltip}</span></span>` : ''}
+                                </span>
                                 <span class="text-white font-medium">$${Math.round(parseFloat(p.subtotal)).toLocaleString('de-DE')}</span>
-                            </div>
-                        `).join('')}
+                            </div>`;
+                        }).join('')}
                     </div>`;
             }
 
@@ -598,7 +612,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 productConsumptionHtml = `
                     <div class="space-y-2">
                         <span class="text-neutral-400 text-xs uppercase tracking-wide">Consumo de productos</span>
-                        <div id="cal-productos-container" class="space-y-2 max-h-40 overflow-y-auto pr-1"></div>
+                        <div id="cal-productos-container" class="space-y-2 pr-1"></div>
                         <button type="button" onclick="calAddProductRow()"
                                 class="text-xs text-brand hover:text-white border border-neutral-700 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
@@ -639,7 +653,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Pre-populate existing products in the consumption section
             if (props.status !== 'cancelled' && props.intervencion_productos && props.intervencion_productos.length > 0) {
                 props.intervencion_productos.forEach(p => {
-                    calAddProductRow(p.product_id, p.cantidad);
+                    calAddProductRow(p.product_id, p.cantidad, p.auto, p.is_deleted);
                 });
             }
 
@@ -669,6 +683,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             actionsEl.innerHTML = actionsHtml;
             document.getElementById('apt-modal').classList.remove('hidden');
+            document.getElementById('apt-modal').classList.add('flex');
         },
 
         // Styling
@@ -716,11 +731,30 @@ document.addEventListener('DOMContentLoaded', function() {
         return tpl.innerHTML;
     };
 
-    window.calAddProductRow = function(productoId, cantidad) {
+    window.calAddProductRow = function(productoId, cantidad, auto, isDeleted) {
         const container = document.getElementById('cal-productos-container');
         if (!container) return;
         const row = document.createElement('div');
         row.className = 'flex items-center gap-2 cal-producto-row';
+
+        // For deleted products: show readonly with Eliminado tag
+        if (isDeleted) {
+            row.innerHTML = `
+                <div class="flex-1 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-400 text-sm flex items-center gap-2">
+                    <span class="flex-1">${window._deletedProductNames && window._deletedProductNames[productoId] ? window._deletedProductNames[productoId] : 'Producto eliminado'}</span>
+                    <span class="relative group/tipdel">
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/60 text-red-300 border border-red-700/50 cursor-help">Eliminado</span>
+                        <span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipdel:opacity-100 group-hover/tipdel:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">Este producto fue eliminado del catálogo pero se mantiene en el historial.</span>
+                    </span>
+                </div>
+                <input type="number" min="1" value="${cantidad || 1}" placeholder="Cant."
+                       class="cprod-qty w-20 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-400 text-sm text-center cursor-not-allowed" readonly>
+                <div class="w-6 flex-shrink-0"></div>
+            `;
+            container.appendChild(row);
+            return;
+        }
+
         row.innerHTML = `
             <select class="cprod-select flex-1 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                 ${calGetProductOptionsHTML()}
@@ -786,12 +820,19 @@ document.addEventListener('DOMContentLoaded', function() {
                     <span class="text-neutral-400 text-xs uppercase tracking-wide">Productos utilizados</span>
                     ${tooltipHtml}
                 </div>
-                ${products.map(p => `
+                ${products.map(p => {
+                    const deletedTooltip = 'Este producto fue eliminado del catálogo pero se mantiene en el historial por ser parte de intervenciones pasadas.';
+                    const autoTooltip = 'Este producto fue agregado automáticamente al seleccionar los servicios.';
+                    return `
                     <div class="flex justify-between text-sm">
-                        <span class="text-neutral-300">${p.name} x${p.cantidad}</span>
+                        <span class="flex items-center gap-1.5 text-neutral-300">
+                            ${p.name} x${p.cantidad}
+                            ${p.is_deleted ? `<span class="relative group/tipdel"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/60 text-red-300 border border-red-700/50 cursor-help">Eliminado</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipdel:opacity-100 group-hover/tipdel:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">${deletedTooltip}</span></span>` : ''}
+                            ${!p.is_deleted && p.auto ? `<span class="relative group/tipauto"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900/60 text-blue-300 border border-blue-700/50 cursor-help">Auto</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipauto:opacity-100 group-hover/tipauto:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">${autoTooltip}</span></span>` : ''}
+                        </span>
                         <span class="text-white font-medium">$${Math.round(p.subtotal).toLocaleString('de-DE')}</span>
                     </div>
-                `).join('')}`;
+                `}).join('')}`;
             if (displayEl) {
                 displayEl.innerHTML = html;
             } else {
@@ -1066,6 +1107,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function closeModal() {
     document.getElementById('apt-modal').classList.add('hidden');
+    document.getElementById('apt-modal').classList.remove('flex');
 }
 function closeNewAptModal() {
     document.getElementById('new-apt-modal').classList.add('hidden');

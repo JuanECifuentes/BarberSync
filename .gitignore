@@ -18,3 +18,5 @@ Thumbs.db
 
 */migrations/*
 !*/migrations/__init__.py
+
+pyrightconfig.json

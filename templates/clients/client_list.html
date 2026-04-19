@@ -3,90 +3,1130 @@
 {% block title %}Clientes – BarberSync{% endblock %}
 {% block page_title %}Clientes{% endblock %}
 
+{% block extra_head %}
+<!-- ag-Grid Community CSS + JS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-grid.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-theme-alpine.css">
+<script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/dist/ag-grid-community.min.noStyle.js"></script>
+<!-- Alpine.js -->
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+<!-- Flatpickr + confirmDate plugin -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/confirmDate/confirmDate.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/confirmDate/confirmDate.js"></script>
+
+<style>
+    /* ── Animated button ── */
+    .btn-action-primary {
+        position: relative;
+        overflow: hidden;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .btn-action-primary::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: #ff2301;
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 0;
+        border-radius: inherit;
+    }
+    .btn-action-primary:not(:disabled):hover::before { transform: scaleX(1); }
+    .btn-action-primary:not(:disabled):hover {
+        color: #fff !important;
+        border-color: #ff2301 !important;
+        transform: scale(1.03);
+        box-shadow: 0 4px 16px rgba(255, 35, 1, 0.3);
+    }
+    .btn-action-primary > *,
+    .btn-action-primary span,
+    .btn-action-primary svg { position: relative; z-index: 1; }
+
+    /* ── ag-Grid dark theme overrides ── */
+    .ag-theme-alpine {
+        --ag-background-color: #1a1a1c;
+        --ag-header-background-color: #2a2a2d;
+        --ag-odd-row-background-color: #1f1f22;
+        --ag-row-hover-color: rgba(255, 35, 1, 0.08);
+        --ag-selected-row-background-color: rgba(255, 35, 1, 0.15);
+        --ag-range-selection-border-color: #ff2301;
+        --ag-border-color: #3d3d41;
+        --ag-header-foreground-color: #b8b8be;
+        --ag-foreground-color: #ffffff;
+        --ag-secondary-foreground-color: #91919a;
+        --ag-input-focus-border-color: #ff2301;
+        --ag-checkbox-checked-color: #ff2301;
+        --ag-row-border-color: #2a2a2d;
+        --ag-control-panel-background-color: #2a2a2d;
+        --ag-input-border-color: #4a4a4f;
+        --ag-alpine-active-color: #ff2301;
+        --ag-font-family: 'Poppins', sans-serif;
+        --ag-font-size: 13px;
+        --ag-header-height: 44px;
+        --ag-row-height: 48px;
+    }
+    .ag-theme-alpine .ag-header-cell {
+        font-family: 'Roboto', sans-serif;
+        font-weight: 700;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .ag-theme-alpine .ag-header-cell-label .ag-sort-indicator-icon { color: #ff2301; }
+    .ag-theme-alpine .ag-paging-panel {
+        background-color: #2a2a2d;
+        border-top: 1px solid #3d3d41;
+        color: #b8b8be;
+    }
+    .ag-theme-alpine .ag-paging-button { color: #b8b8be; }
+    .ag-theme-alpine .ag-paging-button:hover { color: #ff2301; }
+    .ag-theme-alpine .ag-paging-page-size { display: none !important; }
+    .ag-theme-alpine .ag-overlay-loading-center {
+        background-color: rgba(26, 26, 28, 0.9);
+        color: #ff2301;
+        border: 1px solid #3d3d41;
+        border-radius: 8px;
+        padding: 20px 40px;
+        font-family: 'Poppins', sans-serif;
+    }
+
+    /* Unified tag style */
+    .unified-tag {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 10px;
+        border-radius: 9999px;
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    /* Grid action buttons */
+    .grid-action-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        border-radius: 6px;
+        border: 1px solid #4a4a4f;
+        background: transparent;
+        color: #b8b8be;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .grid-action-btn:hover {
+        background: #ff2301;
+        border-color: #ff2301;
+        color: white;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(255, 35, 1, 0.3);
+    }
+    .grid-action-btn.delete:hover {
+        background: #dc2626;
+        border-color: #dc2626;
+        box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+    }
+    .grid-action-btn.ficha:hover {
+        background: #ec4899;
+        border-color: #ec4899;
+        box-shadow: 0 2px 8px rgba(236, 72, 153, 0.3);
+    }
+
+    /* Modals */
+    .modal-backdrop {
+        position: fixed; inset: 0;
+        background: rgba(0, 0, 0, 0.6);
+        z-index: 50;
+        display: flex; align-items: center; justify-content: center;
+        padding: 1rem;
+        overflow-y: auto;
+    }
+    .modal-content {
+        background: #1a1a1c;
+        border: 1px solid #3d3d41;
+        border-radius: 12px;
+        width: 100%; max-width: 42rem;
+        max-height: 95vh;
+        overflow-y: auto; padding: 24px;
+        box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+        margin: auto;
+    }
+    .confirm-backdrop {
+        position: fixed; inset: 0;
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(2px);
+        z-index: 60;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .confirm-content {
+        background: #2a2a2d;
+        border: 1px solid #3d3d41;
+        border-radius: 12px;
+        padding: 24px; max-width: 400px; width: 100%;
+        text-align: center;
+    }
+
+    /* ── Multi-select dropdown ── */
+    .ms-dropdown { position: relative; }
+    .ms-trigger {
+        display: flex; align-items: center; justify-content: space-between;
+        width: 100%; padding: 8px 12px;
+        background: #2a2a2d; border: 1px solid #4a4a4f; border-radius: 8px;
+        color: #fff; font-size: 13px; cursor: pointer; transition: border-color 0.2s; min-height: 38px;
+    }
+    .ms-trigger:hover, .ms-trigger:focus { border-color: #ff2301; }
+    .ms-trigger .ms-count {
+        background: rgba(255, 35, 1, 0.2); color: #ff6b56;
+        font-size: 11px; font-weight: 600; padding: 2px 8px;
+        border-radius: 9999px; margin-left: 8px;
+    }
+    .ms-panel {
+        position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+        background: #2a2a2d; border: 1px solid #4a4a4f; border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4); z-index: 30;
+        max-height: 220px; overflow-y: auto; padding: 4px 0;
+    }
+    .ms-option {
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 12px; cursor: pointer; font-size: 13px; color: #d9d9dd; transition: background 0.15s;
+    }
+    .ms-option:hover { background: rgba(255, 255, 255, 0.05); }
+    .ms-option input[type="checkbox"] {
+        width: 16px; height: 16px; border-radius: 4px;
+        border: 1px solid #4a4a4f; background: #1a1a1c; accent-color: #ff2301; cursor: pointer;
+    }
+
+    /* Estado badges */
+    .estado-badge {
+        display: inline-flex; align-items: center; padding: 6px 10px;
+        border-radius: 9999px; font-size: 11px; font-weight: 600;
+        line-height: 1; white-space: nowrap; text-transform: capitalize;
+    }
+    .estado-pendiente { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+    .estado-en_progreso { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+    .estado-realizada { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+    .estado-cancelada { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+
+    /* Flatpickr overrides */
+    .flatpickr-confirm {
+        background: #ff2301 !important; color: #fff !important;
+        font-weight: 600 !important; border: none !important;
+        border-radius: 0 0 8px 8px !important; padding: 8px !important;
+        cursor: pointer !important; transition: background 0.2s ease !important;
+    }
+    .flatpickr-confirm:hover { background: #e01e00 !important; }
+    .flatpickr-confirm svg { display: none !important; }
+    .flatpickr-calendar {
+        background: #2a2a2d !important; border-color: #4a4a4f !important;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4) !important;
+    }
+    .flatpickr-day.selected, .flatpickr-day.startRange, .flatpickr-day.endRange {
+        background: #ff2301 !important; border-color: #ff2301 !important;
+    }
+    .flatpickr-day.inRange {
+        background: rgba(255, 35, 1, 0.15) !important;
+        box-shadow: -5px 0 0 rgba(255, 35, 1, 0.15), 5px 0 0 rgba(255, 35, 1, 0.15) !important;
+    }
+</style>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .flex-1.overflow-y-auto { overflow: hidden !important; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="space-y-4">
+<div class="flex flex-col h-full" x-data="clientesApp()" x-init="init()">
 
-    <!-- Filtros por columna -->
-    <form method="get" class="card">
-        <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-3">Filtros</p>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div>
-                <label class="block text-xs text-neutral-400 mb-1">Nombre</label>
-                <input type="text" name="nombre" value="{{ request.GET.nombre }}" placeholder="Nombre..."
-                       class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
-                              placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-            </div>
-            <div>
-                <label class="block text-xs text-neutral-400 mb-1">Correo</label>
-                <input type="text" name="email" value="{{ request.GET.email }}" placeholder="Correo electrónico..."
-                       class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
-                              placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-            </div>
-            <div>
-                <label class="block text-xs text-neutral-400 mb-1">Teléfono</label>
-                <input type="text" name="telefono" value="{{ request.GET.telefono }}" placeholder="Teléfono..."
-                       class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
-                              placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-            </div>
-            <div>
-                <label class="block text-xs text-neutral-400 mb-1">Origen</label>
-                <select name="origen"
-                        class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
-                               focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-                    <option value="">Todos</option>
-                    {% for source in sources %}
-                    <option value="{{ source }}" {% if request.GET.origen == source %}selected{% endif %}>{{ source|title }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-        </div>
-        <div class="flex gap-2 mt-3">
-            <button type="submit" class="btn-primary text-sm px-4">Filtrar</button>
-            <a href="{% url 'clients:list' %}" class="btn-ghost text-sm">Limpiar</a>
-        </div>
-    </form>
+    <!-- ═══════ Tabs Navigation ═══════ -->
+    <div class="flex items-center border-b border-neutral-800 mb-4 flex-shrink-0">
+        <button class="px-4 py-2 text-sm font-medium border-b-2 border-brand text-brand">
+            Clientes
+        </button>
+    </div>
 
-    <!-- Client list -->
-    <div class="space-y-2">
-        {% for client in clients %}
-        <a href="{% url 'clients:detail' client.pk %}"
-           class="card card-hover flex items-center justify-between group cursor-pointer block">
+    <!-- ═══════ KPI Cards ═══════ -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 flex-shrink-0">
+        <!-- Total Clientes -->
+        <div class="card border border-neutral-700 rounded-xl p-4">
             <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center">
-                    <span class="text-sm font-heading font-bold text-neutral-400">{{ client.name|first|upper }}</span>
+                <div class="w-10 h-10 rounded-lg bg-brand/10 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                            d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
                 </div>
                 <div>
-                    <p class="font-medium text-white group-hover:text-brand transition-colors">{{ client.name }}</p>
-                    <p class="text-xs text-neutral-400">{{ client.email|default:"–" }} · {{ client.phone|default:"–" }}</p>
+                    <p class="text-xs text-neutral-400 uppercase tracking-wider font-medium">Total Clientes</p>
+                    <p class="text-2xl font-heading font-bold text-white" id="kpi-total-clientes" x-text="kpis.total_clientes">{{ total_clientes }}</p>
                 </div>
             </div>
-            <div class="text-right">
-                <p class="text-sm text-neutral-400">{{ client.appointment_count }} cita{{ client.appointment_count|pluralize:"s" }}</p>
-                <p class="text-xs text-neutral-400">{{ client.source|title }}</p>
-            </div>
-        </a>
-        {% empty %}
-        <div class="text-center py-12 text-neutral-400">
-            <p class="text-lg">No se encontraron clientes</p>
         </div>
-        {% endfor %}
+        <!-- Total Visitas -->
+        <div class="card border border-neutral-700 rounded-xl p-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-xs text-neutral-400 uppercase tracking-wider font-medium">Visitas</p>
+                    <p class="text-2xl font-heading font-bold text-white" id="kpi-total-visitas" x-text="kpis.total_visitas">{{ total_visitas }}</p>
+                </div>
+            </div>
+        </div>
+        <!-- Total Ingresos -->
+        <div class="card border border-neutral-700 rounded-xl p-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                            d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-xs text-neutral-400 uppercase tracking-wider font-medium">Ingresos</p>
+                    <p class="text-2xl font-heading font-bold text-white" id="kpi-total-ingresos" x-text="kpis.total_ingresos">${{ total_ingresos }}</p>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- Pagination -->
-    {% if page_obj.has_other_pages %}
-    <div class="flex justify-center gap-2 pt-4">
-        {% if page_obj.has_previous %}
-        <a href="?page={{ page_obj.previous_page_number }}&nombre={{ request.GET.nombre }}&email={{ request.GET.email }}&telefono={{ request.GET.telefono }}&origen={{ request.GET.origen }}"
-           class="btn-ghost text-sm">Anterior</a>
-        {% endif %}
-        <span class="px-3 py-2 text-sm text-neutral-400">
-            Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
-        </span>
-        {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}&nombre={{ request.GET.nombre }}&email={{ request.GET.email }}&telefono={{ request.GET.telefono }}&origen={{ request.GET.origen }}"
-           class="btn-ghost text-sm">Siguiente</a>
-        {% endif %}
+    <!-- ═══════ Header + New Client Button ═══════ -->
+    <div class="flex items-center justify-between flex-wrap gap-3 mb-3 flex-shrink-0">
+        <h2 class="font-heading font-bold text-xl text-white">Listado de Clientes</h2>
+        <button @click="openCreateModal()"
+                class="btn-action-primary border border-neutral-700 px-4 py-2 rounded-lg text-sm text-neutral-300 font-medium transition-all">
+            <span>+ Nuevo Cliente</span>
+        </button>
     </div>
-    {% endif %}
+
+    <!-- ═══════ Filtros Externos ═══════ -->
+    <div class="card mb-3 flex-shrink-0">
+        <div class="flex items-center justify-between mb-3">
+            <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Filtros</p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+
+            <!-- 1. Nombre -->
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">Nombre</label>
+                <input type="text" x-model="filters.nombre" @input.debounce.400ms="applyFilters()" placeholder="Buscar nombre..."
+                       class="w-full px-3 py-2 bg-[#2a2a2d] border border-[#4a4a4f] rounded-lg text-white text-sm placeholder-neutral-500 focus:border-[#ff2301] transition-colors" style="min-height:38px;">
+            </div>
+
+            <!-- 2. Email -->
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">Email</label>
+                <input type="text" x-model="filters.email" @input.debounce.400ms="applyFilters()" placeholder="Buscar email..."
+                       class="w-full px-3 py-2 bg-[#2a2a2d] border border-[#4a4a4f] rounded-lg text-white text-sm placeholder-neutral-500 focus:border-[#ff2301] transition-colors" style="min-height:38px;">
+            </div>
+
+            <!-- 3. Teléfono -->
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">Teléfono</label>
+                <input type="text" x-model="filters.telefono" @input.debounce.400ms="applyFilters()" placeholder="Buscar teléfono..."
+                       class="w-full px-3 py-2 bg-[#2a2a2d] border border-[#4a4a4f] rounded-lg text-white text-sm placeholder-neutral-500 focus:border-[#ff2301] transition-colors" style="min-height:38px;">
+            </div>
+
+            <!-- 4. Rango de Visitas -->
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">Visitas</label>
+                <div class="flex gap-2">
+                    <input type="number" x-model="filters.visitasMin" @input.debounce.500ms="applyFilters()" placeholder="Mín" min="0"
+                           class="w-1/2 px-3 py-2 bg-[#2a2a2d] border border-[#4a4a4f] rounded-lg text-white text-sm placeholder-neutral-500 focus:border-[#ff2301] transition-colors" style="min-height:38px;">
+                    <input type="number" x-model="filters.visitasMax" @input.debounce.500ms="applyFilters()" placeholder="Máx" min="0"
+                           class="w-1/2 px-3 py-2 bg-[#2a2a2d] border border-[#4a4a4f] rounded-lg text-white text-sm placeholder-neutral-500 focus:border-[#ff2301] transition-colors" style="min-height:38px;">
+                </div>
+            </div>
+
+            <!-- 5. Rango de Gastos -->
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">Gastos ($)</label>
+                <div class="flex gap-2">
+                    <input type="text" x-model="filters.gastosMinDisplay" @input="onPriceInput('gastosMin', $event)" placeholder="Mín"
+                           class="w-1/2 px-3 py-2 bg-[#2a2a2d] border border-[#4a4a4f] rounded-lg text-white text-sm placeholder-neutral-500 focus:border-[#ff2301] transition-colors" style="min-height:38px;">
+                    <input type="text" x-model="filters.gastosMaxDisplay" @input="onPriceInput('gastosMax', $event)" placeholder="Máx"
+                           class="w-1/2 px-3 py-2 bg-[#2a2a2d] border border-[#4a4a4f] rounded-lg text-white text-sm placeholder-neutral-500 focus:border-[#ff2301] transition-colors" style="min-height:38px;">
+                </div>
+            </div>
+
+            <!-- 6. Rango de Fechas de Asistencia -->
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1 flex items-center gap-1">
+                    Fecha Asistencia
+                    <span class="relative group cursor-help">
+                        <svg class="w-3.5 h-3.5 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-neutral-800 border border-neutral-600 text-neutral-300 text-xs rounded-lg whitespace-nowrap opacity-0 invisible pointer-events-none group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20 shadow-xl leading-relaxed">
+                            Filtra clientes que tengan al menos una intervención en el rango de fechas seleccionado
+                        </span>
+                    </span>
+                </label>
+                <input type="text" x-ref="filterFechaRange" readonly placeholder="Rango de fechas..."
+                       class="w-full px-3 py-2 bg-[#2a2a2d] border border-[#4a4a4f] rounded-lg text-white text-sm placeholder-neutral-500 focus:border-[#ff2301] transition-colors cursor-pointer" style="min-height:38px;">
+            </div>
+
+            <!-- 7. Sucursales (multi-select) -->
+            <div class="ms-dropdown" @click.outside="dropdowns.sucursales = false">
+                <label class="block text-xs text-neutral-400 mb-1">Sucursal</label>
+                <button type="button" class="ms-trigger" @click="dropdowns.sucursales = !dropdowns.sucursales">
+                    <span x-show="!filters.sucursales.length" class="truncate">Todas</span>
+                    <span x-show="filters.sucursales.length" class="truncate text-neutral-300"
+                          x-text="filters.sucursales.length + ' seleccionada' + (filters.sucursales.length > 1 ? 's' : '')"></span>
+                    <span x-show="filters.sucursales.length" class="ms-count" x-text="filters.sucursales.length"></span>
+                    <svg class="w-4 h-4 text-neutral-400 flex-shrink-0 ml-1" :class="dropdowns.sucursales ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="transition: transform 0.2s"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div class="ms-panel" x-show="dropdowns.sucursales" x-transition>
+                    {% for suc in sucursales %}
+                    <label class="ms-option">
+                        <input type="checkbox" :checked="filters.sucursales.includes({{ suc.pk }})"
+                               @change="toggleFilter('sucursales', {{ suc.pk }})">
+                        <span>{{ suc.name }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Limpiar filtros -->
+        <div class="mt-3">
+            <button type="button" @click="clearFilters()"
+                    class="btn-action-primary text-sm border border-neutral-700 px-4 py-2 rounded-lg transition-all text-white">
+                <span>Limpiar filtros</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ═══════ ag-Grid container ═══════ -->
+    <div id="clientesGrid" class="ag-theme-alpine flex-1 min-h-0 w-full rounded-xl overflow-hidden border border-neutral-800"></div>
+
+    <!-- ═══════ Modal Crear / Editar Cliente ═══════ -->
+    <template x-if="showModal">
+        <div class="modal-backdrop" @click.self="closeModal()">
+            <div class="modal-content" @click.stop style="max-width:32rem;">
+                <div class="flex items-center justify-between mb-5">
+                    <h3 class="font-heading font-bold text-lg text-white"
+                        x-text="editingId ? 'Editar Cliente' : 'Nuevo Cliente'"></h3>
+                    <button @click="closeModal()" class="text-neutral-400 hover:text-white transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-300 mb-1">Nombre *</label>
+                        <input type="text" x-model="form.name" placeholder="Nombre completo"
+                               class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-300 mb-1">Email</label>
+                        <input type="email" x-model="form.email" placeholder="correo@ejemplo.com"
+                               class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-300 mb-1">Teléfono</label>
+                        <input type="text" x-model="form.phone" placeholder="+573001234567"
+                               class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-300 mb-1">Notas</label>
+                        <textarea x-model="form.notes" rows="2" placeholder="Notas internas..."
+                                  class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors resize-none"></textarea>
+                    </div>
+                    <div x-show="formError" class="p-3 bg-red-900/40 border border-red-800 rounded-lg text-sm text-red-300" x-text="formError"></div>
+                    <button @click="submitForm()" :disabled="!form.name.trim() || submitting"
+                            class="btn-action-primary w-full border border-neutral-700 px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                            :class="form.name.trim() && !submitting ? 'text-neutral-300' : 'text-neutral-400'">
+                        <span x-show="!submitting" x-text="editingId ? 'Guardar Cambios' : 'Crear Cliente'"></span>
+                        <span x-show="submitting" class="flex items-center justify-center gap-2">
+                            <span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block"></span>
+                            Guardando...
+                        </span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- ═══════ Modal Confirmar Eliminar ═══════ -->
+    <template x-if="showDeleteConfirm">
+        <div class="confirm-backdrop" @click.self="showDeleteConfirm = false">
+            <div class="confirm-content" @click.stop>
+                <svg class="w-12 h-12 text-red-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+                <h4 class="font-heading font-bold text-white text-lg mb-2">¿Desactivar cliente?</h4>
+                <p class="text-neutral-400 text-sm mb-5">El cliente será desactivado. Sus datos históricos se conservarán.</p>
+                <div class="flex gap-3 justify-center">
+                    <button @click="showDeleteConfirm = false"
+                            class="px-5 py-2 rounded-lg border border-neutral-700 text-neutral-300 text-sm hover:bg-neutral-800 transition-colors">Cancelar</button>
+                    <button @click="confirmDelete()"
+                            class="px-5 py-2 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700 transition-colors">Desactivar</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- ═══════ Modal Ficha Clínica ═══════ -->
+    <template x-if="showFichaModal">
+        <div class="modal-backdrop" @click.self="closeFichaModal()">
+            <div class="modal-content" @click.stop>
+                <div class="flex items-center justify-between mb-5">
+                    <h3 class="font-heading font-bold text-lg text-white flex items-center gap-2">
+                        <svg class="w-5 h-5 text-pink-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"/>
+                        </svg>
+                        Ficha Clínica – <span x-text="fichaClientName"></span>
+                    </h3>
+                    <button @click="closeFichaModal()" class="text-neutral-400 hover:text-white transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-300 mb-1">Historia Clínica</label>
+                        <textarea x-model="fichaForm.historia_clinica" rows="4" placeholder="Historial médico/estético relevante..."
+                                  class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors resize-none"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-300 mb-1">Recomendaciones</label>
+                        <textarea x-model="fichaForm.recomendaciones" rows="3" placeholder="Recomendaciones de cuidado o tratamiento..."
+                                  class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors resize-none"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-300 mb-1">Notas Médicas / Estéticas</label>
+                        <textarea x-model="fichaForm.notas_medicas" rows="3" placeholder="Notas adicionales..."
+                                  class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors resize-none"></textarea>
+                    </div>
+                    <div x-show="fichaError" class="p-3 bg-red-900/40 border border-red-800 rounded-lg text-sm text-red-300" x-text="fichaError"></div>
+                    <div class="flex gap-3">
+                        <button @click="saveFicha()" :disabled="fichaSaving"
+                                class="btn-action-primary flex-1 border border-neutral-700 px-4 py-2 rounded-lg text-sm font-medium transition-all text-neutral-300 disabled:opacity-40 disabled:cursor-not-allowed">
+                            <span x-show="!fichaSaving">Guardar Ficha</span>
+                            <span x-show="fichaSaving" class="flex items-center justify-center gap-2">
+                                <span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block"></span>
+                                Guardando...
+                            </span>
+                        </button>
+                        <a :href="'/app/clients/api/' + fichaClientId + '/ficha/pdf/'" target="_blank"
+                           class="border border-neutral-700 px-4 py-2 rounded-lg text-sm font-medium text-neutral-300 hover:bg-neutral-800 hover:border-neutral-500 transition-all flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                            Descargar PDF
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- ═══════ Modal Perfil de Cliente ═══════ -->
+    <template x-if="showProfileModal">
+        <div class="modal-backdrop" @click.self="closeProfileModal()">
+            <div class="modal-content" @click.stop>
+                <div class="flex items-center justify-between mb-5">
+                    <h3 class="font-heading font-bold text-lg text-white">Perfil de Cliente</h3>
+                    <button @click="closeProfileModal()" class="text-neutral-400 hover:text-white transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                <div class="space-y-4">
+                    <!-- Client Info -->
+                    <div class="card border border-neutral-700 rounded-xl p-4 space-y-2">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-full bg-brand/10 border-2 border-brand/30 flex items-center justify-center">
+                                <span class="font-heading font-bold text-brand text-lg" x-text="profileData.name ? profileData.name[0].toUpperCase() : '?'"></span>
+                            </div>
+                            <div>
+                                <p class="font-medium text-white text-lg" x-text="profileData.name"></p>
+                                <p class="text-xs text-neutral-400" x-text="'Cliente desde ' + profileData.created_at"></p>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 mt-2">
+                            <div>
+                                <p class="text-[10px] text-neutral-500 uppercase tracking-wider">Email</p>
+                                <p class="text-sm text-white" x-text="profileData.email || '—'"></p>
+                            </div>
+                            <div>
+                                <p class="text-[10px] text-neutral-500 uppercase tracking-wider">Teléfono</p>
+                                <p class="text-sm text-white" x-text="profileData.phone || '—'"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Editable Notes -->
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-300 mb-1">Notas</label>
+                        <textarea x-model="profileNotes" rows="2" placeholder="Notas internas del cliente..."
+                                  class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors resize-none"></textarea>
+                        <button @click="saveProfileNotes()" :disabled="profileNotesSaving"
+                                class="mt-1 text-xs text-brand hover:text-white border border-neutral-700 px-3 py-1.5 rounded-lg transition-colors">
+                            <span x-show="!profileNotesSaving">Guardar notas</span>
+                            <span x-show="profileNotesSaving">Guardando...</span>
+                        </button>
+                    </div>
+
+                    <!-- Intervention History (Infinite Scroll) -->
+                    <div>
+                        <h4 class="font-heading font-bold text-sm text-white mb-2 flex items-center gap-2">
+                            <svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            Historial de Intervenciones
+                        </h4>
+                        <div id="profile-history-container" class="space-y-2 max-h-[40vh] overflow-y-auto pr-1">
+                            <template x-for="inv in profileHistory" :key="inv.id">
+                                <div class="card border border-neutral-700/50 rounded-lg p-3 space-y-1">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm text-white font-medium" x-text="inv.fecha"></span>
+                                        <span class="estado-badge text-[10px]" :class="'estado-' + inv.estado" x-text="inv.estado_display" style="padding:3px 8px;"></span>
+                                    </div>
+                                    <p class="text-xs text-neutral-400" x-text="inv.servicios.join(', ') || 'Sin servicios'"></p>
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-xs text-neutral-400" x-text="inv.sucursal"></span>
+                                        <span class="font-heading font-bold text-brand text-sm" x-text="inv.gastos_fmt"></span>
+                                    </div>
+                                </div>
+                            </template>
+                            <!-- Sentinel for IntersectionObserver -->
+                            <div id="profile-history-sentinel" x-show="profileHistoryHasNext" class="flex justify-center py-3">
+                                <svg class="animate-spin w-5 h-5 text-brand" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            </div>
+                            <p x-show="profileHistory.length === 0 && !profileHistoryLoading" class="text-xs text-neutral-400 text-center py-4">Sin intervenciones registradas.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
 </div>
+
+<script>
+const CSRF_TOKEN = '{{ csrf_token }}';
+const API_GRID_URL = '{% url "clients:api_grid" %}';
+const API_CREATE_URL = '{% url "clients:api_create" %}';
+const API_BASE_URL = '/app/clients/api/';
+
+/* ══════════════════════════════════════════
+   Flatpickr: confirmDate plugin helper
+   ══════════════════════════════════════════ */
+function makeFpConfirmPlugin() {
+    return confirmDatePlugin({ confirmText: 'Aceptar', showAlways: true });
+}
+
+/* ══════════════════════════════════════════
+   Price formatting utilities
+   ══════════════════════════════════════════ */
+function formatMoney(val) {
+    if (!val && val !== 0) return '';
+    const num = parseInt(String(val).replace(/\./g, '').replace(/[^\d]/g, ''), 10);
+    if (isNaN(num)) return '';
+    return num.toLocaleString('es-CO').replace(/,/g, '.');
+}
+function cleanMoney(val) {
+    return String(val).replace(/\./g, '').replace(/[^\d]/g, '');
+}
+
+/* ══════════════════════════════════════════
+   ag-Grid: Localización Español
+   ══════════════════════════════════════════ */
+const AG_LOCALE_ES = {
+    page: 'Página', more: 'Más', to: 'a', of: 'de',
+    next: 'Siguiente', last: 'Última', first: 'Primera', previous: 'Anterior',
+    loadingOoo: 'Cargando...', noRowsToShow: 'No hay datos para mostrar',
+};
+
+/* ══════════════════════════════════════════
+   ag-Grid: Cell Renderers
+   ══════════════════════════════════════════ */
+function visitasCellRenderer(params) {
+    if (params.data == null) return '';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'flex items-center w-full h-full';
+    const tag = document.createElement('span');
+    tag.className = 'unified-tag';
+    tag.style.cssText = 'background:rgba(59,130,246,0.15);color:#60a5fa;';
+    tag.textContent = params.value || 0;
+    wrapper.appendChild(tag);
+    return wrapper;
+}
+
+function gastosCellRenderer(params) {
+    if (!params.data) return '';
+    const el = document.createElement('span');
+    el.className = 'font-heading font-bold';
+    el.style.color = '#ff2301';
+    el.textContent = params.data.gastos_fmt || '$0';
+    return el;
+}
+
+function fichaCellRenderer(params) {
+    if (!params.data) return '';
+    const container = document.createElement('div');
+    container.style.cssText = 'display:flex;gap:6px;align-items:center;height:100%';
+    const btn = document.createElement('button');
+    btn.className = 'grid-action-btn ficha';
+    btn.title = params.data.tiene_ficha ? 'Ver ficha clínica' : 'Crear ficha clínica';
+    btn.innerHTML = '<svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"/></svg>';
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.dispatchEvent(new CustomEvent('open-ficha', { detail: { id: params.data.id, name: params.data.nombre } }));
+    });
+    container.appendChild(btn);
+    const label = document.createElement('span');
+    label.className = 'text-xs ' + (params.data.tiene_ficha ? 'text-pink-400' : 'text-neutral-400');
+    label.textContent = params.data.tiene_ficha ? 'Ver' : 'Crear';
+    container.appendChild(label);
+    return container;
+}
+
+function accionesCellRenderer(params) {
+    if (!params.data) return '';
+    const container = document.createElement('div');
+    container.style.cssText = 'display:flex;gap:6px;align-items:center;height:100%';
+    const editBtn = document.createElement('button');
+    editBtn.className = 'grid-action-btn';
+    editBtn.title = 'Editar';
+    editBtn.innerHTML = '<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>';
+    editBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.dispatchEvent(new CustomEvent('edit-client', { detail: params.data.id }));
+    });
+    const delBtn = document.createElement('button');
+    delBtn.className = 'grid-action-btn delete';
+    delBtn.title = 'Desactivar';
+    delBtn.innerHTML = '<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>';
+    delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.dispatchEvent(new CustomEvent('delete-client', { detail: params.data.id }));
+    });
+    container.appendChild(editBtn);
+    container.appendChild(delBtn);
+    return container;
+}
+
+/* ══════════════════════════════════════════
+   ag-Grid: Column Definitions
+   ══════════════════════════════════════════ */
+const columnDefs = [
+    { headerName: 'Nombre',        field: 'nombre',   sortable: true,  minWidth: 150, flex: 1.2 },
+    { headerName: 'Email',          field: 'email',    sortable: true,  minWidth: 160, flex: 1 },
+    { headerName: 'Teléfono',       field: 'telefono', sortable: true,  minWidth: 130, flex: 0.8 },
+    { headerName: 'Visitas',        field: 'visitas',  sortable: true,  minWidth: 90,  maxWidth: 110, cellRenderer: visitasCellRenderer },
+    { headerName: 'Gastos',         field: 'gastos',   sortable: true,  minWidth: 110, maxWidth: 140, cellRenderer: gastosCellRenderer },
+    { headerName: 'Ficha Clínica',  field: 'ficha',    sortable: false, minWidth: 120, maxWidth: 140, cellRenderer: fichaCellRenderer },
+    { headerName: 'Acciones',       field: 'acciones', sortable: false, minWidth: 90,  maxWidth: 90,  cellRenderer: accionesCellRenderer, suppressSizeToFit: true },
+];
+
+/* ══════════════════════════════════════════
+   ag-Grid: Datasource
+   ══════════════════════════════════════════ */
+let gridApi = null;
+
+function buildDataSource() {
+    return {
+        getRows(params) {
+            const urlParams = new URLSearchParams();
+            urlParams.set('startRow', params.startRow);
+            urlParams.set('endRow', params.endRow);
+            if (params.sortModel && params.sortModel.length > 0) {
+                urlParams.set('sort', params.sortModel[0].colId);
+                urlParams.set('order', params.sortModel[0].sort);
+            }
+            const f = window.__clientFilters || {};
+            if (f.nombre)        urlParams.set('filter_nombre', f.nombre);
+            if (f.email)         urlParams.set('filter_email', f.email);
+            if (f.telefono)      urlParams.set('filter_telefono', f.telefono);
+            if (f.visitasMin)    urlParams.set('filter_visitas_min', f.visitasMin);
+            if (f.visitasMax)    urlParams.set('filter_visitas_max', f.visitasMax);
+            if (f.gastosMin)     urlParams.set('filter_gastos_min', f.gastosMin);
+            if (f.gastosMax)     urlParams.set('filter_gastos_max', f.gastosMax);
+            if (f.fechaDesde)    urlParams.set('filter_fecha_desde', f.fechaDesde);
+            if (f.fechaHasta)    urlParams.set('filter_fecha_hasta', f.fechaHasta);
+            if (f.sucursales?.length) urlParams.set('filter_sucursales', f.sucursales.join(','));
+
+            fetch(`${API_GRID_URL}?${urlParams.toString()}`)
+                .then(r => r.json())
+                .then(data => {
+                    params.successCallback(data.rows, data.lastRow >= 0 ? data.lastRow : -1);
+                    // Dispatch KPI update event for Alpine to pick up
+                    if (data.kpis) {
+                        document.dispatchEvent(new CustomEvent('kpi-update', { detail: data.kpis }));
+                    }
+                })
+                .catch(() => params.failCallback());
+        }
+    };
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const gridDiv = document.getElementById('clientesGrid');
+    gridApi = agGrid.createGrid(gridDiv, {
+        columnDefs,
+        rowModelType: 'infinite',
+        datasource: buildDataSource(),
+        paginationPageSize: 30,
+        cacheBlockSize: 30,
+        maxBlocksInCache: 3,
+        pagination: true,
+        animateRows: true,
+        suppressMultiSort: true,
+        localeText: AG_LOCALE_ES,
+        defaultColDef: {
+            resizable: true,
+            filter: false,
+            floatingFilter: false,
+            suppressMenu: true,
+        },
+        overlayLoadingTemplate: '<div class="flex items-center gap-3"><div class="w-5 h-5 border-2 border-[#ff2301] border-t-transparent rounded-full animate-spin"></div><span>Cargando clientes...</span></div>',
+        overlayNoRowsTemplate: '<div class="text-neutral-400 py-8"><p class="text-lg mb-1">No se encontraron clientes</p><p class="text-sm">Ajusta los filtros o crea uno nuevo</p></div>',
+        getRowId: (params) => params.data?.id?.toString(),
+        onRowClicked: (event) => {
+            if (event.data) {
+                document.dispatchEvent(new CustomEvent('open-profile', { detail: event.data.id }));
+            }
+        },
+    });
+});
+
+/* ══════════════════════════════════════════
+   Alpine.js App
+   ══════════════════════════════════════════ */
+function clientesApp() {
+    return {
+        showModal: false,
+        showDeleteConfirm: false,
+        showFichaModal: false,
+        showProfileModal: false,
+        deletingId: null,
+        editingId: null,
+        submitting: false,
+        formError: '',
+
+        // Dropdown states
+        dropdowns: { sucursales: false },
+
+        // Filter state
+        filters: {
+            nombre: '', email: '', telefono: '',
+            visitasMin: '', visitasMax: '',
+            gastosMin: '', gastosMax: '',
+            gastosMinDisplay: '', gastosMaxDisplay: '',
+            fechaDesde: '', fechaHasta: '',
+            sucursales: [],
+        },
+
+        // CRUD form
+        form: { name: '', email: '', phone: '', notes: '' },
+
+        // Ficha Clínica
+        fichaClientId: null,
+        fichaClientName: '',
+        fichaForm: { historia_clinica: '', recomendaciones: '', notas_medicas: '' },
+        fichaError: '',
+        fichaSaving: false,
+
+        // Profile
+        profileData: {},
+        profileNotes: '',
+        profileNotesSaving: false,
+        profileHistory: [],
+        profileHistoryPage: 1,
+        profileHistoryHasNext: false,
+        profileHistoryLoading: false,
+        profileObserver: null,
+
+        // Reactive KPIs
+        kpis: {
+            total_clientes: '{{ total_clientes }}',
+            total_visitas: '{{ total_visitas }}',
+            total_ingresos: '${{ total_ingresos }}',
+        },
+
+        flatpickrRangeInstance: null,
+
+        init() {
+            document.addEventListener('edit-client', (e) => this.openEditModal(e.detail));
+            document.addEventListener('delete-client', (e) => this.openDeleteConfirm(e.detail));
+            document.addEventListener('open-ficha', (e) => this.openFichaModal(e.detail.id, e.detail.name));
+            document.addEventListener('open-profile', (e) => this.openProfileModal(e.detail));
+            document.addEventListener('kpi-update', (e) => {
+                this.kpis.total_clientes = e.detail.total_clientes;
+                this.kpis.total_visitas = e.detail.total_visitas;
+                this.kpis.total_ingresos = e.detail.total_ingresos;
+            });
+
+            window.__clientFilters = this.filters;
+
+            this.$nextTick(() => {
+                const rangeInput = this.$refs.filterFechaRange;
+                if (rangeInput) {
+                    this.flatpickrRangeInstance = flatpickr(rangeInput, {
+                        mode: 'range',
+                        dateFormat: 'Y-m-d',
+                        altInput: true,
+                        altFormat: 'd/m/Y',
+                        locale: 'es',
+                        plugins: [makeFpConfirmPlugin()],
+                        onChange: (dates) => {
+                            if (dates.length === 2) {
+                                this.filters.fechaDesde = dates[0].toISOString().slice(0, 10);
+                                this.filters.fechaHasta = dates[1].toISOString().slice(0, 10);
+                                this.applyFilters();
+                            } else if (dates.length === 0) {
+                                this.filters.fechaDesde = '';
+                                this.filters.fechaHasta = '';
+                                this.applyFilters();
+                            }
+                        },
+                    });
+                }
+            });
+        },
+
+        /* ── Filter logic ── */
+        toggleFilter(key, value) {
+            const arr = this.filters[key];
+            const idx = arr.indexOf(value);
+            if (idx >= 0) arr.splice(idx, 1);
+            else arr.push(value);
+            this.applyFilters();
+        },
+
+        onPriceInput(field, event) {
+            const raw = cleanMoney(event.target.value);
+            if (field === 'gastosMin') {
+                this.filters.gastosMin = raw;
+                this.filters.gastosMinDisplay = raw ? formatMoney(raw) : '';
+            } else {
+                this.filters.gastosMax = raw;
+                this.filters.gastosMaxDisplay = raw ? formatMoney(raw) : '';
+            }
+            clearTimeout(this._priceTimer);
+            this._priceTimer = setTimeout(() => this.applyFilters(), 500);
+        },
+
+        applyFilters() {
+            window.__clientFilters = { ...this.filters };
+            if (gridApi) gridApi.purgeInfiniteCache();
+        },
+
+        clearFilters() {
+            this.filters = {
+                nombre: '', email: '', telefono: '',
+                visitasMin: '', visitasMax: '',
+                gastosMin: '', gastosMax: '',
+                gastosMinDisplay: '', gastosMaxDisplay: '',
+                fechaDesde: '', fechaHasta: '',
+                sucursales: [],
+            };
+            if (this.flatpickrRangeInstance) this.flatpickrRangeInstance.clear();
+            this.applyFilters();
+        },
+
+        /* ── CRUD Modal logic ── */
+        resetForm() {
+            this.form = { name: '', email: '', phone: '', notes: '' };
+            this.formError = '';
+            this.editingId = null;
+        },
+
+        openCreateModal() {
+            this.resetForm();
+            this.showModal = true;
+        },
+
+        async openEditModal(id) {
+            this.resetForm();
+            this.editingId = id;
+            try {
+                const res = await fetch(`${API_BASE_URL}${id}/`);
+                if (!res.ok) throw new Error('Error al cargar');
+                const data = await res.json();
+                this.form.name = data.name;
+                this.form.email = data.email;
+                this.form.phone = data.phone;
+                this.form.notes = data.notes;
+                this.showModal = true;
+            } catch (e) {
+                console.error(e);
+            }
+        },
+
+        closeModal() { this.showModal = false; },
+
+        async submitForm() {
+            this.submitting = true;
+            this.formError = '';
+            try {
+                const url = this.editingId ? `${API_BASE_URL}${this.editingId}/update/` : API_CREATE_URL;
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+                    body: JSON.stringify(this.form),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    this.closeModal();
+                    if (gridApi) gridApi.setGridOption('datasource', buildDataSource());
+                } else {
+                    this.formError = data.error || 'Error al guardar';
+                }
+            } catch (e) {
+                this.formError = 'Error de conexión';
+            }
+            this.submitting = false;
+        },
+
+        openDeleteConfirm(id) {
+            this.deletingId = id;
+            this.showDeleteConfirm = true;
+        },
+
+        async confirmDelete() {
+            if (!this.deletingId) return;
+            try {
+                const res = await fetch(`${API_BASE_URL}${this.deletingId}/delete/`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': CSRF_TOKEN },
+                });
+                if (res.ok) {
+                    this.showDeleteConfirm = false;
+                    this.deletingId = null;
+                    if (gridApi) gridApi.setGridOption('datasource', buildDataSource());
+                }
+            } catch (e) { console.error(e); }
+        },
+
+        /* ── Ficha Clínica Modal ── */
+        async openFichaModal(clientId, clientName) {
+            this.fichaClientId = clientId;
+            this.fichaClientName = clientName;
+            this.fichaForm = { historia_clinica: '', recomendaciones: '', notas_medicas: '' };
+            this.fichaError = '';
+            this.fichaSaving = false;
+            this.showFichaModal = true;
+
+            try {
+                const res = await fetch(`${API_BASE_URL}${clientId}/ficha/`);
+                if (!res.ok) throw new Error('Error');
+                const data = await res.json();
+                if (data.exists) {
+                    this.fichaForm.historia_clinica = data.historia_clinica;
+                    this.fichaForm.recomendaciones = data.recomendaciones;
+                    this.fichaForm.notas_medicas = data.notas_medicas;
+                }
+            } catch (e) { console.error(e); }
+        },
+
+        closeFichaModal() { this.showFichaModal = false; },
+
+        async saveFicha() {
+            this.fichaSaving = true;
+            this.fichaError = '';
+            try {
+                const res = await fetch(`${API_BASE_URL}${this.fichaClientId}/ficha/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+                    body: JSON.stringify(this.fichaForm),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    this.closeFichaModal();
+                    if (gridApi) gridApi.setGridOption('datasource', buildDataSource());
+                } else {
+                    this.fichaError = data.error || 'Error al guardar';
+                }
+            } catch (e) { this.fichaError = 'Error de conexión'; }
+            this.fichaSaving = false;
+        },
+
+        /* ── Profile Modal with Intervention History ── */
+        async openProfileModal(clientId) {
+            this.profileData = {};
+            this.profileNotes = '';
+            this.profileHistory = [];
+            this.profileHistoryPage = 1;
+            this.profileHistoryHasNext = false;
+            this.profileHistoryLoading = false;
+            this.showProfileModal = true;
+
+            try {
+                const res = await fetch(`${API_BASE_URL}${clientId}/`);
+                if (!res.ok) throw new Error('Error');
+                this.profileData = await res.json();
+                this.profileNotes = this.profileData.notes || '';
+            } catch (e) { console.error(e); }
+
+            await this.loadProfileHistory(clientId, true);
+
+            // Setup IntersectionObserver for infinite scroll
+            this.$nextTick(() => {
+                this.setupProfileObserver(clientId);
+            });
+        },
+
+        closeProfileModal() {
+            this.showProfileModal = false;
+            if (this.profileObserver) {
+                this.profileObserver.disconnect();
+                this.profileObserver = null;
+            }
+        },
+
+        async loadProfileHistory(clientId, reset = false) {
+            if (this.profileHistoryLoading) return;
+            this.profileHistoryLoading = true;
+            if (reset) {
+                this.profileHistory = [];
+                this.profileHistoryPage = 1;
+            }
+            try {
+                const res = await fetch(`${API_BASE_URL}${clientId}/history/?page=${this.profileHistoryPage}`);
+                if (!res.ok) throw new Error('Error');
+                const data = await res.json();
+                this.profileHistory = [...this.profileHistory, ...data.results];
+                this.profileHistoryHasNext = data.has_next;
+            } catch (e) { console.error(e); }
+            this.profileHistoryLoading = false;
+        },
+
+        setupProfileObserver(clientId) {
+            if (this.profileObserver) this.profileObserver.disconnect();
+            const sentinel = document.getElementById('profile-history-sentinel');
+            if (!sentinel) return;
+            this.profileObserver = new IntersectionObserver((entries) => {
+                if (entries[0].isIntersecting && this.profileHistoryHasNext && !this.profileHistoryLoading) {
+                    this.profileHistoryPage++;
+                    this.loadProfileHistory(clientId);
+                }
+            }, { root: document.getElementById('profile-history-container'), threshold: 0.1 });
+            this.profileObserver.observe(sentinel);
+        },
+
+        async saveProfileNotes() {
+            if (!this.profileData.id) return;
+            this.profileNotesSaving = true;
+            try {
+                await fetch(`${API_BASE_URL}${this.profileData.id}/notes/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+                    body: JSON.stringify({ notes: this.profileNotes }),
+                });
+            } catch (e) { console.error(e); }
+            this.profileNotesSaving = false;
+        },
+    };
+}
+</script>
 {% endblock %}

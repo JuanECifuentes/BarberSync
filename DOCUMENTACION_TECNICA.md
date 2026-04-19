@@ -84,3 +84,4 @@ Módulo encargado de exponer las vistas e interfaces para que los clientes pueda
   - **FullCalendar:** Configurar `slotLabelFormat` y `eventTimeFormat` con `{ hour: '2-digit', minute: '2-digit', hour12: false }`.
   - **ag-Grid / JavaScript:** Usar `toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', hour12: false })` o `strftime("%H:%M")` en Python.
   - **APIs Python (strftime):** Usar `%H:%M` para formato display. Mantener ISO 8601 (`%Y-%m-%dT%H:%M`) para valores internos/API.
+- **Tags unificados – Regla obligatoria:** Todos los tags (ej. conteo de visitas, estados, badges) deben usar el estilo unificado: fondo semitransparente del color correspondiente, texto contrastante, bordes redondeados (`border-radius: 9999px`) y padding compacto (`padding: 6px 10px`, `font-size: 11px`, `font-weight: 600`). Referencia CSS: `.estado-badge`, `.svc-tag`, `.prod-tag` en el módulo de Intervenciones.
