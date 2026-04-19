@@ -287,9 +287,11 @@ def create_appointment(
         )
 
     # Auto-consume products linked to services via ServicioProducto
+    # Only include active products (soft-deleted products are excluded)
     for svc_obj, _price in service_prices:
         for sp in ServicioProducto.objects.filter(
-            servicio=svc_obj
+            servicio=svc_obj,
+            producto__is_active=True,
         ).select_related("producto"):
             product = Product.objects.select_for_update().get(pk=sp.producto_id)
             existing = IntervencionProducto.objects.filter(

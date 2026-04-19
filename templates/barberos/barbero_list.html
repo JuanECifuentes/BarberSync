@@ -366,6 +366,11 @@
                                     <span class="flex items-center gap-2 min-w-0">
                                         <input type="checkbox" value="{{ svc.pk }}" class="bb-servicio-check rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-700 flex-shrink-0">
                                         <span class="text-sm text-white truncate">{{ svc.name }}</span>
+                                        <span class="svc-custom-indicator hidden flex-shrink-0" data-svc-id="{{ svc.pk }}" data-tooltip="Usando configuración personalizada">
+                                            <svg class="w-3.5 h-3.5 text-brand" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/>
+                                            </svg>
+                                        </span>
                                     </span>
                                     <div class="flex items-center gap-2 flex-shrink-0">
                                         <span class="text-xs text-neutral-400">${{ svc.price|money }}</span>
@@ -373,7 +378,7 @@
                                         <button type="button" onclick="event.preventDefault(); event.stopPropagation(); openCustomizePanel({{ svc.pk }})"
                                             class="svc-customize-btn hidden border border-neutral-700 px-2 py-1 rounded-md text-[10px] text-neutral-400 hover:text-white hover:border-brand transition-all"
                                             data-svc-id="{{ svc.pk }}"
-                                            title="Personalizar precio y duración para este barbero">
+                                            data-tooltip="Personalizar precio y/o duración">
                                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
                                             </svg>
@@ -1216,6 +1221,18 @@
                 btn.classList.toggle('hidden', !chk.checked);
             }
         });
+        updateCustomIndicators();
+    }
+
+    function updateCustomIndicators() {
+        document.querySelectorAll('.svc-custom-indicator').forEach(el => {
+            const svcId = parseInt(el.dataset.svcId);
+            const cfg = currentBarberServiceConfigs.find(c => c.service_id === svcId);
+            const pending = pendingCustomizations[svcId];
+            const hasCustom = (cfg && (cfg.custom_price !== null || cfg.custom_duration !== null))
+                || (pending && (pending.custom_price || pending.custom_duration));
+            el.classList.toggle('hidden', !hasCustom);
+        });
     }
 
     // Listen for checkbox changes to toggle customize buttons
@@ -1338,6 +1355,7 @@
                 // Also store in pending so it survives re-saves
                 if (serviceId) pendingCustomizations[serviceId] = customData;
                 flashSuccess('#customize-panel .btn-action-primary');
+                updateCustomIndicators();
                 historyPage = 1;
                 loadHistory(bsId, true);
             }
@@ -1345,6 +1363,7 @@
             // New service (not yet in DB): store pending locally
             pendingCustomizations[serviceId] = customData;
             flashSuccess('#customize-panel .btn-action-primary');
+            updateCustomIndicators();
         }
     }
 
@@ -1365,6 +1384,7 @@
         if (currentCustomizeServiceId) {
             delete pendingCustomizations[currentCustomizeServiceId];
         }
+        updateCustomIndicators();
     }
 
     // ═══════════════════════════════════════════════════

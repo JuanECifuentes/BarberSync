@@ -365,9 +365,10 @@ class ServiceDetailAPI(LoginRequiredMixin, View):
             h["changed_at"] = h["changed_at"].isoformat()
             h["price"] = str(h["price"])
 
-        # Associated products
+        # Associated products (exclude soft-deleted products)
         productos = ServicioProducto.objects.filter(
             servicio=service,
+            producto__is_active=True,
         ).select_related("producto")
         productos_data = [
             {"producto_id": sp.producto_id, "nombre": sp.producto.name, "cantidad": sp.cantidad_consumida}
