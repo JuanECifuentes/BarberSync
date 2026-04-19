@@ -375,7 +375,12 @@ class ServiceDetailAPI(LoginRequiredMixin, View):
             producto__is_active=True,
         ).select_related("producto")
         productos_data = [
-            {"producto_id": sp.producto_id, "nombre": sp.producto.name, "cantidad": sp.cantidad_consumida}
+            {
+                "producto_id": sp.producto_id,
+                "nombre": sp.producto.name,
+                "cantidad": sp.cantidad_consumida,
+                "incluido_en_precio": sp.incluido_en_precio,
+            }
             for sp in productos
         ]
 
@@ -447,6 +452,7 @@ class ServiceCreateAPI(LoginRequiredMixin, View):
                         servicio=service,
                         producto=product,
                         cantidad_consumida=int(cantidad),
+                        incluido_en_precio=bool(p.get("incluido_en_precio", False)),
                     )
 
         return JsonResponse({
@@ -518,6 +524,7 @@ class ServiceUpdateAPI(LoginRequiredMixin, View):
                             servicio=service,
                             producto=product,
                             cantidad_consumida=int(cantidad),
+                            incluido_en_precio=bool(p.get("incluido_en_precio", False)),
                         )
 
         return JsonResponse({"ok": True})

@@ -640,7 +640,7 @@
 
                     <!-- Total Estimado -->
                     <div class="p-3 bg-neutral-800/70 border border-neutral-700 rounded-lg flex items-center justify-between">
-                        <span class="text-sm font-medium text-neutral-300">Total Estimado</span>
+                        <span class="text-sm font-medium text-neutral-300">Total</span>
                         <span class="text-lg font-heading font-bold text-brand" x-text="totalEstimado"></span>
                     </div>
 
@@ -1217,7 +1217,7 @@ function intervencionesApp() {
                 this.$nextTick(() => {
                     this.clearProductRows();
                     if (data.productos && data.productos.length > 0) {
-                        data.productos.forEach(p => this.addProductRow(p.producto_id, p.cantidad, p.auto, p.is_deleted, p.nombre, p.precio));
+                        data.productos.forEach(p => this.addProductRow(p.producto_id, p.cantidad, p.auto, p.is_deleted, p.nombre, p.precio, p.incluido));
                     }
                     this.initFlatpickr();
                     this.formatModalPrices();
@@ -1326,8 +1326,9 @@ function intervencionesApp() {
                     if (el) total += parseFloat(String(el.getAttribute('data-raw-price')).replace(',', '.')) || 0;
                 }
             });
-            // Products total: sum from active selects AND deleted product rows
+            // Products total: sum from active selects AND deleted product rows (skip incluido)
             document.querySelectorAll('#modal-productos-container .interv-producto-row').forEach(row => {
+                if (row.getAttribute('data-incluido') === '1') return;
                 const qtyInput = row.querySelector('.iprod-qty');
                 const qty = parseInt(qtyInput.value) || 0;
                 if (qty <= 0) return;
@@ -1364,10 +1365,12 @@ function intervencionesApp() {
             return tpl ? tpl.innerHTML : '<option value="">Sin productos</option>';
         },
 
-        addProductRow(productoId, cantidad, autoConsumed, isDeleted, deletedName, unitPrice) {
+        addProductRow(productoId, cantidad, autoConsumed, isDeleted, deletedName, unitPrice, incluido) {
             const container = document.getElementById('modal-productos-container');
             const row = document.createElement('div');
             row.className = 'flex items-center gap-2 interv-producto-row';
+            const incluidoBool = !!incluido;
+            if (incluidoBool) row.setAttribute('data-incluido', '1');
 
             if (isDeleted) {
                 // Deleted product: readonly display with red "Eliminado" tag
@@ -1387,21 +1390,26 @@ function intervencionesApp() {
                     <span class="flex-1 px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-500 text-sm line-through">${deletedName || 'Producto eliminado'}</span>
                     <input type="number" min="1" value="${qty}" readonly
                            class="iprod-qty w-20 px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-500 text-sm text-center cursor-not-allowed">
-                    <span class="iprod-line-price text-xs text-neutral-500 w-24 text-right flex-shrink-0">${lineTotal > 0 ? '$' + formatMoney(lineTotal) : '—'}</span>
+                    <span class="iprod-line-price text-xs text-neutral-500 w-24 text-right flex-shrink-0${incluidoBool ? ' opacity-60' : ''}">${lineTotal > 0 ? '$' + formatMoney(lineTotal) : '—'}</span>
                     <span class="w-6"></span>
                 `;
             } else {
+                const inclTooltip = 'El costo del producto se consideró dentro del precio del servicio.';
+                const inclBadge = incluidoBool
+                    ? '<span class="relative group/tipincl flex-shrink-0 cursor-help"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-700/60 text-neutral-400 border border-neutral-600">Incluido</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipincl:opacity-100 group-hover/tipincl:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">El costo del producto se consideró dentro del precio del servicio.</span></span>'
+                    : '';
                 row.innerHTML = `
                     ${autoConsumed
                         ? '<span class="relative group/tipauto flex-shrink-0 cursor-help"><span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900/60 text-blue-300 border border-blue-700/50">Auto</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipauto:opacity-100 group-hover/tipauto:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">Agregado automáticamente por el servicio</span></span>'
                         : ''
                     }
+                    ${inclBadge}
                     <select class="iprod-select flex-1 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                         ${this.getProductOptionsHTML()}
                     </select>
                     <input type="number" min="1" value="${cantidad || 1}" placeholder="Cant."
                            class="iprod-qty w-20 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm text-center focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-                    <span class="iprod-line-price text-xs text-brand font-semibold w-24 text-right flex-shrink-0"></span>
+                    <span class="iprod-line-price text-xs text-brand font-semibold w-24 text-right flex-shrink-0${incluidoBool ? ' opacity-60' : ''}"></span>
                     <button type="button" class="text-red-400 hover:text-red-300 p-1 transition-colors flex-shrink-0 iprod-remove-btn">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>

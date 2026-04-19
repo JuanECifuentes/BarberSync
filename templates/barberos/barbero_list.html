@@ -1091,7 +1091,57 @@
         }).join('');
     }
 
+    function hasScheduleChanges() {
+        if (!currentBarberData) return true;
+        // Compare buffer and lunch settings
+        const currentBuffer = parseInt(document.getElementById('sched-buffer').value) || 0;
+        const origBuffer = currentBarberData.buffer_minutes || 0;
+        if (currentBuffer !== origBuffer) return true;
+
+        const currentLunchStart = document.getElementById('sched-lunch-start').value || '';
+        const origLunchStart = currentBarberData.lunch_start || '';
+        if (currentLunchStart !== origLunchStart) return true;
+
+        const currentLunchEnd = document.getElementById('sched-lunch-end').value || '';
+        const origLunchEnd = currentBarberData.lunch_end || '';
+        if (currentLunchEnd !== origLunchEnd) return true;
+
+        // Compare schedule days
+        const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+        for (let i = 0; i < 7; i++) {
+            const chk = document.querySelector(`.sched-day-check[data-day="${i}"]`);
+            const startEl = document.querySelector(`.sched-start[data-day="${i}"]`);
+            const endEl = document.querySelector(`.sched-end[data-day="${i}"]`);
+            const currentSchedule = currentBarberData.schedules.find(s => s.day_of_week === i);
+
+            const isCheckedNow = chk && chk.checked;
+            const wasChecked = !!currentSchedule;
+            if (isCheckedNow !== wasChecked) return true;
+
+            if (isCheckedNow && currentSchedule) {
+                const startNow = startEl ? startEl.value : '';
+                const endNow = endEl ? endEl.value : '';
+                if (startNow !== currentSchedule.start_time || endNow !== currentSchedule.end_time) return true;
+            }
+        }
+        return false;
+    }
+
     async function saveSchedule() {
+        // Detect real changes before saving
+        if (!hasScheduleChanges()) {
+            // No changes: show feedback without closing modal
+            const btn = document.getElementById('btn-save-schedule');
+            const span = btn.querySelector('span');
+            const orig = span.textContent;
+            span.textContent = 'Sin cambios';
+            btn.classList.add('bg-neutral-600');
+            setTimeout(() => { span.textContent = orig; btn.classList.remove('bg-neutral-600'); }, 1500);
+            return;
+        }
+
+        closeScheduleModal();
+
         const id = document.getElementById('schedule-barber-id').value;
         const schedules = [];
         document.querySelectorAll('.sched-day-check:checked').forEach(chk => {
@@ -1117,7 +1167,7 @@
             const orig = span.textContent;
             span.textContent = '¡Guardado!';
             btn.classList.add('bg-green-600');
-            setTimeout(() => { span.textContent = orig; btn.classList.remove('bg-green-600'); }, 1500);
+            setTimeout(() => { span.textContent = orig; btn.classList.remove('bg-green-600'); }, 500);
         }
     }
 

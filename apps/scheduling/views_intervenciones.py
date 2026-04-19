@@ -160,7 +160,13 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
         if filter_total_min or filter_total_max:
             qs = qs.annotate(
                 _total_servicios=Coalesce(Sum("servicios__precio_cobrado"), Value(Decimal("0"))),
-                _total_productos=Coalesce(Sum(F("productos_usados__cantidad") * F("productos_usados__precio_unitario")), Value(Decimal("0"))),
+                _total_productos=Coalesce(
+                    Sum(
+                        F("productos_usados__cantidad") * F("productos_usados__precio_unitario"),
+                        filter=Q(productos_usados__incluido_en_precio=False),
+                    ),
+                    Value(Decimal("0")),
+                ),
                 _precio_total=F("_total_servicios") + F("_total_productos"),
             )
             if filter_total_min:
@@ -687,7 +693,8 @@ class IntervencionDetailAPI(LoginRequiredMixin, View):
                 {"producto_id": p.producto_id, "nombre": p.producto.name,
                  "cantidad": p.cantidad, "precio": str(p.precio_unitario),
                  "auto": p.producto_id in auto_product_ids,
-                 "is_deleted": not p.producto.is_active}
+                 "is_deleted": not p.producto.is_active,
+                 "incluido": p.incluido_en_precio}
                 for p in productos
             ],
         })

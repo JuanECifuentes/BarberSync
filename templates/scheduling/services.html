@@ -575,16 +575,21 @@ function getProductoOptionsHTML() {
     return tpl ? tpl.innerHTML : '<option value="">Sin productos</option>';
 }
 
-function addProductoRow(productoId, cantidad) {
+function addProductoRow(productoId, cantidad, incluidoEnPrecio) {
     const container = document.getElementById('svc-productos-container');
     const row = document.createElement('div');
     row.className = 'flex items-center gap-2 producto-row';
+    const checkedAttr = incluidoEnPrecio ? 'checked' : '';
     row.innerHTML = `
         <select class="prod-select flex-1 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
             ${getProductoOptionsHTML()}
         </select>
         <input type="number" min="1" value="${cantidad || 1}" placeholder="Cant."
                class="prod-qty w-20 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm text-center focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+        <label class="flex items-center gap-1 cursor-pointer flex-shrink-0 group" title="Incluir en precio del servicio">
+            <input type="checkbox" value="1" class="prod-incluido w-4 h-4 rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-700" ${checkedAttr}>
+            <span class="text-[10px] text-neutral-400 group-hover:text-neutral-300 transition-colors">Incl.</span>
+        </label>
         <button type="button" onclick="this.closest('.producto-row').remove()"
                 class="text-red-400 hover:text-red-300 p-1 transition-colors flex-shrink-0">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -602,8 +607,9 @@ function getProductosFromRows() {
     rows.forEach(row => {
         const prodId = row.querySelector('.prod-select').value;
         const qty = parseInt(row.querySelector('.prod-qty').value) || 0;
+        const incluido = row.querySelector('.prod-incluido').checked;
         if (prodId && qty > 0) {
-            productos.push({ producto_id: parseInt(prodId), cantidad: qty });
+            productos.push({ producto_id: parseInt(prodId), cantidad: qty, incluido_en_precio: incluido });
         }
     });
     return productos;
@@ -644,7 +650,7 @@ async function openEditModal(id) {
     // Populate product consumption rows
     clearProductoRows();
     if (d.productos && d.productos.length > 0) {
-        d.productos.forEach(p => addProductoRow(p.producto_id, p.cantidad));
+        d.productos.forEach(p => addProductoRow(p.producto_id, p.cantidad, p.incluido_en_precio));
     }
     // Show and reset price history accordion
     resetSvcHistoryState(id);

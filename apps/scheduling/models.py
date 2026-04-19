@@ -488,7 +488,11 @@ class Intervencion(TenantModel):
 
     @property
     def total_precio(self):
-        return sum(s.precio_cobrado for s in self.servicios.all())
+        services_total = sum(s.precio_cobrado for s in self.servicios.all())
+        products_total = sum(
+            p.subtotal for p in self.productos_usados.all() if not p.incluido_en_precio
+        )
+        return services_total + products_total
 
     @property
     def total_duracion(self):
@@ -512,6 +516,11 @@ class ServicioProducto(models.Model):
         "cantidad consumida",
         default=1,
         validators=[MinValueValidator(1)],
+    )
+    incluido_en_precio = models.BooleanField(
+        "incluido en precio del servicio",
+        default=False,
+        help_text="Si está activo, el costo de este producto se considera dentro del precio del servicio.",
     )
 
     class Meta:
@@ -566,6 +575,14 @@ class IntervencionProducto(models.Model):
         on_delete=models.CASCADE,
         related_name="productos_usados",
     )
+    intervencion_servicio = models.ForeignKey(
+        IntervencionServicio,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="productos_en_servicio",
+        verbose_name="servicio de intervención asociado",
+    )
     producto = models.ForeignKey(
         "inventory.Product",
         on_delete=models.PROTECT,
@@ -577,6 +594,11 @@ class IntervencionProducto(models.Model):
         max_digits=10,
         decimal_places=2,
         help_text="Precio unitario al momento de uso.",
+    )
+    incluido_en_precio = models.BooleanField(
+        "incluido en precio del servicio",
+        default=False,
+        help_text="Snapshot del estado al momento de la intervención.",
     )
 
     class Meta:
