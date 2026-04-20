@@ -213,7 +213,7 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
             servicios = list(inv.servicios.all())
             productos = list(inv.productos_usados.all())
             total_servicios = sum(s.precio_cobrado for s in servicios)
-            total_productos = sum(p.cantidad * p.precio_unitario for p in productos)
+            total_productos = sum(p.cantidad * p.precio_unitario for p in productos if not p.incluido_en_precio)
             total = total_servicios + total_productos
             fecha_local = timezone.localtime(inv.fecha) if inv.fecha else None
 
@@ -230,7 +230,7 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
                     for s in servicios
                 ],
                 "productos": [
-                    {"nombre": p.producto.name, "cantidad": p.cantidad, "precio": str(p.precio_unitario)}
+                    {"nombre": p.producto.name, "cantidad": p.cantidad, "precio": str(p.precio_unitario), "incluido": p.incluido_en_precio}
                     for p in productos
                 ],
                 "sucursal": str(inv.barbershop) if inv.barbershop else "",
@@ -370,7 +370,7 @@ class IntervencionCreateView(LoginRequiredMixin, View):
             )
 
             for service in services:
-                IntervencionServicio.objects.create(
+                is_svc = IntervencionServicio.objects.create(
                     intervencion=intervencion,
                     servicio=service,
                     precio_cobrado=service.price,
@@ -389,13 +389,18 @@ class IntervencionCreateView(LoginRequiredMixin, View):
                     continue
                 IntervencionProducto.objects.create(
                     intervencion=intervencion,
+                    intervencion_servicio=None,
                     producto=product,
                     cantidad=cantidad,
                     precio_unitario=product.price,
+                    incluido_en_precio=False,
                 )
 
             # Auto-consume products linked to services via ServicioProducto
             for service in services:
+                is_svc = IntervencionServicio.objects.filter(
+                    intervencion=intervencion, servicio=service,
+                ).first()
                 for sp in service.productos_consumidos.select_related("producto").filter(producto__is_active=True):
                     product = Product.objects.select_for_update().get(pk=sp.producto_id)
                     # Check if already added explicitly; if so, add to existing quantity
@@ -408,9 +413,11 @@ class IntervencionCreateView(LoginRequiredMixin, View):
                     else:
                         IntervencionProducto.objects.create(
                             intervencion=intervencion,
+                            intervencion_servicio=is_svc,
                             producto=product,
                             cantidad=sp.cantidad_consumida,
                             precio_unitario=product.price,
+                            incluido_en_precio=sp.incluido_en_precio,
                         )
 
             # Deduct stock for all products used
