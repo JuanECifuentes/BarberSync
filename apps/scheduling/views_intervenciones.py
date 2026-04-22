@@ -306,10 +306,12 @@ class IntervencionCreateView(LoginRequiredMixin, View):
         client_id = data.get("client_id")
         service_ids = data.get("service_ids", [])
         producto_items = data.get("productos", [])
+        print('producto_items',producto_items)
         notas = data.get("notas", "")
         fecha_str = data.get("fecha")
         estado = data.get("estado", Intervencion.Estado.PENDIENTE)
         sucursal_id = data.get("sucursal_id")
+        print('sucursal_id',sucursal_id)
 
         # Venta directa: allow no services if at least one product
         if not barber_id or not client_id:
@@ -389,6 +391,7 @@ class IntervencionCreateView(LoginRequiredMixin, View):
                     continue
                 # Respect incluido_en_precio from modal; default False
                 incluido = bool(item.get("incluido_en_precio", False))
+                print('cantidad2',cantidad)
                 IntervencionProducto.objects.create(
                     intervencion=intervencion,
                     intervencion_servicio=None,
@@ -405,14 +408,12 @@ class IntervencionCreateView(LoginRequiredMixin, View):
                 ).first()
                 for sp in service.productos_consumidos.select_related("producto").filter(producto__is_active=True):
                     product = Product.objects.select_for_update().get(pk=sp.producto_id)
-                    # Check if already added explicitly; if so, add to existing quantity
+                    # Check if already added explicitly; if so, skip adding to existing quantity
+                    # because the frontend modal already includes auto-consumed products in the payload.
                     existing = IntervencionProducto.objects.filter(
                         intervencion=intervencion, producto=product,
                     ).first()
-                    if existing:
-                        existing.cantidad += sp.cantidad_consumida
-                        existing.save(update_fields=["cantidad"])
-                    else:
+                    if not existing:
                         IntervencionProducto.objects.create(
                             intervencion=intervencion,
                             intervencion_servicio=is_svc,
