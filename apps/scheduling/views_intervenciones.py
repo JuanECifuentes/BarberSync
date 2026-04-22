@@ -387,13 +387,15 @@ class IntervencionCreateView(LoginRequiredMixin, View):
                 ).first()
                 if not product:
                     continue
+                # Respect incluido_en_precio from modal; default False
+                incluido = bool(item.get("incluido_en_precio", False))
                 IntervencionProducto.objects.create(
                     intervencion=intervencion,
                     intervencion_servicio=None,
                     producto=product,
                     cantidad=cantidad,
                     precio_unitario=product.price,
-                    incluido_en_precio=False,
+                    incluido_en_precio=incluido,
                 )
 
             # Auto-consume products linked to services via ServicioProducto
@@ -547,6 +549,7 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
                     producto=product,
                     cantidad=cantidad,
                     precio_unitario=product.price,
+                    incluido_en_precio=bool(item.get("incluido_en_precio", False)),
                 )
 
             # Deduct stock only for active products

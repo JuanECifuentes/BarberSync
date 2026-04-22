@@ -1330,6 +1330,11 @@ function intervencionesApp() {
         },
 
         addProductRowFromService(servicioId, prod) {
+            // Skip if row already exists for this producto
+            const exists = document.querySelector(
+                `#modal-productos-container .interv-producto-row[data-producto-id="${prod.producto_id}"]`
+            );
+            if (exists) return;
             const container = document.getElementById('modal-productos-container');
             const row = document.createElement('div');
             row.className = 'flex items-center gap-2 interv-producto-row';
@@ -1347,14 +1352,15 @@ function intervencionesApp() {
                 <input type="number" min="1" value="${prod.cantidad_consumida || 1}" readonly
                        class="iprod-qty w-20 px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-400 text-sm text-center cursor-not-allowed">
                 <span class="iprod-line-price text-xs text-brand font-semibold w-24 text-right flex-shrink-0${inclBool ? ' opacity-60' : ''}"></span>
-                <button type="button" class="text-red-400 hover:text-red-300 p-1 transition-colors flex-shrink-0 iprod-remove-btn" @click="this.closest('.interv-producto-row').remove(); updateTotalFromService();">
+                <button type="button" class="text-red-400 hover:text-red-300 p-1 transition-colors flex-shrink-0 iprod-remove-btn">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
             `;
             container.appendChild(row);
-            const lineEl = row.querySelector('.iprod-line-price');
-            // line price is 0 since it's included in service price — leave empty
-            void lineEl;
+            row.querySelector('.iprod-remove-btn').addEventListener('click', () => {
+                row.remove();
+                this.updateTotalEstimado();
+            });
         },
 
         // Wrapper so Alpine x-text can call formatMoney (global fn)
@@ -1574,21 +1580,25 @@ function intervencionesApp() {
             const rows = document.querySelectorAll('#modal-productos-container .interv-producto-row');
             const items = [];
             rows.forEach(row => {
-                // Auto-product rows have no select — read producto_id from data attribute instead
                 const prodSelect = row.querySelector('.iprod-select');
                 let prodId;
                 let qty = 0;
+                let incluido = false;
                 if (prodSelect) {
                     prodId = prodSelect.value;
                     const qtyInput = row.querySelector('.iprod-qty');
                     qty = parseInt(qtyInput?.value) || 0;
+                    // Manual/edited product rows: user explicitly picks; incluido is False
+                    incluido = false;
                 } else {
                     prodId = row.getAttribute('data-producto-id');
                     const qtyInput = row.querySelector('.iprod-qty');
                     qty = parseInt(qtyInput?.value) || 0;
+                    // Auto-product row: read from data-incluido attribute
+                    incluido = row.getAttribute('data-incluido') === '1';
                 }
                 if (prodId && qty > 0) {
-                    items.push({ producto_id: parseInt(prodId), cantidad: qty });
+                    items.push({ producto_id: parseInt(prodId), cantidad: qty, incluido_en_precio: incluido });
                 }
             });
             return items;

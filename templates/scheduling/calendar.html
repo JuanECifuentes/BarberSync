@@ -877,7 +877,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (orig && orig.incluido_en_precio) return sum;
             return sum + p.subtotal;
         }, 0);
-        const grandTotal = evtData.servicesTotal + productsTotal2;
+        const grandTotal = evtData.servicesTotal + productsTotal;
         const totalEl = document.getElementById('cal-modal-grand-total');
         if (totalEl) {
             totalEl.textContent = '$' + Math.round(grandTotal).toLocaleString('de-DE');
