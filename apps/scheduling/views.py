@@ -659,6 +659,7 @@ class ServiceProductsAPI(LoginRequiredMixin, View):
                 "nombre": sp.producto.name,
                 "cantidad_consumida": sp.cantidad_consumida,
                 "incluido_en_precio": sp.incluido_en_precio,
+                "precio_unitario": str(sp.producto.price),
             }
             for sp in servicio_productos
         ]
