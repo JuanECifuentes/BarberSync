@@ -627,7 +627,7 @@
 
                     <!-- Productos (dinámico) -->
                     <div>
-                        <label class="block text-sm font-medium text-neutral-300 mb-1">Productos (Opcional)</label>
+                        <label class="block text-sm font-medium text-neutral-300 mb-1">Consumo de productos</label>
                         <div class="space-y-2 pr-1" id="modal-productos-container">
                             <!-- Dynamic rows -->
                         </div>
@@ -640,7 +640,7 @@
 
                     <!-- Total Estimado -->
                     <div class="p-3 bg-neutral-800/70 border border-neutral-700 rounded-lg flex items-center justify-between">
-                        <span class="text-sm font-medium text-neutral-300">Total Estimado</span>
+                        <span class="text-sm font-medium text-neutral-300">Total</span>
                         <span class="text-lg font-heading font-bold text-brand" x-text="totalEstimado"></span>
                     </div>
 
@@ -1035,6 +1035,7 @@ function intervencionesApp() {
         barberServiceIds: [],
         barberServicesData: {},
         barberServicesLoading: false,
+        serviceProductsData: {},
         totalEstimado: '$0',
 
         // Dropdown open states
@@ -1078,6 +1079,9 @@ function intervencionesApp() {
         },
 
         init() {
+            if (this._initialized) return;
+            this._initialized = true;
+
             document.addEventListener('edit-intervencion', (e) => this.openEditModal(e.detail));
             document.addEventListener('delete-intervencion', (e) => this.openDeleteConfirm(e.detail));
 
@@ -1169,6 +1173,8 @@ function intervencionesApp() {
             this.barberServiceIds = [];
             this.barberServicesData = {};
             this.barberServicesLoading = false;
+            this.serviceProductsData = {};
+            this._rawProductRows = [];
         },
 
         openCreateModal() {
@@ -1213,17 +1219,95 @@ function intervencionesApp() {
                 }
 
                 this.form.service_ids = data.service_ids;
+                // Immediately show modal with intervention data while service products load
                 this.showModal = true;
+                // Seed _rawProductRows from existing productos (for edit mode)
+                this._rawProductRows = [];
+                if (data.productos && data.productos.length > 0) {
+                    data.productos.forEach(p => {
+                        this._rawProductRows.push({
+                            producto_id: p.producto_id,
+                            nombre: p.nombre || '',
+                            cantidad: p.cantidad || 1,
+                            incluido: !!p.incluido,
+                            unit_price: parseFloat(p.precio) || 0,
+                            auto: !!p.auto,
+                            is_deleted: !!p.is_deleted,
+                        });
+                    });
+                }
                 this.$nextTick(() => {
-                    this.clearProductRows();
-                    if (data.productos && data.productos.length > 0) {
-                        data.productos.forEach(p => this.addProductRow(p.producto_id, p.cantidad, p.auto, p.is_deleted, p.nombre, p.precio));
-                    }
+                    const aggregated = this.aggregateProducts(this._rawProductRows);
+                    this.renderProductRows(aggregated);
                     this.initFlatpickr();
                     this.formatModalPrices();
                     initModalAccordions();
-                    this.$nextTick(() => this.updateTotalEstimado());
                 });
+
+                // Build serviceProductsData from existing intervention so unchecking a service
+                // in edit mode removes its auto-products
+                this.serviceProductsData = {};
+                if (data.service_ids && data.service_ids.length) {
+                    Promise.all(data.service_ids.map(async (svcId) => {
+                        try {
+                            const r = await fetch(`/app/schedule/api/service/${svcId}/products/`);
+                            if (r.ok) {
+                                const d = await r.json();
+                                this.serviceProductsData[svcId] = d.productos || [];
+                            }
+                        } catch(e) {}
+                    })).then(() => {
+                        this.$nextTick(() => {
+                            // Calculate expected auto products
+                            const expectedAuto = {};
+                            for (const svcId of data.service_ids) {
+                                const svcProds = this.serviceProductsData[svcId] || [];
+                                svcProds.forEach(p => {
+                                    const key = p.producto_id + '_' + !!p.incluido_en_precio;
+                                    if (!expectedAuto[key]) expectedAuto[key] = 0;
+                                    expectedAuto[key] += (p.cantidad_consumida || 1);
+                                    
+                                    this._rawProductRows.push({
+                                        producto_id: p.producto_id,
+                                        nombre: p.nombre || '',
+                                        cantidad: p.cantidad_consumida || 1,
+                                        incluido: !!p.incluido_en_precio,
+                                        unit_price: parseFloat(p.precio_unitario) || 0,
+                                        auto: true,
+                                        is_deleted: false,
+                                        servicio_id: svcId,
+                                    });
+                                });
+                            }
+                            
+                            // Adjust the DB loaded products to prevent duplication of auto-products
+                            const newRaw = [];
+                            this._rawProductRows.forEach(r => {
+                                if (r.servicio_id !== undefined) {
+                                    newRaw.push(r); // Newly added auto products
+                                } else {
+                                    // DB loaded product
+                                    const key = r.producto_id + '_' + r.incluido;
+                                    if (expectedAuto[key]) {
+                                        const remaining = r.cantidad - expectedAuto[key];
+                                        if (remaining > 0) {
+                                            newRaw.push({ ...r, cantidad: remaining, auto: false });
+                                        }
+                                        expectedAuto[key] -= r.cantidad;
+                                    } else {
+                                        newRaw.push(r);
+                                    }
+                                }
+                            });
+                            this._rawProductRows = newRaw;
+                            
+                            const aggregated = this.aggregateProducts(this._rawProductRows);
+                            this.renderProductRows(aggregated);
+                        });
+                    });
+                } else {
+                    this.$nextTick(() => this.updateTotalEstimado());
+                }
             } catch (e) {
                 console.error(e);
             }
@@ -1256,11 +1340,64 @@ function intervencionesApp() {
             });
         },
 
-        toggleService(id) {
+        async toggleService(id) {
             const idx = this.form.service_ids.indexOf(id);
-            if (idx >= 0) this.form.service_ids.splice(idx, 1);
-            else this.form.service_ids.push(id);
-            this.updateTotalEstimado();
+            if (idx >= 0) {
+                // Uncheck: remove this service's products and rebuild with aggregation
+                this.form.service_ids.splice(idx, 1);
+                delete this.serviceProductsData[id];
+                // Remove from _rawProductRows entries for this service
+                this._rawProductRows = (this._rawProductRows || []).filter(r => r.servicio_id !== id);
+                // Re-render all remaining products via aggregation
+                const aggregated = this.aggregateProducts(this._rawProductRows);
+                this.renderProductRows(aggregated);
+            } else {
+                // Check: fetch products THEN push id — avoids double-fire race
+                try {
+                    const res = await fetch(`/app/schedule/api/service/${id}/products/`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        this.serviceProductsData[id] = data.productos || [];
+                        this.form.service_ids.push(id);
+                        
+                        const svcProds = this.serviceProductsData[id] || [];
+                        svcProds.forEach(p => {
+                            this._rawProductRows.push({
+                                producto_id: p.producto_id,
+                                nombre: p.nombre || '',
+                                cantidad: p.cantidad_consumida || 1,
+                                incluido: !!p.incluido_en_precio,
+                                unit_price: parseFloat(p.precio_unitario) || 0,
+                                auto: true,
+                                is_deleted: false,
+                                servicio_id: id,
+                            });
+                        });
+                        const aggregated = this.aggregateProducts(this._rawProductRows);
+                        this.renderProductRows(aggregated);
+                    }
+                } catch (e) { console.error(e); }
+            }
+        },
+
+        addProductRowFromService(servicioId, prod) {
+            const exists = document.querySelector(
+                `#modal-productos-container .interv-producto-row[data-producto-id="${prod.producto_id}"]`
+            );
+            if (exists) return;
+            if (!this._rawProductRows) this._rawProductRows = [];
+            this._rawProductRows.push({
+                producto_id: prod.producto_id,
+                nombre: prod.nombre || '',
+                cantidad: prod.cantidad_consumida || 1,
+                incluido: !!prod.incluido_en_precio,
+                unit_price: parseFloat(prod.precio_unitario) || 0,
+                auto: true,
+                is_deleted: false,
+                servicio_id: servicioId,
+            });
+            const aggregated = this.aggregateProducts(this._rawProductRows);
+            this.renderProductRows(aggregated);
         },
 
         // Wrapper so Alpine x-text can call formatMoney (global fn)
@@ -1271,6 +1408,8 @@ function intervencionesApp() {
             this.form.service_ids = [];
             this.barberServiceIds = [];
             this.barberServicesData = {};
+            this.serviceProductsData = {};
+            this.clearProductRows();
             this.updateTotalEstimado();
             if (!this.form.barber_id) return;
 
@@ -1326,24 +1465,24 @@ function intervencionesApp() {
                     if (el) total += parseFloat(String(el.getAttribute('data-raw-price')).replace(',', '.')) || 0;
                 }
             });
-            // Products total: sum from active selects AND deleted product rows
+            // Products total: sum from active selects AND deleted product rows (skip incluido)
             document.querySelectorAll('#modal-productos-container .interv-producto-row').forEach(row => {
+                if (row.getAttribute('data-incluido') === '1') return;
                 const qtyInput = row.querySelector('.iprod-qty');
                 const qty = parseInt(qtyInput.value) || 0;
                 if (qty <= 0) return;
 
-                // Deleted products store unit price in data attribute
                 const storedPrice = row.getAttribute('data-unit-price');
-                if (storedPrice) {
+                if (storedPrice !== null && storedPrice !== '') {
                     total += parseFloat(storedPrice) * qty;
-                    return;
-                }
-                // Active products: read from select option
-                const sel = row.querySelector('.iprod-select');
-                if (sel && sel.tagName === 'SELECT') {
-                    const option = sel.options[sel.selectedIndex];
-                    const unitPrice = option ? parseFloat(option.getAttribute('data-price')) : 0;
-                    if (unitPrice) total += unitPrice * qty;
+                } else {
+                    // Manual active products: read from select option
+                    const sel = row.querySelector('.iprod-select');
+                    if (sel && sel.tagName === 'SELECT') {
+                        const option = sel.options[sel.selectedIndex];
+                        const unitPrice = option ? parseFloat(option.getAttribute('data-price')) : 0;
+                        if (unitPrice) total += unitPrice * qty;
+                    }
                 }
             });
             this.totalEstimado = '$' + formatMoney(Math.round(total));
@@ -1364,18 +1503,58 @@ function intervencionesApp() {
             return tpl ? tpl.innerHTML : '<option value="">Sin productos</option>';
         },
 
-        addProductRow(productoId, cantidad, autoConsumed, isDeleted, deletedName, unitPrice) {
+        aggregateProducts(rowsData) {
+            const groups = {};
+            rowsData.forEach(item => {
+                if (!item.producto_id) return;
+                const key = `${item.producto_id}__${item.incluido ? '1' : '0'}`;
+                if (!groups[key]) {
+                    groups[key] = {
+                        producto_id: item.producto_id,
+                        nombre: item.nombre || '',
+                        cantidad: 0,
+                        incluido: item.incluido,
+                        unit_price: item.unit_price || 0,
+                        auto: item.auto || false,
+                        is_deleted: item.is_deleted || false,
+                    };
+                }
+                groups[key].cantidad += parseInt(item.cantidad) || 0;
+            });
+            return Object.values(groups);
+        },
+
+        renderProductRows(aggregated) {
+            const container = document.getElementById('modal-productos-container');
+            if (!container) return;
+            container.innerHTML = '';
+            aggregated.forEach(item => this._renderSingleProductRow(item));
+            this.updateTotalEstimado();
+        },
+
+        _renderSingleProductRow(item) {
             const container = document.getElementById('modal-productos-container');
             const row = document.createElement('div');
             row.className = 'flex items-center gap-2 interv-producto-row';
+            row.setAttribute('data-producto-id', item.producto_id);
+            row.setAttribute('data-servicio-id', item.servicio_id || '');
+            if (item.incluido) row.setAttribute('data-incluido', '1');
+            if (item.auto) row.setAttribute('data-auto', '1');
 
-            if (isDeleted) {
-                // Deleted product: readonly display with red "Eliminado" tag
-                // unitPrice comes from the historical IntervencionProducto.precio_unitario
-                const qty = cantidad || 1;
-                const price = parseFloat(unitPrice) || 0;
-                const lineTotal = price * qty;
-                row.setAttribute('data-unit-price', price);
+            const inclBadge = item.incluido
+                ? '<span class="relative group/tipincl flex-shrink-0 cursor-help"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-700/60 text-neutral-400 border border-neutral-600">Incluido</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipincl:opacity-100 group-hover/tipincl:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">El costo del producto se consideró dentro del precio del servicio.</span></span>'
+                : '';
+            const autoBadge = item.auto
+                ? '<span class="relative group/tipauto flex-shrink-0 cursor-help"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900/60 text-blue-300 border border-blue-700/50">Auto</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipauto:opacity-100 group-hover/tipauto:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">Agregado automáticamente por el servicio</span></span>'
+                : '';
+
+            const lineTotal = (parseFloat(item.unit_price) || 0) * (parseInt(item.cantidad) || 1);
+            const formattedPrice = lineTotal > 0 ? '+$' + formatMoney(lineTotal) : '';
+            const priceClass = item.incluido ? 'text-neutral-500 opacity-50 line-through' : 'text-brand';
+
+            if (item.is_deleted) {
+                const qty = item.cantidad || 1;
+                row.setAttribute('data-unit-price', parseFloat(item.unit_price) || 0);
                 row.innerHTML = `
                     <span class="relative group/tipdel flex-shrink-0 cursor-help">
                         <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/60 text-red-300 border border-red-700/50">Eliminado</span>
@@ -1383,78 +1562,168 @@ function intervencionesApp() {
                             Este producto fue eliminado del catálogo. Se conserva como registro histórico.
                         </span>
                     </span>
-                    <input type="hidden" class="iprod-select" value="${productoId}">
-                    <span class="flex-1 px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-500 text-sm line-through">${deletedName || 'Producto eliminado'}</span>
+                    <input type="hidden" class="iprod-select" value="${item.producto_id}">
+                    <span class="flex-1 px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-500 text-sm line-through">${item.nombre || 'Producto eliminado'}</span>
                     <input type="number" min="1" value="${qty}" readonly
                            class="iprod-qty w-20 px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-500 text-sm text-center cursor-not-allowed">
-                    <span class="iprod-line-price text-xs text-neutral-500 w-24 text-right flex-shrink-0">${lineTotal > 0 ? '$' + formatMoney(lineTotal) : '—'}</span>
+                    <span class="iprod-line-price text-xs font-semibold w-24 text-right flex-shrink-0 ${priceClass}">${formattedPrice || '—'}</span>
                     <span class="w-6"></span>
                 `;
-            } else {
+            } else if (item.auto) {
+                row.setAttribute('data-unit-price', parseFloat(item.unit_price) || 0);
                 row.innerHTML = `
-                    ${autoConsumed
-                        ? '<span class="relative group/tipauto flex-shrink-0 cursor-help"><span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900/60 text-blue-300 border border-blue-700/50">Auto</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipauto:opacity-100 group-hover/tipauto:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">Agregado automáticamente por el servicio</span></span>'
-                        : ''
-                    }
-                    <select class="iprod-select flex-1 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-                        ${this.getProductOptionsHTML()}
-                    </select>
-                    <input type="number" min="1" value="${cantidad || 1}" placeholder="Cant."
-                           class="iprod-qty w-20 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm text-center focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-                    <span class="iprod-line-price text-xs text-brand font-semibold w-24 text-right flex-shrink-0"></span>
+                    ${autoBadge}
+                    ${inclBadge}
+                    <span class="flex-1 px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-400 text-sm">${item.nombre || ''}</span>
+                    <input type="number" min="1" value="${item.cantidad || 1}" readonly
+                           class="iprod-qty w-20 px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-400 text-sm text-center cursor-not-allowed">
+                    <span class="iprod-line-price text-xs font-semibold w-24 text-right flex-shrink-0 ${priceClass}">${formattedPrice}</span>
                     <button type="button" class="text-red-400 hover:text-red-300 p-1 transition-colors flex-shrink-0 iprod-remove-btn">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                 `;
-            }
-            container.appendChild(row);
-            if (productoId && !isDeleted) {
-                row.querySelector('.iprod-select').value = productoId;
-            }
-            const updateLinePrice = () => {
-                const sel = row.querySelector('.iprod-select');
-                const qtyInput = row.querySelector('.iprod-qty');
-                const lineEl = row.querySelector('.iprod-line-price');
-                const option = sel.tagName === 'SELECT' ? sel.options[sel.selectedIndex] : null;
-                const unitPrice = option ? parseFloat(option.getAttribute('data-price')) : 0;
-                const qty = parseInt(qtyInput.value) || 0;
-                if (unitPrice && qty > 0) {
-                    lineEl.textContent = '$' + formatMoney(unitPrice * qty);
-                } else {
-                    lineEl.textContent = '';
-                }
-                this.updateTotalEstimado();
-            };
-
-            if (!isDeleted) {
-                // Bind remove
                 row.querySelector('.iprod-remove-btn').addEventListener('click', () => {
+                    this._rawProductRows = (this._rawProductRows || []).filter(r => !(r.producto_id == item.producto_id && !!r.incluido === !!item.incluido && !!r.auto === !!item.auto));
                     row.remove();
-                    this.form.productCount = this.getProductRows().length;
+                    this.form.productCount = document.querySelectorAll('#modal-productos-container .interv-producto-row').length;
                     this.updateTotalEstimado();
                 });
-                // Bind select change and quantity input
-                row.querySelector('.iprod-select').addEventListener('change', () => {
-                    this.form.productCount = this.getProductRows().length;
-                    updateLinePrice();
+            } else {
+                row.innerHTML = `
+                    ${inclBadge}
+                    <select class="iprod-select flex-1 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                        ${this.getProductOptionsHTML()}
+                    </select>
+                    <input type="number" min="1" value="${item.cantidad || 1}" placeholder="Cant."
+                           class="iprod-qty w-20 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm text-center focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                    <span class="iprod-line-price text-xs font-semibold w-24 text-right flex-shrink-0 ${priceClass}"></span>
+                    <button type="button" class="text-red-400 hover:text-red-300 p-1 transition-colors flex-shrink-0 iprod-remove-btn">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                `;
+                const selectEl = row.querySelector('.iprod-select');
+                const qtyInput = row.querySelector('.iprod-qty');
+                
+                if (selectEl && item.producto_id && !String(item.producto_id).startsWith('temp_')) {
+                    selectEl.value = item.producto_id;
+                }
+                
+                selectEl && selectEl.addEventListener('change', () => {
+                    const target = (this._rawProductRows || []).find(r => r.producto_id === item.producto_id);
+                    if (target) {
+                        target.producto_id = selectEl.value;
+                        item.producto_id = selectEl.value;
+                    }
+                    this.form.productCount = document.querySelectorAll('#modal-productos-container .interv-producto-row').length;
+                    this._updateRowLinePrice(row);
+                    this.updateTotalEstimado();
                 });
-                row.querySelector('.iprod-qty').addEventListener('input', () => {
-                    updateLinePrice();
+                
+                qtyInput.addEventListener('input', () => {
+                    const target = (this._rawProductRows || []).find(r => r.producto_id === item.producto_id);
+                    if (target) {
+                        target.cantidad = parseInt(qtyInput.value) || 0;
+                    }
+                    this._updateRowLinePrice(row);
+                    this.updateTotalEstimado();
                 });
-                // Initial line price
-                this.$nextTick(() => updateLinePrice());
+                
+                row.querySelector('.iprod-remove-btn').addEventListener('click', () => {
+                    this._rawProductRows = (this._rawProductRows || []).filter(r => !(r.producto_id == item.producto_id && !!r.incluido === !!item.incluido && !!r.auto === !!item.auto));
+                    row.remove();
+                    this.form.productCount = document.querySelectorAll('#modal-productos-container .interv-producto-row').length;
+                    this.updateTotalEstimado();
+                });
+                this.$nextTick(() => this._updateRowLinePrice(row));
             }
-            this.form.productCount = this.getProductRows().length;
+            container.appendChild(row);
+        },
+
+        _updateRowLinePrice(row) {
+            const sel = row.querySelector('.iprod-select');
+            const qtyInput = row.querySelector('.iprod-qty');
+            const lineEl = row.querySelector('.iprod-line-price');
+            
+            const isIncluded = row.getAttribute('data-incluido') === '1';
+            const option = sel && sel.tagName === 'SELECT' ? sel.options[sel.selectedIndex] : null;
+            const unitPrice = option ? parseFloat(option.getAttribute('data-price')) : 0;
+            const qty = parseInt(qtyInput.value) || 0;
+            
+            if (isIncluded) {
+                lineEl.className = 'iprod-line-price text-xs font-semibold w-24 text-right flex-shrink-0 text-neutral-500 opacity-50 line-through';
+            } else {
+                lineEl.className = 'iprod-line-price text-xs font-semibold w-24 text-right flex-shrink-0 text-brand';
+            }
+            
+            lineEl.textContent = (unitPrice && qty > 0) ? '+$' + formatMoney(unitPrice * qty) : '';
+        },
+
+        addProductRow(productoId, cantidad, autoConsumed, isDeleted, deletedName, unitPrice, incluido) {
+            if (!this._rawProductRows) this._rawProductRows = [];
+            this._rawProductRows.push({
+                producto_id: productoId || `temp_${Date.now()}_${Math.random()}`,
+                nombre: deletedName || '',
+                cantidad: cantidad || 1,
+                incluido: !!incluido,
+                unit_price: parseFloat(unitPrice) || 0,
+                auto: !!autoConsumed,
+                is_deleted: !!isDeleted,
+            });
+            const aggregated = this.aggregateProducts(this._rawProductRows);
+            this.renderProductRows(aggregated);
+            this.form.productCount = document.querySelectorAll('#modal-productos-container .interv-producto-row').length;
+        },
+
+        addProductRowFromService(servicioId, prod) {
+            const exists = document.querySelector(
+                `#modal-productos-container .interv-producto-row[data-producto-id="${prod.producto_id}"]`
+            );
+            if (exists) return;
+            if (!this._rawProductRows) this._rawProductRows = [];
+            this._rawProductRows.push({
+                producto_id: prod.producto_id,
+                nombre: prod.nombre || '',
+                cantidad: prod.cantidad_consumida || 1,
+                incluido: !!prod.incluido_en_precio,
+                unit_price: parseFloat(prod.precio_unitario) || 0,
+                auto: true,
+                is_deleted: false,
+                servicio_id: servicioId,
+            });
+            const aggregated = this.aggregateProducts(this._rawProductRows);
+            this.renderProductRows(aggregated);
+        },
+
+        clearProductRows() {
+            const container = document.getElementById('modal-productos-container');
+            if (container) container.innerHTML = '';
+            this._rawProductRows = [];
+            this.form.productCount = 0;
         },
 
         getProductRows() {
             const rows = document.querySelectorAll('#modal-productos-container .interv-producto-row');
             const items = [];
             rows.forEach(row => {
-                const prodId = row.querySelector('.iprod-select').value;
-                const qty = parseInt(row.querySelector('.iprod-qty').value) || 0;
+                const prodSelect = row.querySelector('.iprod-select');
+                let prodId;
+                let qty = 0;
+                let incluido = false;
+                if (prodSelect) {
+                    prodId = prodSelect.value;
+                    const qtyInput = row.querySelector('.iprod-qty');
+                    qty = parseInt(qtyInput?.value) || 0;
+                    // Manual/edited product rows: user explicitly picks; incluido is False
+                    incluido = false;
+                } else {
+                    prodId = row.getAttribute('data-producto-id');
+                    const qtyInput = row.querySelector('.iprod-qty');
+                    qty = parseInt(qtyInput?.value) || 0;
+                    // Auto-product row: read from data-incluido attribute
+                    incluido = row.getAttribute('data-incluido') === '1';
+                }
                 if (prodId && qty > 0) {
-                    items.push({ producto_id: parseInt(prodId), cantidad: qty });
+                    items.push({ producto_id: parseInt(prodId), cantidad: qty, incluido_en_precio: incluido });
                 }
             });
             return items;
@@ -1515,6 +1784,7 @@ function intervencionesApp() {
                 }
             } catch (e) {
                 this.formError = 'Error de conexión';
+                console.error(e);
             }
             this.submitting = false;
         },

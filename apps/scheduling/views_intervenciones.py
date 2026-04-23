@@ -160,7 +160,13 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
         if filter_total_min or filter_total_max:
             qs = qs.annotate(
                 _total_servicios=Coalesce(Sum("servicios__precio_cobrado"), Value(Decimal("0"))),
-                _total_productos=Coalesce(Sum(F("productos_usados__cantidad") * F("productos_usados__precio_unitario")), Value(Decimal("0"))),
+                _total_productos=Coalesce(
+                    Sum(
+                        F("productos_usados__cantidad") * F("productos_usados__precio_unitario"),
+                        filter=Q(productos_usados__incluido_en_precio=False),
+                    ),
+                    Value(Decimal("0")),
+                ),
                 _precio_total=F("_total_servicios") + F("_total_productos"),
             )
             if filter_total_min:
@@ -207,7 +213,7 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
             servicios = list(inv.servicios.all())
             productos = list(inv.productos_usados.all())
             total_servicios = sum(s.precio_cobrado for s in servicios)
-            total_productos = sum(p.cantidad * p.precio_unitario for p in productos)
+            total_productos = sum(p.cantidad * p.precio_unitario for p in productos if not p.incluido_en_precio)
             total = total_servicios + total_productos
             fecha_local = timezone.localtime(inv.fecha) if inv.fecha else None
 
@@ -224,7 +230,7 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
                     for s in servicios
                 ],
                 "productos": [
-                    {"nombre": p.producto.name, "cantidad": p.cantidad, "precio": str(p.precio_unitario)}
+                    {"nombre": p.producto.name, "cantidad": p.cantidad, "precio": str(p.precio_unitario), "incluido": p.incluido_en_precio}
                     for p in productos
                 ],
                 "sucursal": str(inv.barbershop) if inv.barbershop else "",
@@ -300,10 +306,12 @@ class IntervencionCreateView(LoginRequiredMixin, View):
         client_id = data.get("client_id")
         service_ids = data.get("service_ids", [])
         producto_items = data.get("productos", [])
+        print('producto_items',producto_items)
         notas = data.get("notas", "")
         fecha_str = data.get("fecha")
         estado = data.get("estado", Intervencion.Estado.PENDIENTE)
         sucursal_id = data.get("sucursal_id")
+        print('sucursal_id',sucursal_id)
 
         # Venta directa: allow no services if at least one product
         if not barber_id or not client_id:
@@ -364,7 +372,7 @@ class IntervencionCreateView(LoginRequiredMixin, View):
             )
 
             for service in services:
-                IntervencionServicio.objects.create(
+                is_svc = IntervencionServicio.objects.create(
                     intervencion=intervencion,
                     servicio=service,
                     precio_cobrado=service.price,
@@ -381,30 +389,38 @@ class IntervencionCreateView(LoginRequiredMixin, View):
                 ).first()
                 if not product:
                     continue
+                # Respect incluido_en_precio from modal; default False
+                incluido = bool(item.get("incluido_en_precio", False))
+                print('cantidad2',cantidad)
                 IntervencionProducto.objects.create(
                     intervencion=intervencion,
+                    intervencion_servicio=None,
                     producto=product,
                     cantidad=cantidad,
                     precio_unitario=product.price,
+                    incluido_en_precio=incluido,
                 )
 
             # Auto-consume products linked to services via ServicioProducto
             for service in services:
+                is_svc = IntervencionServicio.objects.filter(
+                    intervencion=intervencion, servicio=service,
+                ).first()
                 for sp in service.productos_consumidos.select_related("producto").filter(producto__is_active=True):
                     product = Product.objects.select_for_update().get(pk=sp.producto_id)
-                    # Check if already added explicitly; if so, add to existing quantity
+                    # Check if already added explicitly; if so, skip adding to existing quantity
+                    # because the frontend modal already includes auto-consumed products in the payload.
                     existing = IntervencionProducto.objects.filter(
                         intervencion=intervencion, producto=product,
                     ).first()
-                    if existing:
-                        existing.cantidad += sp.cantidad_consumida
-                        existing.save(update_fields=["cantidad"])
-                    else:
+                    if not existing:
                         IntervencionProducto.objects.create(
                             intervencion=intervencion,
+                            intervencion_servicio=is_svc,
                             producto=product,
                             cantidad=sp.cantidad_consumida,
                             precio_unitario=product.price,
+                            incluido_en_precio=sp.incluido_en_precio,
                         )
 
             # Deduct stock for all products used
@@ -534,6 +550,7 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
                     producto=product,
                     cantidad=cantidad,
                     precio_unitario=product.price,
+                    incluido_en_precio=bool(item.get("incluido_en_precio", False)),
                 )
 
             # Deduct stock only for active products
@@ -687,7 +704,8 @@ class IntervencionDetailAPI(LoginRequiredMixin, View):
                 {"producto_id": p.producto_id, "nombre": p.producto.name,
                  "cantidad": p.cantidad, "precio": str(p.precio_unitario),
                  "auto": p.producto_id in auto_product_ids,
-                 "is_deleted": not p.producto.is_active}
+                 "is_deleted": not p.producto.is_active,
+                 "incluido": p.incluido_en_precio}
                 for p in productos
             ],
         })

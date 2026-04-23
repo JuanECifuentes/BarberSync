@@ -576,14 +576,17 @@ document.addEventListener('DOMContentLoaded', function() {
                         ${props.intervencion_productos.map(p => {
                             const deletedTooltip = 'Este producto fue eliminado del catálogo pero se mantiene en el historial por ser parte de intervenciones pasadas.';
                             const autoTooltip = 'Este producto fue agregado automáticamente al seleccionar los servicios.';
+                            const incluidoTooltip = 'Este producto está incluido en el precio del servicio.';
+                            const priceColorClass = p.incluido_en_precio ? 'text-neutral-500' : 'text-white';
                             return `
                             <div class="flex justify-between text-sm">
                                 <span class="flex items-center gap-1.5 text-neutral-300">
                                     ${p.name} x${p.cantidad}
                                     ${p.is_deleted ? `<span class="relative group/tipdel"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/60 text-red-300 border border-red-700/50 cursor-help">Eliminado</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipdel:opacity-100 group-hover/tipdel:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">${deletedTooltip}</span></span>` : ''}
                                     ${!p.is_deleted && p.auto ? `<span class="relative group/tipauto"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900/60 text-blue-300 border border-blue-700/50 cursor-help">Auto</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipauto:opacity-100 group-hover/tipauto:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">${autoTooltip}</span></span>` : ''}
+                                    ${p.incluido_en_precio ? `<span class="relative group/tipincl"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-700/60 text-neutral-400 border border-neutral-600 cursor-help">Incluido</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipincl:opacity-100 group-hover/tipincl:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">${incluidoTooltip}</span></span>` : ''}
                                 </span>
-                                <span class="text-white font-medium">$${Math.round(parseFloat(p.subtotal)).toLocaleString('de-DE')}</span>
+                                <span class="${priceColorClass} font-medium${p.incluido_en_precio ? ' opacity-60' : ''}">$${Math.round(parseFloat(p.subtotal)).toLocaleString('de-DE')}</span>
                             </div>`;
                         }).join('')}
                     </div>`;
@@ -621,8 +624,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>`;
             }
 
-            // Calculate grand total (services + products)
-            const productsTotal = (props.intervencion_productos || []).reduce((sum, p) => sum + parseFloat(p.subtotal || 0), 0);
+            // Calculate grand total (services + products, excluding included products)
+            const productsTotal = (props.intervencion_productos || []).reduce((sum, p) => {
+                if (p.incluido_en_precio) return sum;
+                return sum + parseFloat(p.subtotal || 0);
+            }, 0);
             const grandTotal = parseFloat(props.total_price || 0) + productsTotal;
 
             // Start / end time
@@ -850,8 +856,27 @@ document.addEventListener('DOMContentLoaded', function() {
             displayEl.remove();
         }
 
-        // Update grand total
-        const productsTotal = products.reduce((sum, p) => sum + p.subtotal, 0);
+        // Update grand total - exclude products marked as incluido_en_precio
+        const productsWithSel = [];
+        document.querySelectorAll('#cal-productos-container .cal-producto-row').forEach(row => {
+            const sel = row.querySelector('.cprod-select');
+            const qty = parseInt(row.querySelector('.cprod-qty').value) || 0;
+            if (sel.value && qty > 0) {
+                const opt = sel.selectedOptions[0];
+                const catalogPrice = parseFloat(opt?.dataset?.price || 0);
+                let unitPrice = catalogPrice;
+                if (isRealizada) {
+                    const orig = evtData.intervencionProductos.find(p => String(p.product_id) === sel.value);
+                    if (orig) unitPrice = parseFloat(orig.subtotal) / orig.cantidad;
+                }
+                productsWithSel.push({ producto_id: parseInt(sel.value), subtotal: unitPrice * qty });
+            }
+        });
+        const productsTotal = productsWithSel.reduce((sum, p) => {
+            const orig = evtData.intervencionProductos ? evtData.intervencionProductos.find(x => String(x.product_id) === String(p.producto_id)) : null;
+            if (orig && orig.incluido_en_precio) return sum;
+            return sum + p.subtotal;
+        }, 0);
         const grandTotal = evtData.servicesTotal + productsTotal;
         const totalEl = document.getElementById('cal-modal-grand-total');
         if (totalEl) {
@@ -1092,7 +1117,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(() => {
             submitBtn.disabled = false;
             submitBtn.querySelector('span').textContent = 'Crear Cita';
-            showNewAptError('Error de conexi&oacute;n');
+            showNewAptError('Error de conexión');
         });
 
         return false;

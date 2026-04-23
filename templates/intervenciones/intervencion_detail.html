@@ -81,7 +81,9 @@
         <div class="space-y-2">
             {% for svc in intervencion.servicios.all %}
             <div class="flex items-center justify-between text-sm">
-                <span class="text-neutral-300">{{ svc.servicio.name }}</span>
+                <span class="text-neutral-300 flex items-center gap-1.5">
+                    {{ svc.servicio.name }}
+                </span>
                 <span class="font-heading font-bold text-brand">${{ svc.precio_cobrado|money }}</span>
             </div>
             {% empty %}
@@ -103,8 +105,16 @@
         <div class="space-y-2">
             {% for prod in intervencion.productos_usados.all %}
             <div class="flex items-center justify-between text-sm">
-                <span class="text-neutral-300">{{ prod.producto.name }} x{{ prod.cantidad }}</span>
-                <span class="text-neutral-400">${{ prod.subtotal|money }}</span>
+                <span class="text-neutral-300 flex items-center gap-1.5">
+                    {{ prod.producto.name }} x{{ prod.cantidad }}
+                    {% if prod.incluido_en_precio %}
+                    <span class="relative group/tipincl">
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-700/60 text-neutral-400 border border-neutral-600 cursor-help">Incluido</span>
+                        <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipincl:opacity-100 group-hover/tipincl:visible transition-all duration-200 pointer-events-none z-50 shadow-xl whitespace-normal text-center leading-relaxed">El costo del producto se consideró dentro del precio del servicio.</span>
+                    </span>
+                    {% endif %}
+                </span>
+                <span class="{% if prod.incluido_en_precio %}text-neutral-500 opacity-60{% else %}text-neutral-400{% endif %}">${{ prod.subtotal|money }}</span>
             </div>
             {% endfor %}
         </div>

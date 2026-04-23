@@ -289,6 +289,10 @@ def create_appointment(
     # Auto-consume products linked to services via ServicioProducto
     # Only include active products (soft-deleted products are excluded)
     for svc_obj, _price in service_prices:
+        # Find the IntervencionServicio just created for this service
+        intervencion_servicio = IntervencionServicio.objects.filter(
+            intervencion=intervencion, servicio=svc_obj
+        ).first()
         for sp in ServicioProducto.objects.filter(
             servicio=svc_obj,
             producto__is_active=True,
@@ -303,9 +307,11 @@ def create_appointment(
             else:
                 IntervencionProducto.objects.create(
                     intervencion=intervencion,
+                    intervencion_servicio=intervencion_servicio,
                     producto=product,
                     cantidad=sp.cantidad_consumida,
                     precio_unitario=product.price,
+                    incluido_en_precio=sp.incluido_en_precio,
                 )
 
     # Deduct stock for all auto-consumed products
@@ -432,7 +438,10 @@ def get_calendar_events(
 
         # Services detail with prices
         services_detail = [
-            {"name": s.service.name, "price": str(s.price_charged)}
+            {
+                "name": s.service.name,
+                "price": str(s.price_charged),
+            }
             for s in apt.services.all()
         ]
 
@@ -470,6 +479,7 @@ def get_calendar_events(
                     "precio_unitario": str(p.precio_unitario),
                     "is_deleted": not p.producto.is_active,
                     "auto": p.producto_id in auto_product_ids,
+                    "incluido_en_precio": p.incluido_en_precio,
                 }
                 for p in intervencion.productos_usados.select_related("producto").all()
             ]

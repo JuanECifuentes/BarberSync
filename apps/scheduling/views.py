@@ -375,7 +375,12 @@ class ServiceDetailAPI(LoginRequiredMixin, View):
             producto__is_active=True,
         ).select_related("producto")
         productos_data = [
-            {"producto_id": sp.producto_id, "nombre": sp.producto.name, "cantidad": sp.cantidad_consumida}
+            {
+                "producto_id": sp.producto_id,
+                "nombre": sp.producto.name,
+                "cantidad": sp.cantidad_consumida,
+                "incluido_en_precio": sp.incluido_en_precio,
+            }
             for sp in productos
         ]
 
@@ -447,6 +452,7 @@ class ServiceCreateAPI(LoginRequiredMixin, View):
                         servicio=service,
                         producto=product,
                         cantidad_consumida=int(cantidad),
+                        incluido_en_precio=bool(p.get("incluido_en_precio", False)),
                     )
 
         return JsonResponse({
@@ -518,6 +524,7 @@ class ServiceUpdateAPI(LoginRequiredMixin, View):
                             servicio=service,
                             producto=product,
                             cantidad_consumida=int(cantidad),
+                            incluido_en_precio=bool(p.get("incluido_en_precio", False)),
                         )
 
         return JsonResponse({"ok": True})
@@ -631,6 +638,32 @@ class BarberServicesAPI(LoginRequiredMixin, View):
             for bs in barber_services
         ]
         return JsonResponse({"services": data})
+
+
+class ServiceProductsAPI(LoginRequiredMixin, View):
+    """Returns auto-consumed products for a given service (from ServicioProducto)."""
+
+    def get(self, request, service_id):
+        barbershop = request.barbershop
+        if not barbershop:
+            return JsonResponse({"error": "Sin barbería"}, status=403)
+
+        servicio_productos = ServicioProducto.objects.filter(
+            servicio_id=service_id,
+            producto__is_active=True,
+        ).select_related("producto")
+
+        data = [
+            {
+                "producto_id": sp.producto.pk,
+                "nombre": sp.producto.name,
+                "cantidad_consumida": sp.cantidad_consumida,
+                "incluido_en_precio": sp.incluido_en_precio,
+                "precio_unitario": str(sp.producto.price),
+            }
+            for sp in servicio_productos
+        ]
+        return JsonResponse({"productos": data})
 
 
 # ─────────────────────────────────────────────
