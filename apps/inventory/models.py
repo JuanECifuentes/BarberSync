@@ -152,3 +152,75 @@ class StockMovement(AuditModel):
         self.resulting_stock = self.product.stock_quantity
         self.product.save(update_fields=["stock_quantity"])
         super().save(*args, **kwargs)
+
+
+class InventoryMovement(AuditModel):
+    """
+    Header record for a stock movement event (restock, transfer, adjustment).
+    Used for the immutable movement log that supports future cross-branch transfers.
+    """
+
+    class MovementType(models.TextChoices):
+        RESTOCK = "restock", "Reabastecimiento"
+        TRANSFER = "transfer", "Transferencia"
+        ADJUSTMENT = "adjustment", "Ajuste"
+
+    movement_type = models.CharField(
+        "tipo de movimiento", max_length=15, choices=MovementType.choices,
+    )
+    barbershop_origin = models.ForeignKey(
+        "accounts.Barbershop",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="inventory_movements_origin",
+        verbose_name="sucursal origen",
+        help_text="Null para Reabastecimiento.",
+    )
+    barbershop_destiny = models.ForeignKey(
+        "accounts.Barbershop",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="inventory_movements_destiny",
+        verbose_name="sucursal destino",
+    )
+    notes = models.TextField("notas", blank=True)
+
+    class Meta:
+        db_table = "inventory_movement"
+        verbose_name = "movimiento de inventario"
+        verbose_name_plural = "movimientos de inventario"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.get_movement_type_display()} – {self.created_at:%d/%m/%Y %H:%M}"
+
+
+class InventoryMovementItem(models.Model):
+    """
+    Line item for an InventoryMovement. Records the product affected,
+    quantity added, and stock snapshot before/after the movement.
+    """
+
+    movement = models.ForeignKey(
+        InventoryMovement,
+        on_delete=models.CASCADE,
+        related_name="items",
+    )
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name="movement_items",
+    )
+    quantity = models.IntegerField("cantidad", help_text="Unidades sumadas.")
+    stock_previous = models.IntegerField("stock previo", help_text="Stock antes del movimiento.")
+    stock_resulting = models.IntegerField("stock resultante", help_text="Stock después del movimiento.")
+
+    class Meta:
+        db_table = "inventory_movement_item"
+        verbose_name = "ítem de movimiento"
+        verbose_name_plural = "ítems de movimiento"
+
+    def __str__(self):
+        sign = "+" if self.quantity > 0 else ""
+        return f"{self.product.name} {sign}{self.quantity}"

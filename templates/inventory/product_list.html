@@ -11,6 +11,7 @@
         overflow: hidden;
         transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
+
     .btn-action-primary::before {
         content: '';
         position: absolute;
@@ -22,28 +23,34 @@
         z-index: 0;
         border-radius: inherit;
     }
+
     .btn-action-primary:not(:disabled):hover::before {
         transform: scaleX(1);
     }
+
     .btn-action-primary:not(:disabled):hover {
         color: #fff !important;
         border-color: #ff2301 !important;
         transform: scale(1.03);
         box-shadow: 0 4px 16px rgba(255, 35, 1, 0.3);
     }
-    .btn-action-primary > * {
+
+    .btn-action-primary>* {
         position: relative;
         z-index: 1;
     }
+
     .btn-action-primary span,
     .btn-action-primary svg {
         position: relative;
         z-index: 1;
     }
+
     /* Custom tooltip styling */
     [data-tooltip] {
         position: relative;
     }
+
     [data-tooltip]::after {
         content: attr(data-tooltip);
         position: absolute;
@@ -63,8 +70,9 @@
         pointer-events: none;
         transition: opacity 0.2s ease, transform 0.2s ease;
         z-index: 50;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     }
+
     [data-tooltip]::before {
         content: '';
         position: absolute;
@@ -78,6 +86,7 @@
         transition: opacity 0.2s ease, transform 0.2s ease;
         z-index: 50;
     }
+
     [data-tooltip]:hover::after,
     [data-tooltip]:hover::before {
         opacity: 1;
@@ -95,7 +104,8 @@
             <h2 class="font-heading font-bold text-xl text-white">Productos</h2>
             <span class="text-sm text-neutral-400" id="product-count">({{ total_products }})</span>
             {% if low_stock_count > 0 %}
-            <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-900/40 text-amber-300 rounded-full text-xs font-medium">
+            <span
+                class="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-900/40 text-amber-300 rounded-full text-xs font-medium">
                 <span class="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>
                 {{ low_stock_count }} con stock bajo
             </span>
@@ -103,17 +113,37 @@
         </div>
         {% if is_admin %}
         <div class="flex gap-2">
+            <button onclick="document.getElementById('modal-bulk-restock').classList.remove('hidden')"
+                class="btn-action-primary btn-secondary text-sm flex items-center gap-2 border border-neutral-700 px-4 py-2 rounded-lg transition-all">
+                <svg class="w-4 h-4 text-orange-400 transition-colors" fill="none" stroke="currentColor"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>Reestock M&uacute;ltiple</span>
+            </button>
+            <button onclick="openHistoryModal()"
+                class="btn-action-primary btn-secondary text-sm flex items-center gap-2 border border-neutral-700 px-4 py-2 rounded-lg transition-all">
+                <svg class="w-4 h-4 text-neutral-400 transition-colors" fill="none" stroke="currentColor"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Historial</span>
+            </button>
             <button onclick="document.getElementById('modal-category').classList.remove('hidden')"
-                    class="btn-action-primary btn-secondary text-sm flex items-center gap-2 border border-neutral-700 px-4 py-2 rounded-lg transition-all">
-                <svg class="w-4 h-4 text-neutral-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/>
+                class="btn-action-primary btn-secondary text-sm flex items-center gap-2 border border-neutral-700 px-4 py-2 rounded-lg transition-all">
+                <svg class="w-4 h-4 text-neutral-400 transition-colors" fill="none" stroke="currentColor"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
                 </svg>
                 <span>Nueva Categor&iacute;a</span>
             </button>
             <button onclick="openProductModal()"
-                    class="btn-action-primary btn-primary text-sm flex items-center gap-2 border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm">
+                class="btn-action-primary btn-primary text-sm flex items-center gap-2 border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                 </svg>
                 <span>Nuevo Producto</span>
             </button>
@@ -127,8 +157,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             <div>
                 <label class="block text-xs text-neutral-400 mb-1">Sucursal</label>
-                <select id="filter-sucursal"
-                        class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
+                <select id="filter-sucursal" class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
                                focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                     <option value="all" selected>Todas las sucursales</option>
                     {% for s in sucursales %}
@@ -139,19 +168,18 @@
             <div>
                 <label class="block text-xs text-neutral-400 mb-1">Nombre</label>
                 <input type="text" id="filter-nombre" placeholder="Buscar producto..."
-                       class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
+                    class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
                               placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
             </div>
             <div>
                 <label class="block text-xs text-neutral-400 mb-1">SKU</label>
                 <input type="text" id="filter-sku" placeholder="C&oacute;digo SKU..."
-                       class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
+                    class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
                               placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
             </div>
             <div>
                 <label class="block text-xs text-neutral-400 mb-1">Categor&iacute;a</label>
-                <select id="filter-category"
-                        class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
+                <select id="filter-category" class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
                                focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                     <option value="">Todas</option>
                     {% for cat in categories %}
@@ -161,8 +189,7 @@
             </div>
             <div>
                 <label class="block text-xs text-neutral-400 mb-1">Stock</label>
-                <select id="filter-stock"
-                        class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
+                <select id="filter-stock" class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm
                                focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                     <option value="">Todos</option>
                     <option value="bajo">Solo stock bajo</option>
@@ -171,7 +198,7 @@
         </div>
         <div class="flex gap-2 mt-3">
             <button type="button" onclick="clearFilters()"
-                    class="btn-action-primary btn-ghost text-sm border border-neutral-700 px-4 py-2 rounded-lg transition-all">
+                class="btn-action-primary btn-ghost text-sm border border-neutral-700 px-4 py-2 rounded-lg transition-all">
                 <span>Limpiar filtros</span>
             </button>
         </div>
@@ -181,127 +208,145 @@
     <!-- ACCORDION: Products grouped by category    -->
     <!-- (spinner overlay is positioned inside)     -->
     <!-- ═══════════════════════════════════════════ -->
-    <style>.filtered-hidden { display: none !important; }</style>
+    <style>
+        .filtered-hidden {
+            display: none !important;
+        }
+    </style>
     <div class="relative" id="inventory-wrapper">
         <!-- Spinner overlay (non-destructive, sits on top) -->
-        <div id="filter-spinner" class="hidden absolute inset-0 z-10 bg-neutral-950/70 flex items-center justify-center rounded-xl">
+        <div id="filter-spinner"
+            class="hidden absolute inset-0 z-10 bg-neutral-950/70 flex items-center justify-center rounded-xl">
             <div class="flex flex-col items-center gap-3">
-                <svg class="w-8 h-8 text-brand animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <svg class="w-8 h-8 text-brand animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none"
+                    viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    <path class="opacity-75" fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                    </path>
                 </svg>
                 <span class="text-sm text-neutral-400">Filtrando productos...</span>
             </div>
         </div>
 
-    <div class="space-y-3" id="inventory-accordion">
-        {% for cat_name, group in grouped_products.items %}
-        <div class="card p-0 overflow-hidden accordion-group"
-             data-category-id="{{ group.category.pk|default:'' }}"
-             data-category-name="{{ cat_name|lower }}">
-            <!-- Accordion header -->
-            <button onclick="toggleAccordion(this)"
+        <div class="space-y-3" id="inventory-accordion">
+            {% for cat_name, group in grouped_products.items %}
+            <div class="card p-0 overflow-hidden accordion-group" data-category-id="{{ group.category.pk|default:'' }}"
+                data-category-name="{{ cat_name|lower }}">
+                <!-- Accordion header -->
+                <button onclick="toggleAccordion(this)"
                     class="w-full flex items-center justify-between px-5 py-4 hover:bg-neutral-800/50 transition-colors">
-                <div class="flex items-center gap-3">
-                    <svg class="w-5 h-5 text-brand accordion-chevron transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                    </svg>
-                    <h3 class="font-heading font-bold text-white text-base">{{ cat_name }}</h3>
-                    <span class="cat-count text-xs text-neutral-400 bg-neutral-800 px-2 py-0.5 rounded-full">{{ group.products|length }}</span>
-                </div>
-            </button>
+                    <div class="flex items-center gap-3">
+                        <svg class="w-5 h-5 text-brand accordion-chevron transition-transform duration-200" fill="none"
+                            stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                        <h3 class="font-heading font-bold text-white text-base">{{ cat_name }}</h3>
+                        <span class="cat-count text-xs text-neutral-400 bg-neutral-800 px-2 py-0.5 rounded-full">{{ group.products|length }}</span>
+                    </div>
+                </button>
 
-            <!-- Accordion body (open by default) -->
-            <div class="accordion-body">
-                <div class="px-5 pb-4 space-y-2">
-                    {% for product in group.products %}
-                    <div class="product-card flex items-center gap-4 p-4 rounded-xl bg-neutral-800/60 border border-neutral-700/50
+                <!-- Accordion body (open by default) -->
+                <div class="accordion-body">
+                    <div class="px-5 pb-4 space-y-2">
+                        {% for product in group.products %}
+                        <div class="product-card flex items-center gap-4 p-4 rounded-xl bg-neutral-800/60 border border-neutral-700/50
                                 hover:shadow-lg hover:shadow-brand/5 hover:border-neutral-600 transition-all duration-200 group"
-                         id="product-row-{{ product.pk }}"
-                         data-nombre="{{ product.name|lower }}"
-                         data-sku="{{ product.sku|lower }}"
-                         data-category-id="{{ product.category.pk|default:'' }}"
-                         data-stock="{{ product.stock_quantity }}"
-                         data-threshold="{{ product.low_stock_threshold }}"
-                         data-low-stock="{% if product.is_low_stock %}1{% else %}0{% endif %}"
-                         data-sucursal-id="{{ product.barbershop.pk }}">
+                            id="product-row-{{ product.pk }}" data-nombre="{{ product.name|lower }}"
+                            data-sku="{{ product.sku|lower }}" data-category-id="{{ product.category.pk|default:'' }}"
+                            data-stock="{{ product.stock_quantity }}" data-threshold="{{ product.low_stock_threshold }}"
+                            data-low-stock="{% if product.is_low_stock %}1{% else %}0{% endif %}"
+                            data-sucursal-id="{{ product.barbershop.pk }}">
 
-                        <!-- Left: Icon + Price -->
-                        <div class="flex flex-col items-center gap-1.5 flex-shrink-0 w-16">
-                            <div class="w-10 h-10 rounded-lg bg-neutral-700/50 flex items-center justify-center">
-                                <svg class="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                          d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-                                </svg>
+                            <!-- Left: Icon + Price -->
+                            <div class="flex flex-col items-center gap-1.5 flex-shrink-0 w-16">
+                                <div class="w-10 h-10 rounded-lg bg-neutral-700/50 flex items-center justify-center">
+                                    <svg class="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor"
+                                        viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                            d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                    </svg>
+                                </div>
+                                <span class="text-xs font-heading font-bold text-brand">${{ product.price|money }}</span>
                             </div>
-                            <span class="text-xs font-heading font-bold text-brand">${{ product.price|money }}</span>
-                        </div>
 
-                        <!-- Center: Name + Sucursal -->
-                        <div class="flex-1 min-w-0">
-                            <p class="font-medium font-heading text-white truncate">{{ product.name }}</p>
-                            <p class="text-xs text-neutral-400 mt-0.5 truncate">{{ product.barbershop.name }}</p>
-                            {% if product.sku %}
-                            <p class="text-[10px] text-neutral-400 mt-0.5">SKU: {{ product.sku }}</p>
-                            {% endif %}
-                        </div>
+                            <!-- Center: Name + Sucursal -->
+                            <div class="flex-1 min-w-0">
+                                <p class="font-medium font-heading text-white truncate">{{ product.name }}</p>
+                                <p class="text-xs text-neutral-400 mt-0.5 truncate">{{ product.barbershop.name }}</p>
+                                {% if product.sku %}
+                                <p class="text-[10px] text-neutral-400 mt-0.5">SKU: {{ product.sku }}</p>
+                                {% endif %}
+                            </div>
 
-                        <!-- Right: Stock badge + Actions -->
-                        <div class="flex items-center gap-3 flex-shrink-0">
-                            <!-- Stock badge -->
-                            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+                            <!-- Right: Stock badge + Actions -->
+                            <div class="flex items-center gap-3 flex-shrink-0">
+                                <!-- Stock badge -->
+                                <span
+                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
                                          transition-all duration-150 cursor-default
                                          {% if product.is_low_stock %}bg-amber-900/40 text-amber-300 border border-amber-800/50 hover:bg-amber-900/60
                                          {% else %}bg-neutral-700/50 text-neutral-300 border border-neutral-600/50 hover:bg-neutral-700{% endif %}">
-                                {% if product.is_low_stock %}
-                                <span class="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse"></span>
-                                {% endif %}
-                                Stock: {{ product.stock_quantity }}
-                            </span>
+                                    {% if product.is_low_stock %}
+                                    <span class="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse"></span>
+                                    {% endif %}
+                                    Stock: {{ product.stock_quantity }}
+                                </span>
 
-                            {% if is_admin %}
-                            <!-- Action buttons -->
-                            <div class="flex items-center gap-1">
-                                <button onclick="openEditModal({{ product.pk }})"
-                                        data-tooltip="Editar Producto"
-                                        class="border border-neutral-700 px-3 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-400 hover:text-white">
+                                {% if is_admin %}
+                                <!-- Reestock button -->
+                                <button
+                                    onclick="openRestockModal({{ product.pk }}, '{{ product.name|escapejs }}', {{ product.stock_quantity }}, '{{ product.barbershop.name|escapejs }}')"
+                                    data-tooltip="Reestock"
+                                    class="border border-orange-700/60 px-3 py-2 rounded-lg hover:border-orange-500 transition-all shadow-sm text-orange-400 hover:text-orange-300 hover:bg-orange-900/20">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                     </svg>
                                 </button>
-                                <button onclick="confirmDelete({{ product.pk }}, '{{ product.name|escapejs }}')"
+                                <!-- Action buttons -->
+                                <div class="flex items-center gap-1">
+                                    <button onclick="openEditModal({{ product.pk }})" data-tooltip="Editar Producto"
+                                        class="border border-neutral-700 px-3 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-400 hover:text-white">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                    </button>
+                                    <button onclick="confirmDelete({{ product.pk }}, '{{ product.name|escapejs }}')"
                                         data-tooltip="Eliminar Producto"
                                         class="border border-neutral-700 px-3 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-red-400 hover:text-red-300">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                                    </svg>
-                                </button>
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                {% endif %}
                             </div>
-                            {% endif %}
                         </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
                 </div>
             </div>
+            {% empty %}
+            <div id="empty-state" class="text-center py-16 text-neutral-400">
+                <svg class="w-12 h-12 mx-auto text-neutral-700 mb-3" fill="none" stroke="currentColor"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                        d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+                No hay productos registrados.
+            </div>
+            {% endfor %}
         </div>
-        {% empty %}
-        <div id="empty-state" class="text-center py-16 text-neutral-400">
-            <svg class="w-12 h-12 mx-auto text-neutral-700 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                      d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-            </svg>
-            No hay productos registrados.
-        </div>
-        {% endfor %}
-    </div>
     </div><!-- /inventory-wrapper -->
 
     <!-- No results from filter (hidden by default) -->
     <div id="no-filter-results" class="hidden text-center py-12 text-neutral-400">
         <svg class="w-10 h-10 mx-auto text-neutral-700 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
         <p>No se encontraron productos con los filtros aplicados.</p>
     </div>
@@ -316,7 +361,9 @@
         <div class="flex items-center justify-between">
             <h3 id="modal-product-title" class="font-heading font-bold text-lg text-white">Nuevo Producto</h3>
             <button onclick="closeProductModal()" class="text-neutral-400 hover:text-white transition-colors">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
             </button>
         </div>
         <input type="hidden" id="prod-edit-id" value="">
@@ -324,81 +371,90 @@
             <div id="prod-sucursal-wrapper">
                 <label class="block text-xs text-neutral-400 mb-1">Sucursal</label>
                 <select id="prod-sucursal"
-                        class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                    class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                     {% for s in sucursales %}
                     <option value="{{ s.pk }}">{{ s.name }}</option>
                     {% endfor %}
                 </select>
             </div>
             <input id="prod-name" type="text" placeholder="Nombre del producto"
-                   class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
             <select id="prod-category"
-                    class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                 <option value="">Sin categor&iacute;a</option>
                 {% for cat in categories %}
                 <option value="{{ cat.pk }}">{{ cat.name }}</option>
                 {% endfor %}
             </select>
             <textarea id="prod-desc" rows="2" placeholder="Descripci&oacute;n (opcional)"
-                      class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors resize-none"></textarea>
+                class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors resize-none"></textarea>
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="text-xs text-neutral-400 mb-1 block">Precio venta</label>
                     <input id="prod-price" type="text" inputmode="numeric" placeholder="0"
-                           class="money-input w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                        class="money-input w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                 </div>
                 <div>
                     <label class="text-xs text-neutral-400 mb-1 block">Costo</label>
                     <input id="prod-cost" type="text" inputmode="numeric" placeholder="0"
-                           class="money-input w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                        class="money-input w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                 </div>
             </div>
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="text-xs text-neutral-400 mb-1 block">Stock inicial</label>
                     <input id="prod-stock" type="number" placeholder="0" value="0"
-                           class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                        class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                 </div>
                 <div>
                     <label class="text-xs text-neutral-400 mb-1 block">SKU (opcional)</label>
                     <input id="prod-sku" type="text" placeholder="SKU"
-                           class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                        class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                 </div>
             </div>
             <div>
                 <label class="text-xs text-neutral-400 mb-1 block">Alerta stock bajo</label>
                 <input id="prod-threshold" type="number" placeholder="5" value="5"
-                       class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                    class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
             </div>
         </div>
         <!-- Historial de Precios y Costos (accordion, only in edit mode) -->
         <div id="prod-history-accordion" class="hidden">
             <button type="button" onclick="toggleProdHistoryAccordion()"
-                    class="w-full flex items-center justify-between px-3 py-2.5 bg-neutral-800 border border-neutral-700 rounded-lg hover:bg-neutral-700/60 transition-colors">
+                class="w-full flex items-center justify-between px-3 py-2.5 bg-neutral-800 border border-neutral-700 rounded-lg hover:bg-neutral-700/60 transition-colors">
                 <span class="flex items-center gap-2 text-xs font-semibold text-neutral-300">
                     <svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                     </svg>
                     Historial de Precios y Costos
                 </span>
-                <svg id="prod-history-chevron" class="w-4 h-4 text-neutral-400 transition-transform duration-200 -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                <svg id="prod-history-chevron"
+                    class="w-4 h-4 text-neutral-400 transition-transform duration-200 -rotate-90" fill="none"
+                    stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                 </svg>
             </button>
-            <div id="prod-history-body" class="hidden mt-2 max-h-52 overflow-y-auto rounded-lg border border-neutral-700 bg-neutral-800/40">
+            <div id="prod-history-body"
+                class="hidden mt-2 max-h-52 overflow-y-auto rounded-lg border border-neutral-700 bg-neutral-800/40">
                 <div id="prod-history-list" class="space-y-0.5 p-2">
                     <!-- Populated by JS infinite scroll -->
                 </div>
                 <div id="prod-history-sentinel" class="flex justify-center py-3">
                     <svg class="w-5 h-5 text-brand animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                        </circle>
+                        <path class="opacity-75" fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                        </path>
                     </svg>
                 </div>
             </div>
         </div>
 
-        <button onclick="saveProduct()" class="btn-action-primary btn-primary w-full border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm" id="btn-save-product"><span>Crear Producto</span></button>
+        <button onclick="saveProduct()"
+            class="btn-action-primary btn-primary w-full border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm"
+            id="btn-save-product"><span>Crear Producto</span></button>
     </div>
 </div>
 
@@ -407,13 +463,18 @@
     <div class="w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
         <div class="flex items-center justify-between">
             <h3 class="font-heading font-bold text-lg text-white">Nueva Categor&iacute;a</h3>
-            <button onclick="document.getElementById('modal-category').classList.add('hidden')" class="text-neutral-400 hover:text-white transition-colors">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            <button onclick="document.getElementById('modal-category').classList.add('hidden')"
+                class="text-neutral-400 hover:text-white transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
             </button>
         </div>
         <input id="cat-name" type="text" placeholder="Nombre de la categor&iacute;a"
-               class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-        <button onclick="createCategory()" class="btn-action-primary btn-primary w-full border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm"><span>Crear Categor&iacute;a</span></button>
+            class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+        <button onclick="createCategory()"
+            class="btn-action-primary btn-primary w-full border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm"><span>Crear
+                Categor&iacute;a</span></button>
     </div>
 </div>
 
@@ -423,12 +484,14 @@
         <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-full bg-red-900/30 flex items-center justify-center flex-shrink-0">
                 <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
             </div>
             <div>
                 <h3 class="font-heading font-bold text-white">Eliminar producto</h3>
-                <p class="text-xs text-neutral-400 mt-1">El producto se desactivar&aacute; y dejar&aacute; de estar visible.</p>
+                <p class="text-xs text-neutral-400 mt-1">El producto se desactivar&aacute; y dejar&aacute; de estar
+                    visible.</p>
             </div>
         </div>
         <p class="text-sm text-neutral-300">
@@ -436,332 +499,509 @@
         </p>
         <input type="hidden" id="delete-product-id" value="">
         <div class="flex gap-3">
-            <button onclick="document.getElementById('modal-confirm-delete').classList.add('hidden')" class="btn-secondary flex-1 text-sm">Cancelar</button>
-            <button onclick="deleteProduct()" class="flex-1 text-sm bg-red-600 text-white font-semibold px-4 py-3 rounded-lg hover:bg-red-500 transition-colors">Eliminar</button>
+            <button onclick="document.getElementById('modal-confirm-delete').classList.add('hidden')"
+                class="btn-secondary flex-1 text-sm">Cancelar</button>
+            <button onclick="deleteProduct()"
+                class="flex-1 text-sm bg-red-600 text-white font-semibold px-4 py-3 rounded-lg hover:bg-red-500 transition-colors">Eliminar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Reestock Individual -->
+<div id="modal-restock" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+    <div class="w-full max-w-sm bg-neutral-900 border border-orange-800/50 rounded-xl p-6 space-y-4">
+        <div class="flex items-center justify-between">
+            <h3 class="font-heading font-bold text-lg text-white flex items-center gap-2">
+                <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Reestock
+            </h3>
+            <button onclick="closeRestockModal()" class="text-neutral-400 hover:text-white transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Locked info block -->
+        <div class="bg-neutral-800/60 border border-neutral-700 rounded-lg p-4 space-y-2">
+            <div class="flex justify-between text-sm">
+                <span class="text-neutral-400">Producto</span>
+                <span id="restock-product-name" class="text-white font-medium"></span>
+            </div>
+            <div class="flex justify-between text-sm">
+                <span class="text-neutral-400">Sucursal</span>
+                <span id="restock-product-branch" class="text-white font-medium"></span>
+            </div>
+            <div class="flex justify-between text-sm">
+                <span class="text-neutral-400">Stock Actual</span>
+                <span id="restock-current-stock" class="text-brand font-bold"></span>
+            </div>
+        </div>
+
+        <input type="hidden" id="restock-product-id" value="">
+
+        <div>
+            <label class="block text-xs text-neutral-400 mb-1">Cantidad a agregar <span
+                    class="text-orange-400">*</span></label>
+            <input id="restock-quantity" type="number" min="1" placeholder="Ej: 10"
+                class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors">
+        </div>
+
+        <div x-data="{ newStock: 0 }"
+            x-init="$watch('$el.querySelector('#restock-quantity').value', v => newStock = (parseInt(v) || 0))">
+            <div
+                class="flex items-center justify-between text-xs px-2 py-1.5 bg-orange-900/20 border border-orange-800/40 rounded-lg">
+                <span class="text-neutral-400">Nuevo Stock:</span>
+                <span class="text-orange-300 font-bold"
+                    x-text="newStock > 0 ? (parseInt(document.getElementById('restock-current-stock').textContent) + newStock) : '-'">-</span>
+            </div>
+        </div>
+
+        <div>
+            <label class="block text-xs text-neutral-400 mb-1">Notas (opcional)</label>
+            <textarea id="restock-notes" rows="2" placeholder="Observaciones..."
+                class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors resize-none"></textarea>
+        </div>
+
+        <div class="flex gap-3 pt-1">
+            <button onclick="closeRestockModal()"
+                class="flex-1 text-sm border border-neutral-700 px-4 py-3 rounded-lg text-neutral-400 hover:text-white hover:border-red-600 hover:bg-red-900/20 transition-all">Cancelar</button>
+            <button onclick="submitRestock()"
+                class="btn-action-primary btn-primary flex-1 border border-orange-700/60 px-4 py-3 rounded-lg transition-all shadow-sm text-orange-300 hover:text-white hover:border-orange-500"><span>Confirmar
+                    Reestock</span></button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Reestock Múltiple -->
+<div id="modal-bulk-restock" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+    <div class="w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-xl flex flex-col max-h-[85vh]">
+        <!-- Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-neutral-800">
+            <h3 class="font-heading font-bold text-lg text-white flex items-center gap-2">
+                <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Reestock M&uacute;ltiple
+            </h3>
+            <button onclick="closeBulkRestockModal()" class="text-neutral-400 hover:text-white transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Config row -->
+        <div class="px-6 py-4 border-b border-neutral-800 space-y-3">
+            <div class="text-sm text-neutral-300">
+                Usa este m&oacute;dulo para agregar stock a varios productos simult&aacute;neamente.
+            </div>
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">Notas (opcional)</label>
+                <textarea id="bulk-notes" rows="1" placeholder="Observaciones generales..."
+                    class="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors resize-none"></textarea>
+            </div>
+        </div>
+
+        <!-- Product rows (scrollable) -->
+        <div class="flex-1 overflow-y-auto px-6 py-4 space-y-3" id="bulk-restock-rows">
+            <!-- Dynamic rows injected here -->
+        </div>
+
+        <!-- Add product button & summary -->
+        <div class="px-6 pb-2">
+            <button id="btn-add-bulk-row" type="button" onclick="addBulkRestockRow()"
+                    class="mt-2 text-xs text-brand hover:text-white border border-neutral-700 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 w-max">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Agregar producto
+            </button>
+            <div class="text-xs text-neutral-400 mt-2">
+                <span id="bulk-total-products">0</span> productos seleccionados
+            </div>
+        </div>
+
+        <!-- Footer summary -->
+        <div class="px-6 py-4 border-t border-neutral-800 flex justify-end gap-3">
+            <button onclick="closeBulkRestockModal()" type="button"
+                class="btn-action-primary btn-secondary text-sm border border-neutral-700 px-4 py-2 rounded-lg transition-all"><span>Cancelar</span></button>
+            <button onclick="submitBulkRestock()" id="btn-confirm-bulk" type="button"
+                class="btn-action-primary btn-primary text-sm px-6 py-2 border border-neutral-700 rounded-lg transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                disabled><span>Confirmar Reestock</span></button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Historial de Movimientos -->
+<div id="modal-history" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+    <div class="w-full max-w-2xl bg-neutral-900 border border-neutral-800 rounded-xl flex flex-col max-h-[85vh]">
+        <!-- Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-neutral-800">
+            <h3 class="font-heading font-bold text-lg text-white flex items-center gap-2">
+                <svg class="w-5 h-5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Historial de Movimientos
+            </h3>
+            <button onclick="closeHistoryModal()" class="text-neutral-400 hover:text-white transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Explanation text -->
+        <div class="px-6 py-3 border-b border-neutral-800">
+            <p class="text-xs text-neutral-400">Cada registro representa un movimiento de inventario.</p>
+        </div>
+
+        <!-- History cards (scrollable) -->
+        <div class="flex-1 overflow-y-auto px-6 py-4 space-y-3" id="history-list" style="scroll-behavior: smooth;">
+            <!-- Populated by JS -->
+        </div>
+
+        <!-- Loading sentinel -->
+        <div id="history-sentinel" class="flex justify-center py-4 border-t border-neutral-800">
+            <svg class="w-5 h-5 text-brand animate-spin hidden" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                </path>
+            </svg>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-6 py-4 border-t border-neutral-800 flex justify-end">
+            <button onclick="closeHistoryModal()"
+                class="btn-action-primary btn-secondary text-sm border border-neutral-700 px-4 py-2 rounded-lg transition-all"><span>Cerrar</span></button>
         </div>
     </div>
 </div>
 {% endif %}
 
 <script>
-function getCookie(name) {
-    const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
-    return v ? v.pop() : '';
-}
-const csrfToken = getCookie('csrftoken');
-const headers = {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken};
-
-// ═══════════════════════════════════════
-// ACCORDION
-// ═══════════════════════════════════════
-function toggleAccordion(btn) {
-    const body = btn.nextElementSibling;
-    const chevron = btn.querySelector('.accordion-chevron');
-    if (body.style.maxHeight && body.style.maxHeight !== '0px') {
-        body.style.maxHeight = '0px';
-        body.style.opacity = '0';
-        chevron.style.transform = 'rotate(-90deg)';
-    } else {
-        body.style.maxHeight = body.scrollHeight + 'px';
-        body.style.opacity = '1';
-        chevron.style.transform = 'rotate(0deg)';
+    function getCookie(name) {
+        const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+        return v ? v.pop() : '';
     }
-}
+    const csrfToken = getCookie('csrftoken');
+    const headers = { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken };
 
-function initAccordions() {
-    document.querySelectorAll('.accordion-body').forEach(body => {
-        body.style.maxHeight = body.scrollHeight + 'px';
-        body.style.opacity = '1';
-        body.style.overflow = 'hidden';
-        body.style.transition = 'max-height 0.3s ease, opacity 0.2s ease';
-    });
-}
-
-// ═══════════════════════════════════════
-// CLIENT-SIDE FILTERING
-// ═══════════════════════════════════════
-function applyFilters() {
-    const noResults = document.getElementById('no-filter-results');
-
-    const nombre = document.getElementById('filter-nombre').value.trim().toLowerCase();
-    const sku = document.getElementById('filter-sku').value.trim().toLowerCase();
-    const categoryId = document.getElementById('filter-category').value;
-    const stockFilter = document.getElementById('filter-stock').value;
-    const sucursalId = document.getElementById('filter-sucursal').value;
-
-    const allCards = document.querySelectorAll('.product-card');
-    let totalVisible = 0;
-
-    // First pass: show/hide individual product cards via CSS class
-    allCards.forEach(card => {
-        let visible = true;
-
-        if (sucursalId !== 'all' && card.dataset.sucursalId !== sucursalId) {
-            visible = false;
+    // ═══════════════════════════════════════
+    // ACCORDION
+    // ═══════════════════════════════════════
+    function toggleAccordion(btn) {
+        const body = btn.nextElementSibling;
+        const chevron = btn.querySelector('.accordion-chevron');
+        if (body.style.maxHeight && body.style.maxHeight !== '0px') {
+            body.style.maxHeight = '0px';
+            body.style.opacity = '0';
+            chevron.style.transform = 'rotate(-90deg)';
+        } else {
+            body.style.maxHeight = body.scrollHeight + 'px';
+            body.style.opacity = '1';
+            chevron.style.transform = 'rotate(0deg)';
         }
-        if (visible && nombre && !card.dataset.nombre.includes(nombre)) {
-            visible = false;
-        }
-        if (visible && sku && !card.dataset.sku.includes(sku)) {
-            visible = false;
-        }
-        if (visible && categoryId && card.dataset.categoryId !== categoryId) {
-            visible = false;
-        }
-        if (visible && stockFilter === 'bajo' && card.dataset.lowStock !== '1') {
-            visible = false;
-        }
+    }
 
-        card.classList.toggle('filtered-hidden', !visible);
-        if (visible) totalVisible++;
-    });
+    function initAccordions() {
+        document.querySelectorAll('.accordion-body').forEach(body => {
+            body.style.maxHeight = body.scrollHeight + 'px';
+            body.style.opacity = '1';
+            body.style.overflow = 'hidden';
+            body.style.transition = 'max-height 0.3s ease, opacity 0.2s ease';
+        });
+    }
 
-    // Second pass: show/hide accordion groups based on visible children
-    document.querySelectorAll('.accordion-group').forEach(group => {
-        const totalCards = group.querySelectorAll('.product-card').length;
-        const hiddenCards = group.querySelectorAll('.product-card.filtered-hidden').length;
-        const visibleCount = totalCards - hiddenCards;
+    // ═══════════════════════════════════════
+    // CLIENT-SIDE FILTERING
+    // ═══════════════════════════════════════
+    function applyFilters() {
+        const noResults = document.getElementById('no-filter-results');
 
-        group.classList.toggle('filtered-hidden', visibleCount === 0);
+        const nombre = document.getElementById('filter-nombre').value.trim().toLowerCase();
+        const sku = document.getElementById('filter-sku').value.trim().toLowerCase();
+        const categoryId = document.getElementById('filter-category').value;
+        const stockFilter = document.getElementById('filter-stock').value;
+        const sucursalId = document.getElementById('filter-sucursal').value;
 
-        // Update the count badge in the accordion header
-        const countBadge = group.querySelector('.cat-count');
-        if (countBadge) {
-            countBadge.textContent = visibleCount;
-        }
+        const allCards = document.querySelectorAll('.product-card');
+        let totalVisible = 0;
 
-        // Re-calculate accordion body max-height for visible cards
-        if (visibleCount > 0) {
-            const body = group.querySelector('.accordion-body');
-            if (body && body.style.maxHeight !== '0px') {
-                requestAnimationFrame(() => {
-                    body.style.maxHeight = body.scrollHeight + 'px';
-                });
+        // First pass: show/hide individual product cards via CSS class
+        allCards.forEach(card => {
+            let visible = true;
+
+            if (sucursalId !== 'all' && card.dataset.sucursalId !== sucursalId) {
+                visible = false;
             }
+            if (visible && nombre && !card.dataset.nombre.includes(nombre)) {
+                visible = false;
+            }
+            if (visible && sku && !card.dataset.sku.includes(sku)) {
+                visible = false;
+            }
+            if (visible && categoryId && card.dataset.categoryId !== categoryId) {
+                visible = false;
+            }
+            if (visible && stockFilter === 'bajo' && card.dataset.lowStock !== '1') {
+                visible = false;
+            }
+
+            card.classList.toggle('filtered-hidden', !visible);
+            if (visible) totalVisible++;
+        });
+
+        // Second pass: show/hide accordion groups based on visible children
+        document.querySelectorAll('.accordion-group').forEach(group => {
+            const totalCards = group.querySelectorAll('.product-card').length;
+            const hiddenCards = group.querySelectorAll('.product-card.filtered-hidden').length;
+            const visibleCount = totalCards - hiddenCards;
+
+            group.classList.toggle('filtered-hidden', visibleCount === 0);
+
+            // Update the count badge in the accordion header
+            const countBadge = group.querySelector('.cat-count');
+            if (countBadge) {
+                countBadge.textContent = visibleCount;
+            }
+
+            // Re-calculate accordion body max-height for visible cards
+            if (visibleCount > 0) {
+                const body = group.querySelector('.accordion-body');
+                if (body && body.style.maxHeight !== '0px') {
+                    requestAnimationFrame(() => {
+                        body.style.maxHeight = body.scrollHeight + 'px';
+                    });
+                }
+            }
+        });
+
+        // Update product count in header
+        document.getElementById('product-count').textContent = `(${totalVisible})`;
+
+        // Show "no results" message if nothing matched
+        const hasAnyGroups = document.querySelectorAll('.accordion-group').length > 0;
+        if (hasAnyGroups && totalVisible === 0) {
+            noResults.classList.remove('hidden');
+        } else {
+            noResults.classList.add('hidden');
         }
-    });
-
-    // Update product count in header
-    document.getElementById('product-count').textContent = `(${totalVisible})`;
-
-    // Show "no results" message if nothing matched
-    const hasAnyGroups = document.querySelectorAll('.accordion-group').length > 0;
-    if (hasAnyGroups && totalVisible === 0) {
-        noResults.classList.remove('hidden');
-    } else {
-        noResults.classList.add('hidden');
-    }
-}
-
-function clearFilters() {
-    document.getElementById('filter-nombre').value = '';
-    document.getElementById('filter-sku').value = '';
-    document.getElementById('filter-category').value = '';
-    document.getElementById('filter-stock').value = '';
-    document.getElementById('filter-sucursal').value = 'all';
-    applyFilters();
-}
-
-// Bind filter events
-document.addEventListener('DOMContentLoaded', () => {
-    initAccordions();
-
-    // Text inputs: filter on input
-    document.getElementById('filter-nombre').addEventListener('input', applyFilters);
-    document.getElementById('filter-sku').addEventListener('input', applyFilters);
-
-    // Selects: immediate filtering on change (including sucursal — no page reload)
-    document.getElementById('filter-category').addEventListener('change', applyFilters);
-    document.getElementById('filter-stock').addEventListener('change', applyFilters);
-    document.getElementById('filter-sucursal').addEventListener('change', applyFilters);
-});
-
-// ═══════════════════════════════════════
-// MONEY FORMATTING (live while typing)
-// ═══════════════════════════════════════
-function formatMoneyInput(value) {
-    const digits = value.replace(/\D/g, '');
-    if (!digits) return '';
-    return parseInt(digits, 10).toLocaleString('de-DE');
-}
-
-function getMoneyRaw(value) {
-    return value.replace(/\./g, '');
-}
-
-document.querySelectorAll('.money-input').forEach(input => {
-    input.addEventListener('input', function() {
-        const pos = this.selectionStart;
-        const oldLen = this.value.length;
-        this.value = formatMoneyInput(this.value);
-        const newLen = this.value.length;
-        const newPos = Math.max(0, pos + (newLen - oldLen));
-        this.setSelectionRange(newPos, newPos);
-    });
-});
-
-// ═══════════════════════════════════════
-// PRODUCT CRUD
-// ═══════════════════════════════════════
-function openProductModal() {
-    document.getElementById('prod-edit-id').value = '';
-    document.getElementById('prod-name').value = '';
-    document.getElementById('prod-category').value = '';
-    document.getElementById('prod-desc').value = '';
-    document.getElementById('prod-price').value = '';
-    document.getElementById('prod-cost').value = '';
-    document.getElementById('prod-stock').value = '0';
-    document.getElementById('prod-stock').disabled = false;
-    document.getElementById('prod-sku').value = '';
-    document.getElementById('prod-threshold').value = '5';
-    document.getElementById('prod-sucursal-wrapper').style.display = '';
-    document.getElementById('prod-sucursal').selectedIndex = 0;
-    document.getElementById('prod-history-accordion').classList.add('hidden');
-    document.getElementById('modal-product-title').textContent = 'Nuevo Producto';
-    document.getElementById('btn-save-product').querySelector('span').textContent = 'Crear Producto';
-    document.getElementById('modal-product').classList.remove('hidden');
-}
-
-async function openEditModal(id) {
-    const res = await fetch(`/app/inventory/api/products/${id}/`);
-    if (!res.ok) return alert('Error cargando producto');
-    const d = await res.json();
-
-    document.getElementById('prod-edit-id').value = id;
-    document.getElementById('prod-name').value = d.name;
-    document.getElementById('prod-category').value = d.category_id;
-    document.getElementById('prod-desc').value = d.description;
-    document.getElementById('prod-price').value = formatMoneyInput(String(Math.round(parseFloat(d.price))));
-    document.getElementById('prod-cost').value = formatMoneyInput(String(Math.round(parseFloat(d.cost))));
-    document.getElementById('prod-stock').value = d.stock_quantity;
-    document.getElementById('prod-stock').disabled = true;
-    document.getElementById('prod-sku').value = d.sku;
-    document.getElementById('prod-threshold').value = d.low_stock_threshold;
-    document.getElementById('prod-sucursal-wrapper').style.display = 'none';
-
-    // Show and reset price history accordion
-    resetProdHistoryState(id);
-    document.getElementById('prod-history-accordion').classList.remove('hidden');
-
-    document.getElementById('modal-product-title').textContent = 'Editar Producto';
-    document.getElementById('btn-save-product').querySelector('span').textContent = 'Guardar cambios';
-    document.getElementById('modal-product').classList.remove('hidden');
-}
-
-function closeProductModal() {
-    document.getElementById('modal-product').classList.add('hidden');
-}
-
-async function saveProduct() {
-    const editId = document.getElementById('prod-edit-id').value;
-    const name = document.getElementById('prod-name').value.trim();
-    if (!name) return alert('Nombre requerido');
-
-    const payload = {
-        name,
-        category_id: document.getElementById('prod-category').value || null,
-        description: document.getElementById('prod-desc').value,
-        price: parseFloat(getMoneyRaw(document.getElementById('prod-price').value)) || 0,
-        cost: parseFloat(getMoneyRaw(document.getElementById('prod-cost').value)) || 0,
-        stock_quantity: parseInt(document.getElementById('prod-stock').value) || 0,
-        sku: document.getElementById('prod-sku').value,
-        low_stock_threshold: parseInt(document.getElementById('prod-threshold').value) || 5,
-    };
-
-    // Solo enviar barbershop_id en creación
-    if (!editId) {
-        const sucursalVal = document.getElementById('prod-sucursal').value;
-        if (!sucursalVal) return alert('Selecciona una sucursal');
-        payload.barbershop_id = parseInt(sucursalVal);
     }
 
-    const url = editId
-        ? `/app/inventory/api/products/${editId}/update/`
-        : '{% url "inventory:api_product_create" %}';
-    const res = await fetch(url, {method: 'POST', headers, body: JSON.stringify(payload)});
-    if (res.ok) location.reload();
-    else alert((await res.json()).error || 'Error');
-}
-
-function confirmDelete(id, name) {
-    document.getElementById('delete-product-id').value = id;
-    document.getElementById('delete-product-name').textContent = name;
-    document.getElementById('modal-confirm-delete').classList.remove('hidden');
-}
-
-async function deleteProduct() {
-    const id = document.getElementById('delete-product-id').value;
-    const res = await fetch(`/app/inventory/api/products/${id}/delete/`, {
-        method: 'POST', headers, body: '{}',
-    });
-    if (res.ok) location.reload();
-    else alert((await res.json()).error || 'Error');
-}
-
-async function createCategory() {
-    const name = document.getElementById('cat-name').value.trim();
-    if (!name) return alert('Nombre requerido');
-    const res = await fetch('{% url "inventory:api_categories" %}', {
-        method: 'POST', headers,
-        body: JSON.stringify({ name }),
-    });
-    if (res.ok) location.reload();
-    else alert((await res.json()).error || 'Error');
-}
-
-// ═══════════════════════════════════════
-// PRICE HISTORY ACCORDION + INFINITE SCROLL
-// ═══════════════════════════════════════
-function formatMoneyDisplay(val) {
-    const n = Math.round(parseFloat(val));
-    return isNaN(n) ? val : n.toLocaleString('de-DE');
-}
-
-let _prodHistoryState = { page: 1, hasNext: false, loading: false, observer: null, id: null };
-
-function toggleProdHistoryAccordion() {
-    const body = document.getElementById('prod-history-body');
-    const chevron = document.getElementById('prod-history-chevron');
-    const isHidden = body.classList.contains('hidden');
-    body.classList.toggle('hidden');
-    chevron.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(-90deg)';
-    if (isHidden && _prodHistoryState.page === 1) {
-        loadProdPriceHistory();
-    }
-}
-
-function resetProdHistoryState(productId) {
-    if (_prodHistoryState.observer) _prodHistoryState.observer.disconnect();
-    _prodHistoryState = { page: 1, hasNext: false, loading: false, observer: null, id: productId };
-    document.getElementById('prod-history-list').innerHTML = '';
-    document.getElementById('prod-history-body').classList.add('hidden');
-    document.getElementById('prod-history-chevron').style.transform = 'rotate(-90deg)';
-    document.getElementById('prod-history-sentinel').classList.remove('hidden');
-}
-
-async function loadProdPriceHistory() {
-    const st = _prodHistoryState;
-    if (st.loading || !st.id) return;
-    st.loading = true;
-
-    const res = await fetch(`/app/inventory/api/products/${st.id}/price-history/?page=${st.page}`);
-    if (!res.ok) { st.loading = false; return; }
-    const data = await res.json();
-
-    const container = document.getElementById('prod-history-list');
-    if (data.results.length === 0 && st.page === 1) {
-        container.innerHTML = '<p class="text-xs text-neutral-500 text-center py-4">Sin historial de precios.</p>';
-        document.getElementById('prod-history-sentinel').classList.add('hidden');
-        st.loading = false;
-        return;
+    function clearFilters() {
+        document.getElementById('filter-nombre').value = '';
+        document.getElementById('filter-sku').value = '';
+        document.getElementById('filter-category').value = '';
+        document.getElementById('filter-stock').value = '';
+        document.getElementById('filter-sucursal').value = 'all';
+        applyFilters();
     }
 
-    data.results.forEach(h => {
-        const d = new Date(h.changed_at);
-        const fmt = d.toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
-        const row = document.createElement('div');
-        row.className = 'flex items-center justify-between px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700/60 transition-colors';
-        row.innerHTML = `
+    // Bind filter events
+    document.addEventListener('DOMContentLoaded', () => {
+        initAccordions();
+
+        // Text inputs: filter on input
+        document.getElementById('filter-nombre').addEventListener('input', applyFilters);
+        document.getElementById('filter-sku').addEventListener('input', applyFilters);
+
+        // Selects: immediate filtering on change (including sucursal — no page reload)
+        document.getElementById('filter-category').addEventListener('change', applyFilters);
+        document.getElementById('filter-stock').addEventListener('change', applyFilters);
+        document.getElementById('filter-sucursal').addEventListener('change', applyFilters);
+    });
+
+    // ═══════════════════════════════════════
+    // MONEY FORMATTING (live while typing)
+    // ═══════════════════════════════════════
+    function formatMoneyInput(value) {
+        const digits = value.replace(/\D/g, '');
+        if (!digits) return '';
+        return parseInt(digits, 10).toLocaleString('de-DE');
+    }
+
+    function getMoneyRaw(value) {
+        return value.replace(/\./g, '');
+    }
+
+    document.querySelectorAll('.money-input').forEach(input => {
+        input.addEventListener('input', function () {
+            const pos = this.selectionStart;
+            const oldLen = this.value.length;
+            this.value = formatMoneyInput(this.value);
+            const newLen = this.value.length;
+            const newPos = Math.max(0, pos + (newLen - oldLen));
+            this.setSelectionRange(newPos, newPos);
+        });
+    });
+
+    // ═══════════════════════════════════════
+    // PRODUCT CRUD
+    // ═══════════════════════════════════════
+    function openProductModal() {
+        document.getElementById('prod-edit-id').value = '';
+        document.getElementById('prod-name').value = '';
+        document.getElementById('prod-category').value = '';
+        document.getElementById('prod-desc').value = '';
+        document.getElementById('prod-price').value = '';
+        document.getElementById('prod-cost').value = '';
+        document.getElementById('prod-stock').value = '0';
+        document.getElementById('prod-stock').disabled = false;
+        document.getElementById('prod-sku').value = '';
+        document.getElementById('prod-threshold').value = '5';
+        document.getElementById('prod-sucursal-wrapper').style.display = '';
+        document.getElementById('prod-sucursal').selectedIndex = 0;
+        document.getElementById('prod-history-accordion').classList.add('hidden');
+        document.getElementById('modal-product-title').textContent = 'Nuevo Producto';
+        document.getElementById('btn-save-product').querySelector('span').textContent = 'Crear Producto';
+        document.getElementById('modal-product').classList.remove('hidden');
+    }
+
+    async function openEditModal(id) {
+        const res = await fetch(`/app/inventory/api/products/${id}/`);
+        if (!res.ok) return alert('Error cargando producto');
+        const d = await res.json();
+
+        document.getElementById('prod-edit-id').value = id;
+        document.getElementById('prod-name').value = d.name;
+        document.getElementById('prod-category').value = d.category_id;
+        document.getElementById('prod-desc').value = d.description;
+        document.getElementById('prod-price').value = formatMoneyInput(String(Math.round(parseFloat(d.price))));
+        document.getElementById('prod-cost').value = formatMoneyInput(String(Math.round(parseFloat(d.cost))));
+        document.getElementById('prod-stock').value = d.stock_quantity;
+        document.getElementById('prod-stock').disabled = true;
+        document.getElementById('prod-sku').value = d.sku;
+        document.getElementById('prod-threshold').value = d.low_stock_threshold;
+        document.getElementById('prod-sucursal-wrapper').style.display = 'none';
+
+        // Show and reset price history accordion
+        resetProdHistoryState(id);
+        document.getElementById('prod-history-accordion').classList.remove('hidden');
+
+        document.getElementById('modal-product-title').textContent = 'Editar Producto';
+        document.getElementById('btn-save-product').querySelector('span').textContent = 'Guardar cambios';
+        document.getElementById('modal-product').classList.remove('hidden');
+    }
+
+    function closeProductModal() {
+        document.getElementById('modal-product').classList.add('hidden');
+    }
+
+    async function saveProduct() {
+        const editId = document.getElementById('prod-edit-id').value;
+        const name = document.getElementById('prod-name').value.trim();
+        if (!name) return alert('Nombre requerido');
+
+        const payload = {
+            name,
+            category_id: document.getElementById('prod-category').value || null,
+            description: document.getElementById('prod-desc').value,
+            price: parseFloat(getMoneyRaw(document.getElementById('prod-price').value)) || 0,
+            cost: parseFloat(getMoneyRaw(document.getElementById('prod-cost').value)) || 0,
+            stock_quantity: parseInt(document.getElementById('prod-stock').value) || 0,
+            sku: document.getElementById('prod-sku').value,
+            low_stock_threshold: parseInt(document.getElementById('prod-threshold').value) || 5,
+        };
+
+        // Solo enviar barbershop_id en creación
+        if (!editId) {
+            const sucursalVal = document.getElementById('prod-sucursal').value;
+            if (!sucursalVal) return alert('Selecciona una sucursal');
+            payload.barbershop_id = parseInt(sucursalVal);
+        }
+
+        const url = editId
+            ? `/app/inventory/api/products/${editId}/update/`
+            : '{% url "inventory:api_product_create" %}';
+        const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
+        if (res.ok) location.reload();
+        else alert((await res.json()).error || 'Error');
+    }
+
+    function confirmDelete(id, name) {
+        document.getElementById('delete-product-id').value = id;
+        document.getElementById('delete-product-name').textContent = name;
+        document.getElementById('modal-confirm-delete').classList.remove('hidden');
+    }
+
+    async function deleteProduct() {
+        const id = document.getElementById('delete-product-id').value;
+        const res = await fetch(`/app/inventory/api/products/${id}/delete/`, {
+            method: 'POST', headers, body: '{}',
+        });
+        if (res.ok) location.reload();
+        else alert((await res.json()).error || 'Error');
+    }
+
+    async function createCategory() {
+        const name = document.getElementById('cat-name').value.trim();
+        if (!name) return alert('Nombre requerido');
+        const res = await fetch('{% url "inventory:api_categories" %}', {
+            method: 'POST', headers,
+            body: JSON.stringify({ name }),
+        });
+        if (res.ok) location.reload();
+        else alert((await res.json()).error || 'Error');
+    }
+
+    // ═══════════════════════════════════════
+    // PRICE HISTORY ACCORDION + INFINITE SCROLL
+    // ═══════════════════════════════════════
+    function formatMoneyDisplay(val) {
+        const n = Math.round(parseFloat(val));
+        return isNaN(n) ? val : n.toLocaleString('de-DE');
+    }
+
+    let _prodHistoryState = { page: 1, hasNext: false, loading: false, observer: null, id: null };
+
+    function toggleProdHistoryAccordion() {
+        const body = document.getElementById('prod-history-body');
+        const chevron = document.getElementById('prod-history-chevron');
+        const isHidden = body.classList.contains('hidden');
+        body.classList.toggle('hidden');
+        chevron.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(-90deg)';
+        if (isHidden && _prodHistoryState.page === 1) {
+            loadProdPriceHistory();
+        }
+    }
+
+    function resetProdHistoryState(productId) {
+        if (_prodHistoryState.observer) _prodHistoryState.observer.disconnect();
+        _prodHistoryState = { page: 1, hasNext: false, loading: false, observer: null, id: productId };
+        document.getElementById('prod-history-list').innerHTML = '';
+        document.getElementById('prod-history-body').classList.add('hidden');
+        document.getElementById('prod-history-chevron').style.transform = 'rotate(-90deg)';
+        document.getElementById('prod-history-sentinel').classList.remove('hidden');
+    }
+
+    async function loadProdPriceHistory() {
+        const st = _prodHistoryState;
+        if (st.loading || !st.id) return;
+        st.loading = true;
+
+        const res = await fetch(`/app/inventory/api/products/${st.id}/price-history/?page=${st.page}`);
+        if (!res.ok) { st.loading = false; return; }
+        const data = await res.json();
+
+        const container = document.getElementById('prod-history-list');
+        if (data.results.length === 0 && st.page === 1) {
+            container.innerHTML = '<p class="text-xs text-neutral-500 text-center py-4">Sin historial de precios.</p>';
+            document.getElementById('prod-history-sentinel').classList.add('hidden');
+            st.loading = false;
+            return;
+        }
+
+        data.results.forEach(h => {
+            const d = new Date(h.changed_at);
+            const fmt = d.toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+            const row = document.createElement('div');
+            row.className = 'flex items-center justify-between px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700/60 transition-colors';
+            row.innerHTML = `
             <div class="flex items-center gap-3">
                 <div>
                     <span class="text-xs text-neutral-400">Precio:</span>
@@ -776,31 +1016,401 @@ async function loadProdPriceHistory() {
                 <div class="text-xs text-neutral-400">${fmt}</div>
                 <div class="text-xs text-neutral-500">${h.changed_by}</div>
             </div>`;
-        container.appendChild(row);
-    });
+            container.appendChild(row);
+        });
 
-    st.hasNext = data.has_next;
-    st.page++;
-    st.loading = false;
+        st.hasNext = data.has_next;
+        st.page++;
+        st.loading = false;
 
-    const sentinel = document.getElementById('prod-history-sentinel');
-    if (!st.hasNext) {
-        sentinel.classList.add('hidden');
-        if (st.observer) st.observer.disconnect();
-    } else {
-        setupProdHistoryObserver();
-    }
-}
-
-function setupProdHistoryObserver() {
-    if (_prodHistoryState.observer) _prodHistoryState.observer.disconnect();
-    const sentinel = document.getElementById('prod-history-sentinel');
-    _prodHistoryState.observer = new IntersectionObserver((entries) => {
-        if (entries[0].isIntersecting && _prodHistoryState.hasNext && !_prodHistoryState.loading) {
-            loadProdPriceHistory();
+        const sentinel = document.getElementById('prod-history-sentinel');
+        if (!st.hasNext) {
+            sentinel.classList.add('hidden');
+            if (st.observer) st.observer.disconnect();
+        } else {
+            setupProdHistoryObserver();
         }
-    }, { root: document.getElementById('prod-history-body'), threshold: 0.1 });
-    _prodHistoryState.observer.observe(sentinel);
-}
+    }
+
+    function setupProdHistoryObserver() {
+        if (_prodHistoryState.observer) _prodHistoryState.observer.disconnect();
+        const sentinel = document.getElementById('prod-history-sentinel');
+        _prodHistoryState.observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting && _prodHistoryState.hasNext && !_prodHistoryState.loading) {
+                loadProdPriceHistory();
+            }
+        }, { root: document.getElementById('prod-history-body'), threshold: 0.1 });
+        _prodHistoryState.observer.observe(sentinel);
+    }
+
+    // ═══════════════════════════════════════
+    // RESTOCK INDIVIDUAL
+    // ═══════════════════════════════════════
+    function openRestockModal(productId, productName, currentStock, branchName) {
+        document.getElementById('restock-product-id').value = productId;
+        document.getElementById('restock-product-name').textContent = productName;
+        document.getElementById('restock-product-branch').textContent = branchName;
+        document.getElementById('restock-current-stock').textContent = currentStock;
+        document.getElementById('restock-quantity').value = '';
+        document.getElementById('restock-notes').value = '';
+        document.getElementById('modal-restock').classList.remove('hidden');
+        document.getElementById('restock-quantity').focus();
+    }
+
+    function closeRestockModal() {
+        document.getElementById('modal-restock').classList.add('hidden');
+    }
+
+    async function submitRestock() {
+        const productId = document.getElementById('restock-product-id').value;
+        const quantity = parseInt(document.getElementById('restock-quantity').value);
+        const notes = document.getElementById('restock-notes').value;
+
+        if (!quantity || quantity <= 0) {
+            alert('Cantidad debe ser mayor a 0');
+            return;
+        }
+
+        const res = await fetch('{% url "inventory:api_restock" %}', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ product_id: productId, quantity, notes }),
+        });
+
+        if (res.ok) {
+            closeRestockModal();
+            location.reload();
+        } else {
+            const data = await res.json();
+            alert(data.error || 'Error al procesar reestock');
+        }
+    }
+
+    // ═══════════════════════════════════════
+    // RESTOCK MÚLTIPLE
+    // ═══════════════════════════════════════
+    // Available products for bulk restock (populated from DOM product cards)
+    let _bulkAvailableProducts = [];
+    let _bulkAddedProductIds = new Set();
+    let _bulkRowsData = [];
+
+    function getAvailableProductsForBulk() {
+        if (_bulkAvailableProducts.length > 0) return _bulkAvailableProducts;
+        
+        const groups = document.querySelectorAll('.accordion-group');
+        groups.forEach(group => {
+            const catName = group.querySelector('.font-heading').textContent.trim();
+            const products = [];
+            group.querySelectorAll('.product-card').forEach(card => {
+                const name = card.querySelector('.font-medium').textContent.trim();
+                const match = card.id.match(/^product-row-(\d+)$/);
+                if (match) {
+                    products.push({
+                        id: parseInt(match[1]),
+                        name: name,
+                        stock: parseInt(card.dataset.stock) || 0,
+                    });
+                }
+            });
+            if (products.length > 0) {
+                _bulkAvailableProducts.push({
+                    categoryName: catName,
+                    products: products
+                });
+            }
+        });
+        return _bulkAvailableProducts;
+    }
+
+    function updateBulkSelectOptions() {
+        const selects = document.querySelectorAll('.bulk-prod-select');
+        selects.forEach(select => {
+            const currentVal = select.value;
+            select.innerHTML = '<option value="">Seleccionar producto...</option>';
+            
+            const groups = getAvailableProductsForBulk();
+            groups.forEach(group => {
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = group.categoryName;
+                
+                let hasVisibleOptions = false;
+                group.products.forEach(p => {
+                    if (p.id.toString() === currentVal || !_bulkAddedProductIds.has(p.id)) {
+                        const opt = document.createElement('option');
+                        opt.value = p.id;
+                        opt.dataset.stock = p.stock;
+                        opt.textContent = p.name;
+                        if (p.id.toString() === currentVal) {
+                            opt.selected = true;
+                        }
+                        optgroup.appendChild(opt);
+                        hasVisibleOptions = true;
+                    }
+                });
+                
+                if (hasVisibleOptions) {
+                    select.appendChild(optgroup);
+                }
+            });
+        });
+        updateAddButtonState();
+    }
+
+    function addBulkRestockRow() {
+        const rowId = Date.now();
+        const container = document.getElementById('bulk-restock-rows');
+
+        const row = document.createElement('div');
+        row.className = 'flex flex-col gap-2 p-4 bg-neutral-800/60 border border-neutral-700 rounded-lg';
+        row.id = `bulk-row-${rowId}`;
+        row.innerHTML = `
+        <div class="flex items-center gap-3">
+            <select id="bulk-sel-${rowId}" class="bulk-prod-select flex-1 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand transition-colors">
+            </select>
+            <button onclick="removeBulkRestockRow(${rowId})" class="text-neutral-400 hover:text-red-400 transition-colors p-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="flex items-center gap-3">
+            <button onclick="adjustBulkQty(${rowId}, -1)" class="w-8 h-8 flex items-center justify-center border border-neutral-700 rounded-lg text-neutral-400 hover:text-white hover:border-neutral-500 transition-all">−</button>
+            <input id="bulk-qty-${rowId}" type="number" min="1" value="1" placeholder="Cantidad"
+                   class="w-20 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm text-center focus:ring-2 focus:ring-brand transition-colors">
+            <button onclick="adjustBulkQty(${rowId}, 1)" class="w-8 h-8 flex items-center justify-center border border-neutral-700 rounded-lg text-neutral-400 hover:text-white hover:border-neutral-500 transition-all">+</button>
+            <div class="flex-1 text-xs text-right flex items-center justify-end gap-2">
+                <span class="text-neutral-300">Stock: <span id="bulk-stock-display-${rowId}" class="font-bold">-</span></span>
+                <span class="text-neutral-500">→</span>
+                <span class="px-1.5 py-0.5 bg-green-900/30 border border-green-800/40 rounded text-green-400 font-bold" id="bulk-new-stock-${rowId}">-</span>
+            </div>
+        </div>`;
+
+        row.dataset.productId = '';
+        row.dataset.stock = '0';
+
+        container.appendChild(row);
+
+        const sel = row.querySelector(`#bulk-sel-${rowId}`);
+        sel.addEventListener('change', function () {
+            const opt = this.selectedOptions[0];
+            const stock = opt && opt.value ? parseInt(opt.dataset.stock) || 0 : 0;
+            
+            if (row.dataset.productId) {
+                _bulkAddedProductIds.delete(parseInt(row.dataset.productId));
+            }
+            if (this.value) {
+                _bulkAddedProductIds.add(parseInt(this.value));
+            }
+            
+            row.dataset.productId = this.value;
+            row.dataset.stock = stock;
+            document.getElementById(`bulk-stock-display-${rowId}`).textContent = this.value ? stock : '-';
+            updateBulkNewStock(rowId);
+            updateBulkSummary();
+            updateBulkSelectOptions();
+        });
+
+        const qtyInput = row.querySelector(`#bulk-qty-${rowId}`);
+        qtyInput.addEventListener('input', () => { updateBulkNewStock(rowId); updateBulkSummary(); });
+
+        updateBulkSelectOptions();
+        updateBulkSummary();
+    }
+
+    function adjustBulkQty(rowId, delta) {
+        const input = document.getElementById(`bulk-qty-${rowId}`);
+        const val = parseInt(input.value) || 1;
+        input.value = Math.max(1, val + delta);
+        updateBulkNewStock(rowId);
+        updateBulkSummary();
+    }
+
+    function updateBulkNewStock(rowId) {
+        const row = document.getElementById(`bulk-row-${rowId}`);
+        const stock = parseInt(row.dataset.stock) || 0;
+        const qty = parseInt(document.getElementById(`bulk-qty-${rowId}`).value) || 0;
+        document.getElementById(`bulk-new-stock-${rowId}`).textContent = stock + qty;
+    }
+
+    function removeBulkRestockRow(rowId) {
+        const row = document.getElementById(`bulk-row-${rowId}`);
+        const productId = row.dataset.productId;
+        if (productId) _bulkAddedProductIds.delete(parseInt(productId));
+        row.remove();
+        updateBulkSummary();
+        updateBulkSelectOptions();
+    }
+
+    function updateBulkSummary() {
+        const rows = document.querySelectorAll('#bulk-restock-rows > div');
+        let totalProducts = 0;
+        let totalUnits = 0;
+        rows.forEach(row => {
+            const productId = row.dataset.productId;
+            const rowId = row.id.replace('bulk-row-', '');
+            const qtyInput = document.getElementById(`bulk-qty-${rowId}`);
+            const qty = qtyInput ? parseInt(qtyInput.value) || 0 : 0;
+            if (productId) {
+                totalProducts++;
+                totalUnits += qty;
+            }
+        });
+        document.getElementById('bulk-total-products').textContent = totalProducts;
+        document.getElementById('btn-confirm-bulk').disabled = totalProducts === 0;
+    }
+
+    function updateAddButtonState() {
+        const groups = getAvailableProductsForBulk();
+        let totalAvailable = 0;
+        groups.forEach(g => totalAvailable += g.products.length);
+        document.getElementById('btn-add-bulk-row').disabled = _bulkAddedProductIds.size >= totalAvailable;
+    }
+
+    function closeBulkRestockModal() {
+        document.getElementById('modal-bulk-restock').classList.add('hidden');
+        document.getElementById('bulk-restock-rows').innerHTML = '';
+        document.getElementById('bulk-notes').value = '';
+        _bulkAddedProductIds.clear();
+        _bulkRowsData = [];
+    }
+
+    async function submitBulkRestock() {
+        const rows = document.querySelectorAll('#bulk-restock-rows > div');
+        const items = [];
+        rows.forEach(row => {
+            const productId = row.dataset.productId;
+            const qty = parseInt(document.getElementById(`bulk-qty-${row.id.replace('bulk-row-', 'bulk-qty-')}`).value) || 0;
+            if (productId && qty > 0) {
+                items.push({ product_id: parseInt(productId), quantity: qty });
+            }
+        });
+
+        if (items.length === 0) {
+            alert('Agrega al menos un producto con cantidad mayor a 0');
+            return;
+        }
+
+        const notes = document.getElementById('bulk-notes').value;
+        const res = await fetch('{% url "inventory:api_restock_bulk" %}', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ items, notes }),
+        });
+
+        if (res.ok) {
+            closeBulkRestockModal();
+            location.reload();
+        } else {
+            const data = await res.json();
+            alert(data.error || 'Error al procesar reestock múltiple');
+        }
+    }
+
+    // ═══════════════════════════════════════
+    // HISTORIAL DE MOVIMIENTOS
+    // ═══════════════════════════════════════
+    let _historyState = { page: 1, hasNext: false, loading: false, observer: null };
+
+    function openHistoryModal() {
+        resetHistoryState();
+        document.getElementById('modal-history').classList.remove('hidden');
+        loadHistoryPage();
+    }
+
+    function closeHistoryModal() {
+        document.getElementById('modal-history').classList.add('hidden');
+    }
+
+    function resetHistoryState() {
+        if (_historyState.observer) _historyState.observer.disconnect();
+        _historyState = { page: 1, hasNext: false, loading: false, observer: null };
+        document.getElementById('history-list').innerHTML = '';
+        document.getElementById('history-sentinel').querySelector('svg').classList.add('hidden');
+    }
+
+    async function loadHistoryPage() {
+        if (_historyState.loading) return;
+        _historyState.loading = true;
+        document.getElementById('history-sentinel').querySelector('svg').classList.remove('hidden');
+
+        const res = await fetch(`/app/inventory/api/restock/history/?page=${_historyState.page}`);
+        if (!res.ok) { _historyState.loading = false; return; }
+        const data = await res.json();
+
+        const container = document.getElementById('history-list');
+        if (data.results.length === 0 && _historyState.page === 1) {
+            container.innerHTML = '<p class="text-sm text-neutral-500 text-center py-8">Sin movimientos registrados.</p>';
+            document.getElementById('history-sentinel').querySelector('svg').classList.add('hidden');
+            _historyState.loading = false;
+            return;
+        }
+
+        data.results.forEach(m => {
+            const d = new Date(m.created_at);
+            const fmt = d.toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+
+            const typeColors = {
+                restock: 'text-green-400 bg-green-900/20 border-green-800/40',
+                transfer: 'text-blue-400 bg-blue-900/20 border-blue-800/40',
+                adjustment: 'text-purple-400 bg-purple-900/20 border-purple-800/40',
+            };
+            const colorClass = typeColors[m.movement_type] || 'text-neutral-300 bg-neutral-800 border-neutral-700';
+
+            const itemsHtml = m.items.map(item => `
+            <div class="flex items-center justify-between text-xs py-1.5 px-3 rounded-lg bg-neutral-800/40">
+                <span class="text-neutral-300 font-medium">${item.product_name}</span>
+                <div class="flex items-center gap-3">
+                    <span class="text-brand font-bold bg-brand/10 px-2 py-0.5 rounded text-[10px]">+${item.quantity}</span>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-neutral-300 bg-neutral-700/50 px-1.5 py-0.5 rounded">${item.stock_previous}</span>
+                        <span class="text-neutral-500">→</span>
+                        <span class="text-green-400 bg-green-900/30 border border-green-800/40 px-1.5 py-0.5 rounded font-bold">${item.stock_resulting}</span>
+                    </div>
+                </div>
+            </div>`).join('');
+
+            const card = document.createElement('div');
+            card.className = 'p-4 bg-neutral-800/60 border border-neutral-700 rounded-xl flex flex-col gap-3 hover:border-neutral-500 transition-colors';
+            card.innerHTML = `
+            <div class="flex items-start justify-between">
+                <div class="flex flex-col gap-1.5">
+                    <div class="flex items-center gap-2">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${colorClass}">${m.movement_type_display}</span>
+                        ${m.barbershop_destiny ? `<span class="text-xs text-neutral-300 font-medium">${m.barbershop_destiny}</span>` : ''}
+                    </div>
+                    <div class="text-xs text-neutral-300">${fmt}</div>
+                </div>
+                <div class="text-right flex flex-col items-end gap-1">
+                    <div class="text-xs text-neutral-300 font-medium flex items-center gap-1">
+                        <svg class="w-3 h-3 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                        ${m.created_by}
+                    </div>
+                </div>
+            </div>
+            <div class="flex flex-col gap-1.5 mt-1">${itemsHtml}</div>
+            ${m.notes ? `<div class="mt-2 text-xs text-neutral-300 italic border-l-2 border-neutral-600 pl-2 py-0.5">${m.notes}</div>` : ''}`;
+            container.appendChild(card);
+        });
+
+        _historyState.hasNext = data.has_next;
+        _historyState.page++;
+        _historyState.loading = false;
+
+        const spinner = document.getElementById('history-sentinel').querySelector('svg');
+        if (!_historyState.hasNext) {
+            spinner.classList.add('hidden');
+        } else {
+            setupHistoryObserver();
+        }
+    }
+
+    function setupHistoryObserver() {
+        if (_historyState.observer) _historyState.observer.disconnect();
+        const sentinel = document.getElementById('history-sentinel');
+        _historyState.observer = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting && _historyState.hasNext && !_historyState.loading) {
+                loadHistoryPage();
+            }
+        }, { threshold: 0.1 });
+        _historyState.observer.observe(sentinel);
+    }
 </script>
 {% endblock %}
