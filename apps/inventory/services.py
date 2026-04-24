@@ -61,9 +61,9 @@ def process_restock(barbershop, user, items, notes=""):
             stock_previous = product.stock_quantity
             stock_resulting = stock_previous + quantity
 
-            # Update product stock
-            product.stock_quantity = stock_resulting
-            product.save(update_fields=["stock_quantity", "updated_by"])
+            # Let StockMovement.save() handle updating product.stock_quantity.
+            product.updated_by = user
+            product.save(update_fields=["updated_by"])
 
             # Create movement line
             InventoryMovementItem.objects.create(

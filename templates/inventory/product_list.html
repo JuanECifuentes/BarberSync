@@ -294,18 +294,21 @@
                                 </span>
 
                                 {% if is_admin %}
-                                <!-- Reestock button -->
-                                <button
-                                    onclick="openRestockModal({{ product.pk }}, '{{ product.name|escapejs }}', {{ product.stock_quantity }}, '{{ product.barbershop.name|escapejs }}')"
-                                    data-tooltip="Reestock"
-                                    class="border border-orange-700/60 px-3 py-2 rounded-lg hover:border-orange-500 transition-all shadow-sm text-orange-400 hover:text-orange-300 hover:bg-orange-900/20">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                    </svg>
-                                </button>
+                                
+                                
                                 <!-- Action buttons -->
                                 <div class="flex items-center gap-1">
+                                    <!-- Reestock button -->
+                                    <button
+                                        onclick="openRestockModal({{ product.pk }}, '{{ product.name|escapejs }}', {{ product.stock_quantity }}, '{{ product.barbershop.name|escapejs }}')"
+                                        data-tooltip="Reestock"
+                                        class="border border-neutral-700 px-3 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-orange-400 hover:text-orange-300">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                        </svg>
+                                    </button>
+                                    
                                     <button onclick="openEditModal({{ product.pk }})" data-tooltip="Editar Producto"
                                         class="border border-neutral-700 px-3 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-400 hover:text-white">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -509,8 +512,9 @@
 
 <!-- MODAL: Reestock Individual -->
 <div id="modal-restock" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-    <div class="w-full max-w-sm bg-neutral-900 border border-orange-800/50 rounded-xl p-6 space-y-4">
-        <div class="flex items-center justify-between">
+    <div class="w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-xl flex flex-col max-h-[85vh]">
+        <!-- Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-neutral-800">
             <h3 class="font-heading font-bold text-lg text-white flex items-center gap-2">
                 <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
@@ -525,52 +529,50 @@
             </button>
         </div>
 
-        <!-- Locked info block -->
-        <div class="bg-neutral-800/60 border border-neutral-700 rounded-lg p-4 space-y-2">
-            <div class="flex justify-between text-sm">
-                <span class="text-neutral-400">Producto</span>
-                <span id="restock-product-name" class="text-white font-medium"></span>
+        <div class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+            <!-- Locked info block -->
+            <div class="bg-neutral-800/60 border border-neutral-700 rounded-lg p-4 space-y-2">
+                <div class="flex justify-between text-sm">
+                    <span class="text-neutral-400">Producto</span>
+                    <span id="restock-product-name" class="text-white font-medium"></span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-neutral-400">Sucursal</span>
+                    <span id="restock-product-branch" class="text-white font-medium"></span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-neutral-400">Stock Actual</span>
+                    <span id="restock-current-stock" class="text-brand font-bold"></span>
+                </div>
             </div>
-            <div class="flex justify-between text-sm">
-                <span class="text-neutral-400">Sucursal</span>
-                <span id="restock-product-branch" class="text-white font-medium"></span>
+
+            <input type="hidden" id="restock-product-id" value="">
+
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">Cantidad a agregar <span
+                        class="text-brand">*</span></label>
+                <input id="restock-quantity" type="text" inputmode="numeric" placeholder="Ej: 10"
+                    class="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                <span id="restock-qty-error" class="hidden text-xs text-red-400 mt-1 block">Solo se permiten números enteros, sin decimales.</span>
+
+                <div class="flex items-center justify-between text-xs px-2 py-1.5 bg-green-900/20 border border-green-800/40 rounded-lg mt-2">
+                    <span class="text-neutral-400">Nuevo Stock:</span>
+                    <span id="restock-new-stock" class="text-green-400 font-bold">-</span>
+                </div>
             </div>
-            <div class="flex justify-between text-sm">
-                <span class="text-neutral-400">Stock Actual</span>
-                <span id="restock-current-stock" class="text-brand font-bold"></span>
+
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">Notas (opcional)</label>
+                <textarea id="restock-notes" rows="2" placeholder="Observaciones..."
+                    class="w-full px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors resize-none"></textarea>
             </div>
         </div>
 
-        <input type="hidden" id="restock-product-id" value="">
-
-        <div>
-            <label class="block text-xs text-neutral-400 mb-1">Cantidad a agregar <span
-                    class="text-orange-400">*</span></label>
-            <input id="restock-quantity" type="number" min="1" placeholder="Ej: 10"
-                class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors">
-        </div>
-
-        <div x-data="{ newStock: 0 }"
-            x-init="$watch('$el.querySelector('#restock-quantity').value', v => newStock = (parseInt(v) || 0))">
-            <div
-                class="flex items-center justify-between text-xs px-2 py-1.5 bg-orange-900/20 border border-orange-800/40 rounded-lg">
-                <span class="text-neutral-400">Nuevo Stock:</span>
-                <span class="text-orange-300 font-bold"
-                    x-text="newStock > 0 ? (parseInt(document.getElementById('restock-current-stock').textContent) + newStock) : '-'">-</span>
-            </div>
-        </div>
-
-        <div>
-            <label class="block text-xs text-neutral-400 mb-1">Notas (opcional)</label>
-            <textarea id="restock-notes" rows="2" placeholder="Observaciones..."
-                class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors resize-none"></textarea>
-        </div>
-
-        <div class="flex gap-3 pt-1">
-            <button onclick="closeRestockModal()"
-                class="flex-1 text-sm border border-neutral-700 px-4 py-3 rounded-lg text-neutral-400 hover:text-white hover:border-red-600 hover:bg-red-900/20 transition-all">Cancelar</button>
-            <button onclick="submitRestock()"
-                class="btn-action-primary btn-primary flex-1 border border-orange-700/60 px-4 py-3 rounded-lg transition-all shadow-sm text-orange-300 hover:text-white hover:border-orange-500"><span>Confirmar
+        <div class="px-6 py-4 border-t border-neutral-800 flex justify-end gap-3">
+            <button onclick="closeRestockModal()" type="button"
+                class="btn-action-primary btn-secondary text-sm border border-neutral-700 px-4 py-2 rounded-lg transition-all"><span>Cancelar</span></button>
+            <button onclick="submitRestock()" type="button"
+                class="btn-action-primary btn-primary text-sm px-6 py-2 border border-neutral-700 rounded-lg transition-all shadow-sm"><span>Confirmar
                     Reestock</span></button>
         </div>
     </div>
@@ -814,6 +816,41 @@
         document.getElementById('filter-category').addEventListener('change', applyFilters);
         document.getElementById('filter-stock').addEventListener('change', applyFilters);
         document.getElementById('filter-sucursal').addEventListener('change', applyFilters);
+
+        // Restock input reactivity (pure JS)
+        const restockInput = document.getElementById('restock-quantity');
+        const restockError = document.getElementById('restock-qty-error');
+        const newStockSpan = document.getElementById('restock-new-stock');
+        const currentStockSpan = document.getElementById('restock-current-stock');
+
+        if (restockInput) {
+            restockInput.addEventListener('input', (e) => {
+                const val = e.target.value;
+                const currentStock = parseInt(currentStockSpan.textContent) || 0;
+                
+                // Validate for decimals or non-numeric (allowing empty for reset)
+                // We use a regex that matches anything NOT a digit
+                const hasNonDigits = /[^\d]/.test(val);
+                
+                if (hasNonDigits) {
+                    restockError.classList.remove('hidden');
+                    restockInput.classList.add('border-red-500', 'focus:ring-red-500', 'focus:border-red-500');
+                    restockInput.classList.remove('border-neutral-700', 'focus:ring-brand', 'focus:border-brand');
+                    newStockSpan.textContent = '-';
+                } else {
+                    restockError.classList.add('hidden');
+                    restockInput.classList.remove('border-red-500', 'focus:ring-red-500', 'focus:border-red-500');
+                    restockInput.classList.add('border-neutral-700', 'focus:ring-brand', 'focus:border-brand');
+                    
+                    if (val !== '') {
+                        const added = parseInt(val) || 0;
+                        newStockSpan.textContent = currentStock + added;
+                    } else {
+                        newStockSpan.textContent = '-';
+                    }
+                }
+            });
+        }
     });
 
     // ═══════════════════════════════════════
@@ -1051,10 +1088,18 @@
         document.getElementById('restock-product-name').textContent = productName;
         document.getElementById('restock-product-branch').textContent = branchName;
         document.getElementById('restock-current-stock').textContent = currentStock;
-        document.getElementById('restock-quantity').value = '';
+        
+        const restockInput = document.getElementById('restock-quantity');
+        restockInput.value = '';
+        restockInput.classList.remove('border-red-500', 'focus:ring-red-500', 'focus:border-red-500');
+        restockInput.classList.add('border-neutral-700', 'focus:ring-brand', 'focus:border-brand');
+        
+        document.getElementById('restock-qty-error').classList.add('hidden');
+        document.getElementById('restock-new-stock').textContent = '-';
         document.getElementById('restock-notes').value = '';
+        
         document.getElementById('modal-restock').classList.remove('hidden');
-        document.getElementById('restock-quantity').focus();
+        restockInput.focus();
     }
 
     function closeRestockModal() {
@@ -1063,10 +1108,19 @@
 
     async function submitRestock() {
         const productId = document.getElementById('restock-product-id').value;
-        const quantity = parseInt(document.getElementById('restock-quantity').value);
+        const quantityInput = document.getElementById('restock-quantity');
+        const quantityVal = quantityInput.value;
         const notes = document.getElementById('restock-notes').value;
 
-        if (!quantity || quantity <= 0) {
+        // Block if invalid (contains non-digits)
+        if (/[^\d]/.test(quantityVal) || quantityVal === '') {
+            alert('Por favor ingrese una cantidad válida (solo números enteros).');
+            quantityInput.focus();
+            return;
+        }
+
+        const quantity = parseInt(quantityVal);
+        if (quantity <= 0) {
             alert('Cantidad debe ser mayor a 0');
             return;
         }
@@ -1078,8 +1132,9 @@
         });
 
         if (res.ok) {
+            const data = await res.json();
+            updateProductRowStock(productId, data.new_stock);
             closeRestockModal();
-            location.reload();
         } else {
             const data = await res.json();
             alert(data.error || 'Error al procesar reestock');
@@ -1174,6 +1229,7 @@
         <div class="flex items-center gap-3">
             <button onclick="adjustBulkQty(${rowId}, -1)" class="w-8 h-8 flex items-center justify-center border border-neutral-700 rounded-lg text-neutral-400 hover:text-white hover:border-neutral-500 transition-all">−</button>
             <input id="bulk-qty-${rowId}" type="number" min="1" value="1" placeholder="Cantidad"
+                   oninput="this.value = this.value.replace(/[^0-9]/g, '');"
                    class="w-20 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm text-center focus:ring-2 focus:ring-brand transition-colors">
             <button onclick="adjustBulkQty(${rowId}, 1)" class="w-8 h-8 flex items-center justify-center border border-neutral-700 rounded-lg text-neutral-400 hover:text-white hover:border-neutral-500 transition-all">+</button>
             <div class="flex-1 text-xs text-right flex items-center justify-end gap-2">
@@ -1277,7 +1333,9 @@
         const items = [];
         rows.forEach(row => {
             const productId = row.dataset.productId;
-            const qty = parseInt(document.getElementById(`bulk-qty-${row.id.replace('bulk-row-', 'bulk-qty-')}`).value) || 0;
+            const rowId = row.id.replace('bulk-row-', '');
+            const qtyInput = document.getElementById(`bulk-qty-${rowId}`);
+            const qty = qtyInput ? parseInt(qtyInput.value) || 0 : 0;
             if (productId && qty > 0) {
                 items.push({ product_id: parseInt(productId), quantity: qty });
             }
@@ -1296,11 +1354,58 @@
         });
 
         if (res.ok) {
+            const data = await res.json();
+            if (data.updated_stocks) {
+                for (const [prodId, updatedVal] of Object.entries(data.updated_stocks)) {
+                    updateProductRowStock(prodId, updatedVal);
+                }
+            }
             closeBulkRestockModal();
-            location.reload();
         } else {
             const data = await res.json();
             alert(data.error || 'Error al procesar reestock múltiple');
+        }
+    }
+
+    function updateProductRowStock(productId, updatedStock) {
+        const row = document.getElementById(`product-row-${productId}`);
+        if (!row) return;
+
+        row.dataset.stock = updatedStock;
+        const threshold = parseInt(row.dataset.threshold) || 0;
+        const isLow = updatedStock <= threshold;
+        row.dataset.lowStock = isLow ? "1" : "0";
+
+        // Update badge
+        const badge = row.querySelector('span.inline-flex.items-center.px-3.py-1\\.5');
+        if (badge) {
+            const amberClasses = ['bg-amber-900/40', 'text-amber-300', 'border-amber-800/50', 'hover:bg-amber-900/60'];
+            const neutralClasses = ['bg-neutral-700/50', 'text-neutral-300', 'border-neutral-600/50', 'hover:bg-neutral-700'];
+            
+            if (isLow) {
+                badge.classList.remove(...neutralClasses);
+                badge.classList.add(...amberClasses);
+            } else {
+                badge.classList.remove(...amberClasses);
+                badge.classList.add(...neutralClasses);
+            }
+
+            let html = "";
+            if (isLow) {
+                html += '<span class="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse"></span>';
+            }
+            html += ` Stock: ${updatedStock}`;
+            badge.innerHTML = html;
+        }
+
+        // Update restock button onclick
+        const restockBtn = row.querySelector('button[onclick*="openRestockModal"]');
+        if (restockBtn) {
+            const oldOnclick = restockBtn.getAttribute('onclick');
+            // Safely find the 3rd argument (current stock) even if name has commas
+            // Pattern: (ID, 'NAME', ) STOCK
+            const newOnclick = oldOnclick.replace(/(\([^,]+,\s*'[^']*',\s*)\d+/, `$1${updatedStock}`);
+            restockBtn.setAttribute('onclick', newOnclick);
         }
     }
 

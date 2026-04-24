@@ -295,7 +295,7 @@ class RestockAPI(View):
         product_id = data.get("product_id")
         quantity = data.get("quantity")
         notes = data.get("notes", "")
-
+        
         if not product_id:
             return JsonResponse({"error": "Producto requerido"}, status=400)
         if not quantity or int(quantity) <= 0:
@@ -348,6 +348,7 @@ class BulkRestockAPI(View):
             "message": "Reestock múltiple procesado",
             "movement_id": movement.pk,
             "total_items": movement.items.count(),
+            "updated_stocks": {item.product_id: item.stock_resulting for item in movement.items.all()}
         }, status=201)
 
 
