@@ -14,7 +14,8 @@ from django.views.generic import TemplateView
 from apps.core.mixins import TenantViewMixin, RoleRequiredMixin
 from apps.accounts.models import Barbershop
 
-from .models import Product, ProductCategory, StockMovement, HistorialPrecioProducto
+from .models import Product, ProductCategory, StockMovement, HistorialPrecioProducto, InventoryMovement, InventoryMovementItem
+from .services import process_restock, process_bulk_restock
 
 
 class ProductListView(LoginRequiredMixin, TemplateView):
@@ -279,3 +280,126 @@ class CategoryCreateAPI(View):
         return JsonResponse([
             {"id": c.pk, "name": c.name} for c in cats
         ], safe=False)
+
+
+class RestockAPI(View):
+    """API para procesar un reestock individual."""
+
+    def post(self, request):
+        barbershop = request.barbershop
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "JSON inválido"}, status=400)
+
+        product_id = data.get("product_id")
+        quantity = data.get("quantity")
+        notes = data.get("notes", "")
+        
+        if not product_id:
+            return JsonResponse({"error": "Producto requerido"}, status=400)
+        if not quantity or int(quantity) <= 0:
+            return JsonResponse({"error": "Cantidad debe ser mayor a 0"}, status=400)
+
+        try:
+            movement = process_restock(
+                barbershop=barbershop,
+                user=request.user,
+                items=[{"product_id": int(product_id), "quantity": int(quantity)}],
+                notes=notes,
+            )
+        except ValueError as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+        return JsonResponse({
+            "message": "Reestock procesado",
+            "movement_id": movement.pk,
+            "new_stock": movement.items.first().stock_resulting,
+        }, status=201)
+
+
+class BulkRestockAPI(View):
+    """API para procesar reestock múltiple."""
+
+    def post(self, request):
+        barbershop = request.barbershop
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "JSON inválido"}, status=400)
+
+        items = data.get("items", [])
+        notes = data.get("notes", "")
+
+        if not items:
+            return JsonResponse({"error": "No se proporcionaron ítems"}, status=400)
+
+        try:
+            movement = process_bulk_restock(
+                barbershop=barbershop,
+                user=request.user,
+                items=items,
+                notes=notes,
+            )
+        except ValueError as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+        return JsonResponse({
+            "message": "Reestock múltiple procesado",
+            "movement_id": movement.pk,
+            "total_items": movement.items.count(),
+            "updated_stocks": {item.product_id: item.stock_resulting for item in movement.items.all()}
+        }, status=201)
+
+
+class MovementHistoryAPI(View):
+    """API para historial de movimientos con paginación (30 por página)."""
+
+    def get(self, request):
+        from django.core.paginator import Paginator
+
+        org = request.organization
+        qs = (
+            InventoryMovement.objects
+            .filter(barbershop_destiny__organization=org)
+            .select_related("barbershop_destiny", "created_by")
+            .prefetch_related("items__product")
+            .order_by("-created_at")
+        )
+
+        paginator = Paginator(qs, 30)
+        page_num = request.GET.get("page", 1)
+        page = paginator.get_page(page_num)
+
+        results = []
+        for m in page:
+            user_name = ""
+            if m.created_by:
+                user_name = " ".join(filter(None, [m.created_by.first_name, m.created_by.last_name])) or "Sistema"
+
+            items_data = []
+            for item in m.items.all():
+                items_data.append({
+                    "product_id": item.product.pk,
+                    "product_name": item.product.name,
+                    "quantity": item.quantity,
+                    "stock_previous": item.stock_previous,
+                    "stock_resulting": item.stock_resulting,
+                })
+
+            results.append({
+                "id": m.pk,
+                "movement_type": m.movement_type,
+                "movement_type_display": m.get_movement_type_display(),
+                "barbershop_destiny": m.barbershop_destiny.name if m.barbershop_destiny else None,
+                "notes": m.notes,
+                "created_at": m.created_at.isoformat(),
+                "created_by": user_name,
+                "items": items_data,
+            })
+
+        return JsonResponse({
+            "results": results,
+            "page": page.number,
+            "has_next": page.has_next(),
+        })
