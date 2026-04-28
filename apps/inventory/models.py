@@ -117,6 +117,7 @@ class StockMovement(AuditModel):
         ADJUSTMENT = "adjustment", "Ajuste"
         LOSS = "loss", "Pérdida"
         RETURN = "return", "Devolución"
+        TRANSFER = "transfer", "Transferencia"
 
     product = models.ForeignKey(
         Product,

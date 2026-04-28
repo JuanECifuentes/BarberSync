@@ -15,7 +15,7 @@ from apps.core.mixins import TenantViewMixin, RoleRequiredMixin
 from apps.accounts.models import Barbershop
 
 from .models import Product, ProductCategory, StockMovement, HistorialPrecioProducto, InventoryMovement, InventoryMovementItem
-from .services import process_restock, process_bulk_restock
+from .services import process_restock, process_bulk_restock, process_transfer
 
 
 class ProductListView(LoginRequiredMixin, TemplateView):
@@ -352,6 +352,108 @@ class BulkRestockAPI(View):
         }, status=201)
 
 
+class TransferAPI(View):
+    """API para procesar una transferencia individual."""
+
+    def post(self, request):
+        barbershop = request.barbershop
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "JSON inválido"}, status=400)
+
+        product_id = data.get("product_id")
+        quantity = data.get("quantity")
+        notes = data.get("notes", "")
+        barbershop_destiny_id = data.get("barbershop_destiny_id")
+
+        if not product_id:
+            return JsonResponse({"error": "Producto requerido"}, status=400)
+        if not barbershop_destiny_id:
+            return JsonResponse({"error": "Sucursal de destino requerida"}, status=400)
+        if not quantity or int(quantity) <= 0:
+            return JsonResponse({"error": "Cantidad debe ser mayor a 0"}, status=400)
+
+        from apps.accounts.models import Barbershop
+        try:
+            barbershop_destiny = Barbershop.objects.get(
+                pk=barbershop_destiny_id, organization=request.organization, is_active=True
+            )
+        except Barbershop.DoesNotExist:
+            return JsonResponse({"error": "Sucursal de destino no válida"}, status=400)
+
+        try:
+            movement = process_transfer(
+                barbershop_origin=barbershop,
+                barbershop_destiny=barbershop_destiny,
+                user=request.user,
+                items=[{"product_id": int(product_id), "quantity": int(quantity)}],
+                notes=notes,
+            )
+        except ValueError as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+        return JsonResponse({
+            "message": "Transferencia procesada",
+            "movement_id": movement.pk,
+        }, status=201)
+
+
+class BulkTransferAPI(View):
+    """API para procesar transferencia múltiple."""
+
+    def post(self, request):
+        org = request.organization
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "JSON inválido"}, status=400)
+
+        items = data.get("items", [])
+        notes = data.get("notes", "")
+        barbershop_origin_id = data.get("barbershop_origin_id")
+        barbershop_destiny_id = data.get("barbershop_destiny_id")
+
+        if not barbershop_origin_id:
+            return JsonResponse({"error": "Sucursal de origen requerida"}, status=400)
+        if not barbershop_destiny_id:
+            return JsonResponse({"error": "Sucursal de destino requerida"}, status=400)
+        if not items:
+            return JsonResponse({"error": "No se proporcionaron ítems"}, status=400)
+
+        from apps.accounts.models import Barbershop
+        try:
+            barbershop_origin = Barbershop.objects.get(
+                pk=barbershop_origin_id, organization=org, is_active=True
+            )
+        except Barbershop.DoesNotExist:
+            return JsonResponse({"error": "Sucursal de origen no válida"}, status=400)
+
+        try:
+            barbershop_destiny = Barbershop.objects.get(
+                pk=barbershop_destiny_id, organization=org, is_active=True
+            )
+        except Barbershop.DoesNotExist:
+            return JsonResponse({"error": "Sucursal de destino no válida"}, status=400)
+
+        try:
+            movement = process_transfer(
+                barbershop_origin=barbershop_origin,
+                barbershop_destiny=barbershop_destiny,
+                user=request.user,
+                items=items,
+                notes=notes,
+            )
+        except ValueError as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+        return JsonResponse({
+            "message": "Transferencia múltiple procesada",
+            "movement_id": movement.pk,
+            "total_items": movement.items.count(),
+        }, status=201)
+
+
 class MovementHistoryAPI(View):
     """API para historial de movimientos con paginación (30 por página)."""
 
@@ -391,6 +493,7 @@ class MovementHistoryAPI(View):
                 "id": m.pk,
                 "movement_type": m.movement_type,
                 "movement_type_display": m.get_movement_type_display(),
+                "barbershop_origin": m.barbershop_origin.name if m.barbershop_origin else None,
                 "barbershop_destiny": m.barbershop_destiny.name if m.barbershop_destiny else None,
                 "notes": m.notes,
                 "created_at": m.created_at.isoformat(),
