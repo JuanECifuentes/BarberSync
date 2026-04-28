@@ -15,4 +15,6 @@ urlpatterns = [
     path("api/restock/", views.RestockAPI.as_view(), name="api_restock"),
     path("api/restock/bulk/", views.BulkRestockAPI.as_view(), name="api_restock_bulk"),
     path("api/restock/history/", views.MovementHistoryAPI.as_view(), name="api_restock_history"),
+    path("api/transfer/", views.TransferAPI.as_view(), name="api_transfer"),
+    path("api/transfer/bulk/", views.BulkTransferAPI.as_view(), name="api_transfer_bulk"),
 ]
