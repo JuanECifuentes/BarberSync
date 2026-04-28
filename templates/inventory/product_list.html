@@ -731,8 +731,9 @@
         <div class="px-6 py-4 border-t border-neutral-800 flex justify-end gap-3">
             <button onclick="closeTransferModal()" type="button"
                 class="btn-action-primary btn-secondary text-sm border border-neutral-700 px-4 py-2 rounded-lg transition-all"><span>Cancelar</span></button>
-            <button onclick="submitTransfer()" type="button"
-                class="btn-action-primary btn-primary text-sm px-6 py-2 border border-neutral-700 rounded-lg transition-all shadow-sm"><span>Confirmar Transferencia</span></button>
+            <button id="btn-confirm-transfer" onclick="submitTransfer()" type="button"
+                class="btn-action-primary btn-primary text-sm px-6 py-2 border border-neutral-700 rounded-lg transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                disabled><span>Confirmar Transferencia</span></button>
         </div>
     </div>
 </div>
@@ -1042,39 +1043,11 @@
         const currentStockTransferSpan = document.getElementById('transfer-current-stock');
 
         if (transferInput) {
-            transferInput.addEventListener('input', (e) => {
-                const val = e.target.value;
-                const currentStock = parseInt(currentStockTransferSpan.textContent) || 0;
-
-                const hasNonDigits = /[^\d]/.test(val);
-
-                if (hasNonDigits) {
-                    transferQtyError.classList.remove('hidden');
-                    transferQtyRangeError.classList.add('hidden');
-                    transferInput.classList.add('border-red-500', 'focus:ring-red-500', 'focus:border-red-500');
-                    transferInput.classList.remove('border-neutral-700', 'focus:ring-brand', 'focus:border-brand');
-                    remainingStockSpan.textContent = '-';
-                } else {
-                    transferQtyError.classList.add('hidden');
-                    transferInput.classList.remove('border-red-500', 'focus:ring-red-500', 'focus:border-red-500');
-                    transferInput.classList.add('border-neutral-700', 'focus:ring-brand', 'focus:border-brand');
-
-                    if (val !== '') {
-                        const qty = parseInt(val) || 0;
-                        if (qty > currentStock) {
-                            transferQtyRangeError.classList.remove('hidden');
-                            transferInput.classList.add('border-red-500', 'focus:ring-red-500', 'focus:border-red-500');
-                            transferInput.classList.remove('border-neutral-700', 'focus:ring-brand', 'focus:border-brand');
-                            remainingStockSpan.textContent = '-';
-                        } else {
-                            transferQtyRangeError.classList.add('hidden');
-                            remainingStockSpan.textContent = currentStock - qty;
-                        }
-                    } else {
-                        remainingStockSpan.textContent = '-';
-                    }
-                }
-            });
+            transferInput.addEventListener('input', onTransferQuantityChanged);
+        }
+        const transferDestSelect = document.getElementById('transfer-dest');
+        if (transferDestSelect) {
+            transferDestSelect.addEventListener('change', validateTransferConfirmButton);
         }
     });
 
@@ -1665,11 +1638,73 @@
         document.getElementById('transfer-notes').value = '';
 
         document.getElementById('modal-transfer').classList.remove('hidden');
+        validateTransferConfirmButton();
         transferInput.focus();
     }
 
     function closeTransferModal() {
         document.getElementById('modal-transfer').classList.add('hidden');
+    }
+
+    function onTransferQuantityChanged() {
+        const qtyInput = document.getElementById('transfer-quantity');
+        const currentStock = parseInt(document.getElementById('transfer-current-stock').textContent) || 0;
+        const val = qtyInput.value;
+        
+        const transferQtyError = document.getElementById('transfer-qty-error');
+        const transferQtyRangeError = document.getElementById('transfer-qty-range-error');
+        const remainingStockSpan = document.getElementById('transfer-remaining-stock');
+
+        const hasNonDigits = /[^\d]/.test(val);
+
+        if (hasNonDigits) {
+            transferQtyError.classList.remove('hidden');
+            transferQtyRangeError.classList.add('hidden');
+            qtyInput.classList.add('border-red-500', 'focus:ring-red-500', 'focus:border-red-500');
+            qtyInput.classList.remove('border-neutral-700', 'focus:ring-brand', 'focus:border-brand');
+            remainingStockSpan.textContent = '-';
+        } else {
+            transferQtyError.classList.add('hidden');
+            qtyInput.classList.remove('border-red-500', 'focus:ring-red-500', 'focus:border-red-500');
+            qtyInput.classList.add('border-neutral-700', 'focus:ring-brand', 'focus:border-brand');
+
+            if (val !== '') {
+                const qty = parseInt(val) || 0;
+                if (qty > currentStock) {
+                    transferQtyRangeError.classList.remove('hidden');
+                    qtyInput.classList.add('border-red-500', 'focus:ring-red-500', 'focus:border-red-500');
+                    qtyInput.classList.remove('border-neutral-700', 'focus:ring-brand', 'focus:border-brand');
+                    remainingStockSpan.textContent = '-';
+                } else {
+                    transferQtyRangeError.classList.add('hidden');
+                    remainingStockSpan.textContent = currentStock - qty;
+                }
+            } else {
+                remainingStockSpan.textContent = '-';
+            }
+        }
+        validateTransferConfirmButton();
+    }
+
+    function validateTransferConfirmButton() {
+        const qtyInput = document.getElementById('transfer-quantity');
+        const destInput = document.getElementById('transfer-dest');
+        const confirmBtn = document.getElementById('btn-confirm-transfer');
+        
+        const val = qtyInput.value;
+        const currentStock = parseInt(document.getElementById('transfer-current-stock').textContent) || 0;
+        const destId = destInput.value;
+
+        const hasNonDigits = /[^\d]/.test(val);
+        const qty = parseInt(val) || 0;
+        const isExceeding = qty > currentStock;
+        const isEmpty = val === '';
+        const isZeroOrLess = qty <= 0;
+        const noDest = !destId;
+
+        if (confirmBtn) {
+            confirmBtn.disabled = hasNonDigits || isExceeding || isEmpty || isZeroOrLess || noDest;
+        }
     }
 
     async function submitTransfer() {
@@ -1804,7 +1839,7 @@
         <div class="flex items-center gap-3">
             <button onclick="adjustBulkTransferQty(${rowId}, -1)" class="w-8 h-8 flex items-center justify-center border border-neutral-700 rounded-lg text-neutral-400 hover:text-white hover:border-neutral-500 transition-all">−</button>
             <input id="bulk-transfer-qty-${rowId}" type="number" min="1" value="1" placeholder="Cantidad"
-                   oninput="this.value = this.value.replace(/[^0-9]/g, '');"
+                   oninput="this.value = this.value.replace(/[^0-9]/g, ''); onBulkTransferQtyChanged(${rowId});"
                    class="w-20 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm text-center focus:ring-2 focus:ring-brand transition-colors">
             <button onclick="adjustBulkTransferQty(${rowId}, 1)" class="w-8 h-8 flex items-center justify-center border border-neutral-700 rounded-lg text-neutral-400 hover:text-white hover:border-neutral-500 transition-all">+</button>
             <div class="flex-1 text-xs text-right flex items-center justify-end gap-2">
@@ -1813,7 +1848,7 @@
                 <span class="text-neutral-300">Rest: <span id="bulk-transfer-new-stock-${rowId}" class="font-bold text-white">-</span></span>
             </div>
         </div>
-        <div id="bulk-transfer-qty-error-${rowId}" class="hidden text-xs text-red-400">Cantidad inválida. Solo números enteros positivos.</div>`;
+        <div id="bulk-transfer-row-error-${rowId}" class="hidden text-xs text-red-400 mt-1">La cantidad excede el stock disponible.</div>`;
 
         row.dataset.productId = '';
         row.dataset.stock = '0';
@@ -1835,15 +1870,38 @@
             row.dataset.productId = this.value;
             row.dataset.stock = stock;
             document.getElementById(`bulk-transfer-stock-display-${rowId}`).textContent = this.value ? stock : '-';
-            updateBulkTransferNewStock(rowId);
+            onBulkTransferQtyChanged(rowId);
             updateBulkTransferSummary();
             updateBulkTransferSelectOptions();
         });
 
         const qtyInput = row.querySelector(`#bulk-transfer-qty-${rowId}`);
-        qtyInput.addEventListener('input', () => { updateBulkTransferNewStock(rowId); updateBulkTransferSummary(); });
+        qtyInput.addEventListener('input', () => { onBulkTransferQtyChanged(rowId); updateBulkTransferSummary(); });
 
         updateBulkTransferSelectOptions();
+        updateBulkTransferSummary();
+    }
+
+    function onBulkTransferQtyChanged(rowId) {
+        const row = document.getElementById(`bulk-transfer-row-${rowId}`);
+        const stock = parseInt(row.dataset.stock) || 0;
+        const qty = parseInt(document.getElementById(`bulk-transfer-qty-${rowId}`).value) || 0;
+
+        updateBulkTransferNewStock(rowId);
+
+        const errorEl = document.getElementById(`bulk-transfer-row-error-${rowId}`);
+        const qtyInput = document.getElementById(`bulk-transfer-qty-${rowId}`);
+
+        if (qty > stock && stock > 0) {
+            errorEl.classList.remove('hidden');
+            qtyInput.classList.add('border-red-500', 'focus:ring-red-500', 'focus:border-red-500');
+            qtyInput.classList.remove('border-neutral-700', 'focus:ring-brand', 'focus:border-brand');
+        } else {
+            errorEl.classList.add('hidden');
+            qtyInput.classList.remove('border-red-500', 'focus:ring-red-500', 'focus:border-red-500');
+            qtyInput.classList.add('border-neutral-700', 'focus:ring-brand', 'focus:border-brand');
+        }
+
         updateBulkTransferSummary();
     }
 
@@ -1851,7 +1909,7 @@
         const input = document.getElementById(`bulk-transfer-qty-${rowId}`);
         const val = parseInt(input.value) || 1;
         input.value = Math.max(1, val + delta);
-        updateBulkTransferNewStock(rowId);
+        onBulkTransferQtyChanged(rowId);
         updateBulkTransferSummary();
     }
 
@@ -1877,17 +1935,23 @@
     function updateBulkTransferSummary() {
         const rows = document.querySelectorAll('#bulk-transfer-rows > div');
         let totalProducts = 0;
+        let hasError = false;
         rows.forEach(row => {
             const productId = row.dataset.productId;
             const rowId = row.id.replace('bulk-transfer-row-', '');
             const qtyInput = document.getElementById(`bulk-transfer-qty-${rowId}`);
             const qty = qtyInput ? parseInt(qtyInput.value) || 0 : 0;
+            const stock = parseInt(row.dataset.stock) || 0;
+            
             if (productId && qty > 0) {
                 totalProducts++;
             }
+            if (qty > stock && stock > 0) {
+                hasError = true;
+            }
         });
         document.getElementById('bulk-transfer-total-products').textContent = totalProducts;
-        document.getElementById('btn-confirm-bulk-transfer').disabled = totalProducts === 0;
+        document.getElementById('btn-confirm-bulk-transfer').disabled = (totalProducts === 0) || hasError;
     }
 
     function updateBulkTransferAddButtonState() {
@@ -1947,11 +2011,6 @@
             const qtyInput = document.getElementById(`bulk-transfer-qty-${rowId}`);
             const qty = qtyInput ? parseInt(qtyInput.value) || 0 : 0;
             if (productId && qty > 0) {
-                const stock = parseInt(row.dataset.stock) || 0;
-                if (qty > stock) {
-                    alert(`La cantidad para el producto seleccionado excede el stock disponible (${stock}).`);
-                    return;
-                }
                 items.push({ product_id: parseInt(productId), quantity: qty });
             }
         });
