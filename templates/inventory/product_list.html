@@ -112,27 +112,10 @@
             {% endif %}
         </div>
         {% if is_admin %}
-        <div class="flex gap-2">
-            <button onclick="document.getElementById('modal-bulk-restock').classList.remove('hidden')"
-                class="btn-action-primary btn-secondary text-sm flex items-center gap-2 border border-neutral-700 px-4 py-2 rounded-lg transition-all">
-                <svg class="w-4 h-4 text-orange-400 transition-colors" fill="none" stroke="currentColor"
-                    viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span>Reestock M&uacute;ltiple</span>
-            </button>
-            <button onclick="document.getElementById('modal-bulk-transfer').classList.remove('hidden')"
-                class="btn-action-primary btn-secondary text-sm flex items-center gap-2 border border-neutral-700 px-4 py-2 rounded-lg transition-all">
-                <svg class="w-4 h-4 text-blue-400 transition-colors" fill="none" stroke="currentColor"
-                    viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                        d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                </svg>
-                <span>Transferencia M&uacute;ltiple</span>
-            </button>
+        <div class="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            <!-- Left group: actions -->
             <button onclick="openHistoryModal()"
-                class="btn-action-primary btn-secondary text-sm flex items-center gap-2 border border-neutral-700 px-4 py-2 rounded-lg transition-all">
+                class="btn-action-primary btn-secondary text-sm flex items-center gap-2 border border-neutral-700 px-3 py-2 rounded-lg transition-all whitespace-nowrap flex-shrink-0">
                 <svg class="w-4 h-4 text-neutral-400 transition-colors" fill="none" stroke="currentColor"
                     viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -140,21 +123,40 @@
                 </svg>
                 <span>Historial</span>
             </button>
-            <button onclick="document.getElementById('modal-category').classList.remove('hidden')"
-                class="btn-action-primary btn-secondary text-sm flex items-center gap-2 border border-neutral-700 px-4 py-2 rounded-lg transition-all">
+            <button onclick="document.getElementById('modal-bulk-restock').classList.remove('hidden')"
+                class="btn-action-primary btn-secondary text-sm flex items-center gap-2 border border-neutral-700 px-3 py-2 rounded-lg transition-all whitespace-nowrap flex-shrink-0">
                 <svg class="w-4 h-4 text-neutral-400 transition-colors" fill="none" stroke="currentColor"
                     viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                <span>Nueva Categor&iacute;a</span>
+                <span>Reestock Múltiple</span>
             </button>
-            <button onclick="openProductModal()"
-                class="btn-action-primary btn-primary text-sm flex items-center gap-2 border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm">
+            <button onclick="document.getElementById('modal-bulk-transfer').classList.remove('hidden')"
+                class="btn-action-primary btn-secondary text-sm flex items-center gap-2 border border-neutral-700 px-3 py-2 rounded-lg transition-all whitespace-nowrap flex-shrink-0">
+                <svg class="w-4 h-4 text-neutral-400 transition-colors" fill="none" stroke="currentColor"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                        d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+                <span>Transferencia Múltiple</span>
+            </button>
+            <!-- Divider -->
+            <div class="w-px bg-neutral-700 flex-shrink-0 mx-1 self-center" style="height: 24px;"></div>
+            <!-- Right group: creation -->
+            <button onclick="document.getElementById('modal-category').classList.remove('hidden')"
+                class="btn-action-primary btn-secondary text-sm flex items-center gap-2 border border-neutral-700 px-3 py-2 rounded-lg transition-all whitespace-nowrap flex-shrink-0">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                 </svg>
-                <span>Nuevo Producto</span>
+                <span>Categoría</span>
+            </button>
+            <button onclick="openProductModal()"
+                class="btn-action-primary btn-primary text-sm flex items-center gap-2 border border-neutral-700 px-3 py-2 rounded-lg transition-all shadow-sm whitespace-nowrap flex-shrink-0">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                <span>Producto</span>
             </button>
         </div>
         {% endif %}
@@ -311,7 +313,7 @@
                                     <button
                                         onclick="openRestockModal({{ product.pk }}, '{{ product.name|escapejs }}', {{ product.stock_quantity }}, '{{ product.barbershop.name|escapejs }}')"
                                         data-tooltip="Reestock"
-                                        class="border border-neutral-700 px-3 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-orange-400 hover:text-orange-300">
+                                        class="border border-neutral-700 px-3 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-400 hover:text-white">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                                                 d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -320,9 +322,9 @@
 
                                     <!-- Transfer button -->
                                     <button
-                                        onclick="openTransferModal({{ product.pk }}, '{{ product.name|escapejs }}', {{ product.stock_quantity }}, '{{ product.barbershop.name|escapejs }}')"
+                                        onclick="openTransferModal({{ product.pk }}, '{{ product.name|escapejs }}', {{ product.stock_quantity }}, '{{ product.barbershop.name|escapejs }}', {{ product.barbershop.pk }})"
                                         data-tooltip="Transferir"
-                                        class="border border-neutral-700 px-3 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-blue-400 hover:text-blue-300">
+                                        class="border border-neutral-700 px-3 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-400 hover:text-white">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                                                 d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
@@ -536,7 +538,7 @@
         <!-- Header -->
         <div class="flex items-center justify-between px-6 py-4 border-b border-neutral-800">
             <h3 class="font-heading font-bold text-lg text-white flex items-center gap-2">
-                <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                         d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
@@ -604,7 +606,7 @@
         <!-- Header -->
         <div class="flex items-center justify-between px-6 py-4 border-b border-neutral-800">
             <h3 class="font-heading font-bold text-lg text-white flex items-center gap-2">
-                <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                         d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
@@ -663,7 +665,7 @@
         <!-- Header -->
         <div class="flex items-center justify-between px-6 py-4 border-b border-neutral-800">
             <h3 class="font-heading font-bold text-lg text-white flex items-center gap-2">
-                <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                         d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                 </svg>
@@ -713,9 +715,9 @@
                 <span id="transfer-qty-error" class="hidden text-xs text-red-400 mt-1 block">Solo se permiten números enteros, sin decimales.</span>
                 <span id="transfer-qty-range-error" class="hidden text-xs text-red-400 mt-1 block">La cantidad debe ser mayor a 0 y menor o igual al stock disponible.</span>
 
-                <div class="flex items-center justify-between text-xs px-2 py-1.5 bg-blue-900/20 border border-blue-800/40 rounded-lg mt-2">
-                    <span class="text-neutral-400">Queda en origen:</span>
-                    <span id="transfer-remaining-stock" class="text-blue-400 font-bold">-</span>
+                <div class="flex items-center justify-between text-xs px-2 py-1.5 bg-neutral-800/40 border border-neutral-700/50 rounded-lg mt-2">
+                    <span class="text-neutral-400">Rest:</span>
+                    <span id="transfer-remaining-stock" class="text-white font-bold">-</span>
                 </div>
             </div>
 
@@ -741,7 +743,7 @@
         <!-- Header -->
         <div class="flex items-center justify-between px-6 py-4 border-b border-neutral-800">
             <h3 class="font-heading font-bold text-lg text-white flex items-center gap-2">
-                <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                         d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                 </svg>
@@ -768,6 +770,7 @@
                         <option value="{{ s.pk }}">{{ s.name }}</option>
                         {% endfor %}
                     </select>
+                    <span id="bulk-transfer-origin-error" class="hidden text-xs text-red-400 mt-1 block"></span>
                 </div>
                 <div>
                     <label class="block text-xs text-neutral-400 mb-1">Sucursal de Destino</label>
@@ -777,6 +780,7 @@
                         <option value="{{ s.pk }}">{{ s.name }}</option>
                         {% endfor %}
                     </select>
+                    <span id="bulk-transfer-dest-error" class="hidden text-xs text-red-400 mt-1 block"></span>
                 </div>
             </div>
             <div>
@@ -794,7 +798,7 @@
         <!-- Add product button & summary -->
         <div class="px-6 pb-2">
             <button id="btn-add-bulk-transfer-row" type="button" onclick="addBulkTransferRow()"
-                    class="mt-2 text-xs text-blue-400 hover:text-white border border-neutral-700 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 w-max disabled:opacity-40 disabled:cursor-not-allowed"
+                    class="mt-2 text-xs text-brand hover:text-white border border-neutral-700 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 w-max disabled:opacity-40 disabled:cursor-not-allowed"
                     disabled>
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 Agregar producto
@@ -1633,12 +1637,22 @@
     // ═══════════════════════════════════════
     // TRANSFER INDIVIDUAL
     // ═══════════════════════════════════════
-    function openTransferModal(productId, productName, currentStock, branchName) {
+    function openTransferModal(productId, productName, currentStock, branchName, branchId) {
         document.getElementById('transfer-product-id').value = productId;
         document.getElementById('transfer-product-name').textContent = productName;
         document.getElementById('transfer-product-branch').textContent = branchName;
         document.getElementById('transfer-current-stock').textContent = currentStock;
         document.getElementById('transfer-dest').value = '';
+
+        // Filter origin from destination selector
+        const destSelect = document.getElementById('transfer-dest');
+        document.querySelectorAll('#transfer-dest option').forEach(opt => {
+            if (opt.value && opt.value === String(branchId)) {
+                opt.style.display = 'none';
+            } else {
+                opt.style.display = '';
+            }
+        });
 
         const transferInput = document.getElementById('transfer-quantity');
         transferInput.value = '';
@@ -1794,9 +1808,9 @@
                    class="w-20 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm text-center focus:ring-2 focus:ring-brand transition-colors">
             <button onclick="adjustBulkTransferQty(${rowId}, 1)" class="w-8 h-8 flex items-center justify-center border border-neutral-700 rounded-lg text-neutral-400 hover:text-white hover:border-neutral-500 transition-all">+</button>
             <div class="flex-1 text-xs text-right flex items-center justify-end gap-2">
-                <span class="text-neutral-300">Disp: <span id="bulk-transfer-stock-display-${rowId}" class="font-bold text-blue-400">-</span></span>
+                <span class="text-neutral-300">Disp: <span id="bulk-transfer-stock-display-${rowId}" class="font-bold text-green-400">-</span></span>
                 <span class="text-neutral-500">→</span>
-                <span class="px-1.5 py-0.5 bg-green-900/30 border border-green-800/40 rounded text-green-400 font-bold" id="bulk-transfer-new-stock-${rowId}">-</span>
+                <span class="text-neutral-300">Rest: <span id="bulk-transfer-new-stock-${rowId}" class="font-bold text-white">-</span></span>
             </div>
         </div>
         <div id="bulk-transfer-qty-error-${rowId}" class="hidden text-xs text-red-400">Cantidad inválida. Solo números enteros positivos.</div>`;
@@ -1847,7 +1861,8 @@
         const qty = parseInt(document.getElementById(`bulk-transfer-qty-${rowId}`).value) || 0;
         const remaining = stock - qty;
         document.getElementById(`bulk-transfer-new-stock-${rowId}`).textContent = remaining >= 0 ? remaining : '!';
-        document.getElementById(`bulk-transfer-new-stock-${rowId}`).classList.toggle('!text-red-400', remaining < 0);
+        document.getElementById(`bulk-transfer-new-stock-${rowId}`).classList.toggle('text-red-400', remaining < 0);
+        document.getElementById(`bulk-transfer-new-stock-${rowId}`).classList.toggle('text-white', remaining >= 0);
     }
 
     function removeBulkTransferRow(rowId) {
@@ -1897,15 +1912,32 @@
     async function submitBulkTransfer() {
         const originId = document.getElementById('bulk-transfer-origin').value;
         const destId = document.getElementById('bulk-transfer-dest').value;
+        const originError = document.getElementById('bulk-transfer-origin-error');
+        const destError = document.getElementById('bulk-transfer-dest-error');
+
+        let hasError = false;
 
         if (!originId) {
-            alert('Por favor seleccione una sucursal de origen.');
-            return;
+            if (originError) {
+                originError.textContent = 'Selecciona una sucursal de origen.';
+                originError.classList.remove('hidden');
+            }
+            hasError = true;
+        } else {
+            if (originError) originError.classList.add('hidden');
         }
+
         if (!destId) {
-            alert('Por favor seleccione una sucursal de destino.');
-            return;
+            if (destError) {
+                destError.textContent = 'Selecciona una sucursal de destino.';
+                destError.classList.remove('hidden');
+            }
+            hasError = true;
+        } else {
+            if (destError) destError.classList.add('hidden');
         }
+
+        if (hasError) return;
 
         const rows = document.querySelectorAll('#bulk-transfer-rows > div');
         const items = [];
@@ -1917,7 +1949,7 @@
             if (productId && qty > 0) {
                 const stock = parseInt(row.dataset.stock) || 0;
                 if (qty > stock) {
-                    alert(`La cantidad para el producto selected excede el stock disponible (${stock}).`);
+                    alert(`La cantidad para el producto seleccionado excede el stock disponible (${stock}).`);
                     return;
                 }
                 items.push({ product_id: parseInt(productId), quantity: qty });
@@ -1948,20 +1980,27 @@
     document.getElementById('bulk-transfer-origin').addEventListener('change', function() {
         const destSelect = document.getElementById('bulk-transfer-dest');
         const originId = this.value;
+        const originError = document.getElementById('bulk-transfer-origin-error');
 
-        // Reset destination
-        destSelect.innerHTML = '<option value="">Seleccionar destino...</option>';
+        // Clear error on change
+        if (originError) originError.classList.add('hidden');
 
         if (originId) {
             destSelect.disabled = false;
-            // Filter out origin from destination options
+            // Show all options, hide the selected origin
             document.querySelectorAll('#bulk-transfer-dest option').forEach(opt => {
                 if (opt.value && opt.value === originId) {
                     opt.style.display = 'none';
+                } else {
+                    opt.style.display = '';
                 }
             });
         } else {
             destSelect.disabled = true;
+            // Show all options when no origin selected
+            document.querySelectorAll('#bulk-transfer-dest option').forEach(opt => {
+                opt.style.display = '';
+            });
         }
 
         // Reset product rows
@@ -2021,18 +2060,29 @@
             };
             const colorClass = typeColors[m.movement_type] || 'text-neutral-300 bg-neutral-800 border-neutral-700';
 
-            const itemsHtml = m.items.map(item => `
-            <div class="flex items-center justify-between text-xs py-1.5 px-3 rounded-lg bg-neutral-800/40">
-                <span class="text-neutral-300 font-medium">${item.product_name}</span>
-                <div class="flex items-center gap-3">
-                    <span class="text-brand font-bold bg-brand/10 px-2 py-0.5 rounded text-[10px]">+${item.quantity}</span>
-                    <div class="flex items-center gap-1.5">
-                        <span class="text-neutral-300 bg-neutral-700/50 px-1.5 py-0.5 rounded">${item.stock_previous}</span>
-                        <span class="text-neutral-500">→</span>
-                        <span class="text-green-400 bg-green-900/30 border border-green-800/40 px-1.5 py-0.5 rounded font-bold">${item.stock_resulting}</span>
-                    </div>
-                </div>
-            </div>`).join('');
+            const isTransfer = m.movement_type === 'transfer';
+            const itemsHtml = isTransfer
+                ? `<div class="flex flex-col gap-1">
+                    ${m.items.map(item => `
+                    <div class="flex items-center justify-between text-xs py-1.5 px-3 rounded-lg bg-neutral-800/40">
+                        <span class="text-neutral-300 font-medium">${item.product_name}</span>
+                        <span class="text-green-400 bg-green-900/30 border border-green-800/40 px-1.5 py-0.5 rounded font-bold text-[10px]">${item.quantity}u.</span>
+                    </div>`).join('')}
+                   </div>`
+                : `<div class="flex flex-col gap-1.5">
+                    ${m.items.map(item => `
+                    <div class="flex items-center justify-between text-xs py-1.5 px-3 rounded-lg bg-neutral-800/40">
+                        <span class="text-neutral-300 font-medium">${item.product_name}</span>
+                        <div class="flex items-center gap-3">
+                            <span class="text-brand font-bold bg-brand/10 px-2 py-0.5 rounded text-[10px]">+${item.quantity}</span>
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-neutral-300 bg-neutral-700/50 px-1.5 py-0.5 rounded">${item.stock_previous}</span>
+                                <span class="text-neutral-500">→</span>
+                                <span class="text-green-400 bg-green-900/30 border border-green-800/40 px-1.5 py-0.5 rounded font-bold">${item.stock_resulting}</span>
+                            </div>
+                        </div>
+                    </div>`).join('')}
+                   </div>`;
 
             const card = document.createElement('div');
             card.className = 'p-4 bg-neutral-800/60 border border-neutral-700 rounded-xl flex flex-col gap-3 hover:border-neutral-500 transition-colors';
@@ -2041,7 +2091,9 @@
                 <div class="flex flex-col gap-1.5">
                     <div class="flex items-center gap-2">
                         <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${colorClass}">${m.movement_type_display}</span>
-                        ${m.barbershop_destiny ? `<span class="text-xs text-neutral-300 font-medium">${m.barbershop_destiny}</span>` : ''}
+                        ${isTransfer && m.barbershop_origin && m.barbershop_destiny
+                            ? `<span class="text-xs text-neutral-300 font-medium">${m.barbershop_origin} → ${m.barbershop_destiny}</span>`
+                            : (m.barbershop_destiny ? `<span class="text-xs text-neutral-300 font-medium">${m.barbershop_destiny}</span>` : '')}
                     </div>
                     <div class="text-xs text-neutral-300">${fmt}</div>
                 </div>
@@ -2052,7 +2104,7 @@
                     </div>
                 </div>
             </div>
-            <div class="flex flex-col gap-1.5 mt-1">${itemsHtml}</div>
+            ${itemsHtml}
             ${m.notes ? `<div class="mt-2 text-xs text-neutral-300 italic border-l-2 border-neutral-600 pl-2 py-0.5">${m.notes}</div>` : ''}`;
             container.appendChild(card);
         });

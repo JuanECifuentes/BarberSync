@@ -493,6 +493,7 @@ class MovementHistoryAPI(View):
                 "id": m.pk,
                 "movement_type": m.movement_type,
                 "movement_type_display": m.get_movement_type_display(),
+                "barbershop_origin": m.barbershop_origin.name if m.barbershop_origin else None,
                 "barbershop_destiny": m.barbershop_destiny.name if m.barbershop_destiny else None,
                 "notes": m.notes,
                 "created_at": m.created_at.isoformat(),
