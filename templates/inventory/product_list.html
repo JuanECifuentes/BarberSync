@@ -242,20 +242,39 @@
 
         <div class="space-y-3" id="inventory-accordion">
             {% for cat_name, group in grouped_products.items %}
-            <div class="card p-0 overflow-hidden accordion-group" data-category-id="{{ group.category.pk|default:'' }}"
+            <div class="card p-0 accordion-group" data-category-id="{{ group.category.pk|default:'' }}"
                 data-category-name="{{ cat_name|lower }}">
                 <!-- Accordion header -->
-                <button onclick="toggleAccordion(this)"
-                    class="w-full flex items-center justify-between px-5 py-4 hover:bg-neutral-800/50 transition-colors">
-                    <div class="flex items-center gap-3">
+                <div class="w-full flex items-center justify-between px-5 py-4 hover:bg-neutral-800/50 transition-colors rounded-xl">
+                    <button onclick="toggleAccordion(this)" class="flex-1 flex items-center gap-3 text-left outline-none">
                         <svg class="w-5 h-5 text-brand accordion-chevron transition-transform duration-200" fill="none"
                             stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                         </svg>
                         <h3 class="font-heading font-bold text-white text-base">{{ cat_name }}</h3>
                         <span class="cat-count text-xs text-neutral-400 bg-neutral-800 px-2 py-0.5 rounded-full">{{ group.products|length }}</span>
+                    </button>
+                    {% if is_admin and group.category %}
+                    <div class="flex items-center gap-1 ml-4" onclick="event.stopPropagation()">
+                        <button onclick="openEditCategoryModal({{ group.category.pk }}, '{{ cat_name|escapejs }}')"
+                            data-tooltip="Editar Categoría"
+                            class="border border-neutral-700 px-3 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-400 hover:text-white">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                        </button>
+                        <button onclick="confirmDeleteCategory({{ group.category.pk }}, '{{ cat_name|escapejs }}')"
+                            data-tooltip="Eliminar Categoría"
+                            class="border border-neutral-700 px-3 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-red-400 hover:text-red-300">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </button>
                     </div>
-                </button>
+                    {% endif %}
+                </div>
 
                 <!-- Accordion body (open by default) -->
                 <div class="accordion-body">
@@ -503,31 +522,74 @@
     </div>
 </div>
 
-<!-- MODAL: Confirmación de borrado -->
-<div id="modal-confirm-delete" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-    <div class="w-full max-w-sm bg-neutral-900 border border-red-900/50 rounded-xl p-6 space-y-4">
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-full bg-red-900/30 flex items-center justify-center flex-shrink-0">
-                <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+<!-- MODAL: Editar Categoría -->
+<div id="modal-edit-category" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+    <div class="w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
+        <div class="flex items-center justify-between">
+            <h3 class="font-heading font-bold text-lg text-white">Editar Categor&iacute;a</h3>
+            <button onclick="document.getElementById('modal-edit-category').classList.add('hidden')"
+                class="text-neutral-400 hover:text-white transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
-            </div>
-            <div>
-                <h3 class="font-heading font-bold text-white">Eliminar producto</h3>
-                <p class="text-xs text-neutral-400 mt-1">El producto se desactivar&aacute; y dejar&aacute; de estar
-                    visible.</p>
-            </div>
+            </button>
         </div>
-        <p class="text-sm text-neutral-300">
-            &iquest;Eliminar <strong id="delete-product-name" class="text-brand"></strong>?
+        <input type="hidden" id="edit-category-id" value="">
+        <input id="edit-category-name" type="text" placeholder="Nombre de la categor&iacute;a"
+            class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+        <button onclick="saveCategory()"
+            class="btn-action-primary btn-primary w-full border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm"><span>Guardar Cambios</span></button>
+    </div>
+</div>
+
+<!-- MODAL: Confirmación de borrado de categoría -->
+<div id="modal-confirm-delete-category" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity duration-300">
+    <div class="bg-[#2a2a2d] border border-[#3d3d41] rounded-xl p-6 max-w-sm w-full text-center shadow-2xl transform transition-all">
+        <svg class="w-12 h-12 text-red-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+        </svg>
+        <h4 class="font-heading font-bold text-white text-lg mb-2">Eliminar categor&iacute;a</h4>
+        <p class="text-neutral-400 text-sm mb-5">
+            &iquest;Est&aacute;s seguro de que deseas eliminar la categor&iacute;a <strong id="delete-category-name" class="text-white"></strong>?<br>
+            Los productos asociados quedar&aacute;n "Sin categor&iacute;a".
+        </p>
+        <input type="hidden" id="delete-category-id" value="">
+        <div class="flex gap-3 justify-center">
+            <button onclick="document.getElementById('modal-confirm-delete-category').classList.add('hidden')"
+                class="px-5 py-2 rounded-lg border border-neutral-700 text-neutral-300 text-sm font-medium hover:bg-neutral-800 hover:text-white transition-all duration-200">
+                Cancelar
+            </button>
+            <button onclick="deleteCategory()"
+                class="px-5 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-500 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-red-500/30 transition-all duration-200">
+                Eliminar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Confirmación de borrado -->
+<div id="modal-confirm-delete" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity duration-300">
+    <div class="bg-[#2a2a2d] border border-[#3d3d41] rounded-xl p-6 max-w-sm w-full text-center shadow-2xl transform transition-all">
+        <svg class="w-12 h-12 text-red-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+        </svg>
+        <h4 class="font-heading font-bold text-white text-lg mb-2">Eliminar producto</h4>
+        <p class="text-neutral-400 text-sm mb-5">
+            &iquest;Est&aacute;s seguro de que deseas eliminar <strong id="delete-product-name" class="text-white"></strong>?<br>
+            El producto se desactivar&aacute; y dejar&aacute; de estar visible.
         </p>
         <input type="hidden" id="delete-product-id" value="">
-        <div class="flex gap-3">
+        <div class="flex gap-3 justify-center">
             <button onclick="document.getElementById('modal-confirm-delete').classList.add('hidden')"
-                class="btn-secondary flex-1 text-sm">Cancelar</button>
+                class="px-5 py-2 rounded-lg border border-neutral-700 text-neutral-300 text-sm font-medium hover:bg-neutral-800 hover:text-white transition-all duration-200">
+                Cancelar
+            </button>
             <button onclick="deleteProduct()"
-                class="flex-1 text-sm bg-red-600 text-white font-semibold px-4 py-3 rounded-lg hover:bg-red-500 transition-colors">Eliminar</button>
+                class="px-5 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-500 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-red-500/30 transition-all duration-200">
+                Eliminar
+            </button>
         </div>
     </div>
 </div>
@@ -880,7 +942,8 @@
     // ACCORDION
     // ═══════════════════════════════════════
     function toggleAccordion(btn) {
-        const body = btn.nextElementSibling;
+        const group = btn.closest('.accordion-group');
+        const body = group.querySelector('.accordion-body');
         const chevron = btn.querySelector('.accordion-chevron');
         if (body.style.maxHeight && body.style.maxHeight !== '0px') {
             body.style.maxHeight = '0px';
@@ -1179,6 +1242,39 @@
         const res = await fetch('{% url "inventory:api_categories" %}', {
             method: 'POST', headers,
             body: JSON.stringify({ name }),
+        });
+        if (res.ok) location.reload();
+        else alert((await res.json()).error || 'Error');
+    }
+
+    function openEditCategoryModal(categoryId, categoryName) {
+        document.getElementById('edit-category-id').value = categoryId;
+        document.getElementById('edit-category-name').value = categoryName;
+        document.getElementById('modal-edit-category').classList.remove('hidden');
+    }
+
+    async function saveCategory() {
+        const categoryId = document.getElementById('edit-category-id').value;
+        const name = document.getElementById('edit-category-name').value.trim();
+        if (!name) return alert('Nombre requerido');
+        const res = await fetch(`{% url "inventory:api_category_update" pk=0 %}`.replace('/0/', `/${categoryId}/`), {
+            method: 'POST', headers,
+            body: JSON.stringify({ name }),
+        });
+        if (res.ok) location.reload();
+        else alert((await res.json()).error || 'Error');
+    }
+
+    function confirmDeleteCategory(categoryId, categoryName) {
+        document.getElementById('delete-category-id').value = categoryId;
+        document.getElementById('delete-category-name').textContent = categoryName;
+        document.getElementById('modal-confirm-delete-category').classList.remove('hidden');
+    }
+
+    async function deleteCategory() {
+        const categoryId = document.getElementById('delete-category-id').value;
+        const res = await fetch(`{% url "inventory:api_category_delete" pk=0 %}`.replace('/0/', `/${categoryId}/`), {
+            method: 'POST', headers,
         });
         if (res.ok) location.reload();
         else alert((await res.json()).error || 'Error');

@@ -407,27 +407,27 @@
 </div>
 
 <!-- MODAL: Confirmación de eliminación -->
-<div id="modal-confirm-delete" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-    <div class="w-full max-w-sm bg-neutral-900 border border-red-900/50 rounded-xl p-6 space-y-4">
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-full bg-red-900/30 flex items-center justify-center flex-shrink-0">
-                <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/>
-                </svg>
-            </div>
-            <div>
-                <h3 class="font-heading font-bold text-white">Eliminar servicio</h3>
-                <p class="text-xs text-neutral-400 mt-1">El servicio se desactivará y dejará de estar visible.</p>
-            </div>
-        </div>
-        <p class="text-sm text-neutral-300">
-            ¿Eliminar <strong id="delete-service-name" class="text-brand"></strong>?
+<div id="modal-confirm-delete" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity duration-300">
+    <div class="bg-[#2a2a2d] border border-[#3d3d41] rounded-xl p-6 max-w-sm w-full text-center shadow-2xl transform transition-all">
+        <svg class="w-12 h-12 text-red-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+        </svg>
+        <h4 class="font-heading font-bold text-white text-lg mb-2">Eliminar servicio</h4>
+        <p class="text-neutral-400 text-sm mb-5">
+            ¿Estás seguro de que deseas eliminar <strong id="delete-service-name" class="text-white"></strong>?<br>
+            El servicio se desactivará y dejará de estar visible.
         </p>
         <input type="hidden" id="delete-service-id" value="">
-        <div class="flex gap-3">
-            <button onclick="document.getElementById('modal-confirm-delete').classList.add('hidden')" class="btn-secondary flex-1 text-sm">Cancelar</button>
-            <button onclick="deleteService()" class="flex-1 text-sm bg-red-600 text-white font-semibold px-4 py-3 rounded-lg hover:bg-red-500 transition-colors">Eliminar</button>
+        <div class="flex gap-3 justify-center">
+            <button onclick="document.getElementById('modal-confirm-delete').classList.add('hidden')"
+                class="px-5 py-2 rounded-lg border border-neutral-700 text-neutral-300 text-sm font-medium hover:bg-neutral-800 hover:text-white transition-all duration-200">
+                Cancelar
+            </button>
+            <button onclick="deleteService()"
+                class="px-5 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-500 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-red-500/30 transition-all duration-200">
+                Eliminar
+            </button>
         </div>
     </div>
 </div>

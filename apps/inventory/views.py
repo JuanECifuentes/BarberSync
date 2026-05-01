@@ -63,7 +63,7 @@ class ProductListView(LoginRequiredMixin, TemplateView):
             .count()
         )
         ctx["categories"] = ProductCategory.objects.filter(
-            barbershop__organization=org, barbershop__is_active=True
+            organization=org, is_active=True
         ).distinct().order_by("name")
         return ctx
 
@@ -97,7 +97,7 @@ class ProductCreateAPI(View):
         category_id = data.get("category_id")
         category = None
         if category_id:
-            category = ProductCategory.objects.filter(pk=category_id, barbershop__organization=org).first()
+            category = ProductCategory.objects.filter(pk=category_id, organization=org, is_active=True).first()
 
         product = Product.objects.create(
             barbershop=barbershop,
@@ -144,7 +144,7 @@ class ProductUpdateAPI(View):
 
         category_id = data.get("category_id")
         if category_id:
-            product.category = ProductCategory.objects.filter(pk=category_id, barbershop__organization=org).first()
+            product.category = ProductCategory.objects.filter(pk=category_id, organization=org, is_active=True).first()
         elif category_id == "" or category_id is None:
             product.category = None
 
@@ -256,7 +256,7 @@ class CategoryCreateAPI(View):
     """API para crear categorías desde el panel admin."""
 
     def post(self, request):
-        barbershop = request.barbershop
+        org = request.organization
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
@@ -267,7 +267,7 @@ class CategoryCreateAPI(View):
             return JsonResponse({"error": "Nombre requerido"}, status=400)
 
         cat = ProductCategory.objects.create(
-            barbershop=barbershop,
+            organization=org,
             name=name,
             description=data.get("description", ""),
             updated_by=request.user,
@@ -275,11 +275,59 @@ class CategoryCreateAPI(View):
         return JsonResponse({"message": "Categoría creada", "id": cat.pk}, status=201)
 
     def get(self, request):
-        barbershop = request.barbershop
-        cats = ProductCategory.objects.filter(barbershop=barbershop)
+        org = request.organization
+        cats = ProductCategory.objects.filter(organization=org, is_active=True)
         return JsonResponse([
             {"id": c.pk, "name": c.name} for c in cats
         ], safe=False)
+
+
+class CategoryUpdateAPI(View):
+    """API para editar el nombre de una categoría."""
+
+    def post(self, request, pk):
+        org = request.organization
+        try:
+            category = ProductCategory.objects.get(pk=pk, organization=org, is_active=True)
+        except ProductCategory.DoesNotExist:
+            return JsonResponse({"error": "Categoría no encontrada"}, status=404)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "JSON inválido"}, status=400)
+
+        name = data.get("name", "").strip()
+        if not name:
+            return JsonResponse({"error": "Nombre requerido"}, status=400)
+
+        category.name = name
+        category.description = data.get("description", category.description)
+        category.updated_by = request.user
+        category.save(update_fields=["name", "description", "updated_by"])
+
+        return JsonResponse({"ok": True})
+
+
+class CategoryDeleteAPI(View):
+    """Soft delete: set is_active=False y desasocia productos."""
+
+    def post(self, request, pk):
+        org = request.organization
+        try:
+            category = ProductCategory.objects.get(pk=pk, organization=org, is_active=True)
+        except ProductCategory.DoesNotExist:
+            return JsonResponse({"error": "Categoría no encontrada"}, status=404)
+
+        # Desasociar productos (category_id = Null)
+        Product.objects.filter(category=category).update(category=None)
+
+        # Borrado lógico
+        category.is_active = False
+        category.updated_by = request.user
+        category.save(update_fields=["is_active", "updated_by"])
+
+        return JsonResponse({"ok": True})
 
 
 class RestockAPI(View):

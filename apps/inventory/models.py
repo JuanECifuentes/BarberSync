@@ -10,12 +10,20 @@ from django.conf import settings
 from django.db import models
 from django.core.validators import MinValueValidator
 
-from apps.core.models import TenantModel, AuditModel
+from apps.core.models import TenantModel, AuditModel, OrganizationModel
 
 
-class ProductCategory(TenantModel):
+class ProductCategory(OrganizationModel):
     name = models.CharField("nombre", max_length=80)
     description = models.TextField("descripción", blank=True)
+    barbershop = models.ForeignKey(
+        "accounts.Barbershop",
+        on_delete=models.CASCADE,
+        related_name="product_categories",
+        null=True,
+        blank=True,
+    )
+    is_active = models.BooleanField("activa", default=True)
 
     class Meta:
         db_table = "inventory_category"

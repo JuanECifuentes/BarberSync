@@ -707,11 +707,11 @@
                 <p class="text-neutral-400 text-sm mb-5">Esta acción no se puede deshacer.</p>
                 <div class="flex gap-3 justify-center">
                     <button @click="showDeleteConfirm = false"
-                            class="px-5 py-2 rounded-lg border border-neutral-700 text-neutral-300 text-sm hover:bg-neutral-800 transition-colors">
+                            class="px-5 py-2 rounded-lg border border-neutral-700 text-neutral-300 text-sm font-medium hover:bg-neutral-800 hover:text-white transition-all duration-200">
                         Cancelar
                     </button>
                     <button @click="confirmDelete()"
-                            class="px-5 py-2 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700 transition-colors">
+                            class="px-5 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-500 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-red-500/30 transition-all duration-200">
                         Eliminar
                     </button>
                 </div>

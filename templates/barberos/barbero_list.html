@@ -598,31 +598,27 @@
 <!-- ═══════════════════════════════════════════════════ -->
 <!-- MODAL: Confirmación desactivación                  -->
 <!-- ═══════════════════════════════════════════════════ -->
-<div id="modal-confirm-deactivate" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-    <div class="w-full max-w-sm bg-neutral-900 border border-red-900/50 rounded-xl p-6 space-y-4">
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-full bg-red-900/30 flex items-center justify-center flex-shrink-0">
-                <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-            </div>
-            <div>
-                <h3 class="font-heading font-bold text-white">Desactivar barbero</h3>
-                <p class="text-xs text-neutral-400 mt-1">El barbero no será eliminado, pero dejará de estar activo en el
-                    sistema.</p>
-            </div>
-        </div>
-        <p class="text-sm text-neutral-300">
-            ¿Desactivar a <strong id="deactivate-barber-name" class="text-brand"></strong>?
-            Sus citas futuras y datos históricos se conservarán.
+<div id="modal-confirm-deactivate" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity duration-300">
+    <div class="bg-[#2a2a2d] border border-[#3d3d41] rounded-xl p-6 max-w-sm w-full text-center shadow-2xl transform transition-all">
+        <svg class="w-12 h-12 text-red-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+        </svg>
+        <h4 class="font-heading font-bold text-white text-lg mb-2">¿Desactivar barbero?</h4>
+        <p class="text-neutral-400 text-sm mb-5">
+            ¿Desactivar a <strong id="deactivate-barber-name" class="text-white"></strong>?<br>
+            El barbero dejará de estar activo, pero sus citas futuras y datos históricos se conservarán.
         </p>
         <input type="hidden" id="deactivate-barber-id" value="">
-        <div class="flex gap-3">
+        <div class="flex gap-3 justify-center">
             <button onclick="document.getElementById('modal-confirm-deactivate').classList.add('hidden')"
-                class="btn-secondary flex-1 text-sm">Cancelar</button>
+                class="px-5 py-2 rounded-lg border border-neutral-700 text-neutral-300 text-sm font-medium hover:bg-neutral-800 hover:text-white transition-all duration-200">
+                Cancelar
+            </button>
             <button onclick="deactivateBarber()"
-                class="flex-1 text-sm bg-red-600 text-white font-semibold px-4 py-3 rounded-lg hover:bg-red-500 transition-colors">Desactivar</button>
+                class="px-5 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-500 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-red-500/30 transition-all duration-200">
+                Desactivar
+            </button>
         </div>
     </div>
 </div>
