@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Cuenta existente – BarberSync{% endblock %}
+
+{% block public_content %}
+<div class="min-h-screen flex items-center justify-center px-4 py-12">
+    <div class="w-full max-w-sm space-y-8">
+
+        <!-- Icon/Logo -->
+        <div class="text-center">
+            <div class="w-16 h-16 bg-amber-500 rounded-2xl flex items-center justify-center mx-auto mb-4
+                        shadow-lg shadow-amber-500/20">
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+            </div>
+            <h1 class="font-heading font-bold text-2xl text-white">Correo ya registrado</h1>
+            <p class="text-sm text-neutral-400 mt-1">Este correo ya está en uso</p>
+        </div>
+
+        <!-- Card -->
+        <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-5 text-center">
+            <p class="text-sm text-neutral-300">
+                Ya existe una cuenta en BarberSync con el correo <strong class="text-white">{{ email }}</strong> que utiliza una contraseña para acceder.
+            </p>
+            <p class="text-sm text-neutral-400">
+                Por razones de seguridad, debes iniciar sesión usando tu correo y contraseña. Después podrás vincular tu cuenta de <span class="font-medium text-white">{{ provider|title }}</span> desde tu perfil para usarla en el futuro.
+            </p>
+
+            <a href="{% url 'account_login' %}{% if request.GET.next %}?next={{ request.GET.next }}{% endif %}"
+               class="block w-full mt-6 border border-neutral-700 px-4 py-3 rounded-lg font-semibold text-white
+                      hover:bg-[#ff2301] hover:text-white hover:border-[#ff2301] hover:-translate-y-1
+                      hover:shadow-md transition-all duration-300">
+                Ir a iniciar sesión
+            </a>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

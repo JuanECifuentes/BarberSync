@@ -40,29 +40,35 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
 
         # Check if a local user with this email exists
         existing_email = EmailAddress.objects.filter(email__iexact=email).first()
-        if existing_email and existing_email.user:
-            # User exists with this email but no social account
-            # Connect the social account to the existing user
-            sociallogin.user = existing_email.user
-            # The social account will be saved by allauth after this
+        user = existing_email.user if (existing_email and existing_email.user) else None
+        
+        if not user:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            user = User.objects.filter(email__iexact=email).first()
+
+        if user:
+            if user.has_usable_password():
+                # User exists with this email and has a password
+                # Do not auto-link. Show a conflict page.
+                from django.shortcuts import render
+                from allauth.core.exceptions import ImmediateHttpResponse
+                response = render(
+                    request,
+                    "socialaccount/email_conflict.html",
+                    {"email": email, "provider": sociallogin.account.provider}
+                )
+                raise ImmediateHttpResponse(response)
+            else:
+                # User exists but without a password (maybe another social account)
+                # Connect the social account to the existing user
+                sociallogin.user = user
+                # The social account will be saved by allauth after this
 
     def is_auto_signup_allowed(self, request, sociallogin):
         """
-        Check if auto-signup is allowed. If a user with the same email exists
-        but has a password set, we want to redirect to login instead of auto-signup.
+        Check if auto-signup is allowed.
         """
-        from allauth.account.models import EmailAddress
-
-        email = sociallogin.email_addresses[0].email if sociallogin.email_addresses else None
-        if not email:
-            return True
-
-        existing_email = EmailAddress.objects.filter(email__iexact=email).first()
-        if existing_email and existing_email.user and existing_email.user.has_usable_password():
-            # A user with this email exists and has a password
-            # Don't auto-signup - redirect to the signup page which will show the conflict
-            return False
-
         return True
 
     def on_authentication_error(

@@ -23,22 +23,20 @@
         <!-- Error details -->
         <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
             <p class="text-sm text-neutral-300 text-center">
-                La conexión con Google no fue exitosa. Esto puede ocurrir por:
+                Lo sentimos, no pudimos completar el inicio de sesión con tu cuenta.
             </p>
-            <ul class="text-sm text-neutral-400 space-y-2">
-                <li class="flex items-start gap-2">
-                    <span class="text-red-400 mt-0.5">•</span>
-                    Configuración incorrecta en Google Cloud Console
-                </li>
-                <li class="flex items-start gap-2">
-                    <span class="text-red-400 mt-0.5">•</span>
-                    URI de redirección no coincide
-                </li>
-                <li class="flex items-start gap-2">
-                    <span class="text-red-400 mt-0.5">•</span>
-                    Credenciales inválidas o expiradas
-                </li>
-            </ul>
+            {% if auth_error.code == 'cancelled' %}
+            <p class="text-sm text-neutral-400 text-center">
+                El proceso de inicio de sesión fue cancelado. Por favor, intenta de nuevo.
+            </p>
+            {% else %}
+            <p class="text-sm text-neutral-400 text-center">
+                Al parecer <strong class="text-white">tu correo ya se encuentra registrado</strong> en nuestra plataforma.
+            </p>
+            <p class="text-sm text-neutral-400 text-center">
+                Si ya tenías una cuenta creada, por favor <strong class="text-white">inicia sesión usando tu correo electrónico y contraseña</strong>. Una vez dentro, podrás vincular tu cuenta de Google desde tu perfil.
+            </p>
+            {% endif %}
         </div>
 
         <!-- Actions -->
