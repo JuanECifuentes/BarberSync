@@ -173,15 +173,15 @@ def process_transfer(barbershop_origin, barbershop_destiny, user, items, notes="
                 updated_by=user,
             )
 
-            # Try to find product at destination
+            # Try to find product at destination by name
             product_destiny = Product.objects.filter(
-                pk=product_id, barbershop=barbershop_destiny, is_active=True
+                name__iexact=product_origin.name, barbershop=barbershop_destiny, is_active=True
             ).first()
 
             if product_destiny:
                 # Lock destination product for update
                 product_destiny = Product.objects.select_for_update().get(
-                    pk=product_id, barbershop=barbershop_destiny, is_active=True
+                    pk=product_destiny.pk
                 )
                 stock_previous_destiny = product_destiny.stock_quantity
                 stock_resulting_destiny = stock_previous_destiny + quantity
@@ -197,7 +197,7 @@ def process_transfer(barbershop_origin, barbershop_destiny, user, items, notes="
                     sku=product_origin.sku,
                     price=product_origin.price,
                     cost=product_origin.cost,
-                    stock_quantity=stock_resulting_destiny,
+                    stock_quantity=0,
                     low_stock_threshold=product_origin.low_stock_threshold,
                     updated_by=user,
                 )

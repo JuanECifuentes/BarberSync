@@ -5,8 +5,8 @@ from .models import Product, ProductCategory, StockMovement
 
 @admin.register(ProductCategory)
 class ProductCategoryAdmin(admin.ModelAdmin):
-    list_display = ("name", "barbershop")
-    list_filter = ("barbershop",)
+    list_display = ("name",)
+    #list_filter = ("barbershop",)
 
 
 @admin.register(Product)

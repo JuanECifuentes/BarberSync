@@ -63,7 +63,7 @@ class ProductListView(LoginRequiredMixin, TemplateView):
             .count()
         )
         ctx["categories"] = ProductCategory.objects.filter(
-            barbershop__organization=org, barbershop__is_active=True
+            organization=org, is_active=True
         ).distinct().order_by("name")
         return ctx
 
@@ -97,7 +97,7 @@ class ProductCreateAPI(View):
         category_id = data.get("category_id")
         category = None
         if category_id:
-            category = ProductCategory.objects.filter(pk=category_id, barbershop__organization=org).first()
+            category = ProductCategory.objects.filter(pk=category_id, organization=org, is_active=True).first()
 
         product = Product.objects.create(
             barbershop=barbershop,
@@ -144,7 +144,7 @@ class ProductUpdateAPI(View):
 
         category_id = data.get("category_id")
         if category_id:
-            product.category = ProductCategory.objects.filter(pk=category_id, barbershop__organization=org).first()
+            product.category = ProductCategory.objects.filter(pk=category_id, organization=org, is_active=True).first()
         elif category_id == "" or category_id is None:
             product.category = None
 
@@ -256,7 +256,7 @@ class CategoryCreateAPI(View):
     """API para crear categorías desde el panel admin."""
 
     def post(self, request):
-        barbershop = request.barbershop
+        org = request.organization
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
@@ -267,7 +267,7 @@ class CategoryCreateAPI(View):
             return JsonResponse({"error": "Nombre requerido"}, status=400)
 
         cat = ProductCategory.objects.create(
-            barbershop=barbershop,
+            organization=org,
             name=name,
             description=data.get("description", ""),
             updated_by=request.user,
@@ -275,18 +275,65 @@ class CategoryCreateAPI(View):
         return JsonResponse({"message": "Categoría creada", "id": cat.pk}, status=201)
 
     def get(self, request):
-        barbershop = request.barbershop
-        cats = ProductCategory.objects.filter(barbershop=barbershop)
+        org = request.organization
+        cats = ProductCategory.objects.filter(organization=org, is_active=True)
         return JsonResponse([
             {"id": c.pk, "name": c.name} for c in cats
         ], safe=False)
+
+
+class CategoryUpdateAPI(View):
+    """API para editar el nombre de una categoría."""
+
+    def post(self, request, pk):
+        org = request.organization
+        try:
+            category = ProductCategory.objects.get(pk=pk, organization=org, is_active=True)
+        except ProductCategory.DoesNotExist:
+            return JsonResponse({"error": "Categoría no encontrada"}, status=404)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "JSON inválido"}, status=400)
+
+        name = data.get("name", "").strip()
+        if not name:
+            return JsonResponse({"error": "Nombre requerido"}, status=400)
+
+        category.name = name
+        category.description = data.get("description", category.description)
+        category.updated_by = request.user
+        category.save(update_fields=["name", "description", "updated_by"])
+
+        return JsonResponse({"ok": True})
+
+
+class CategoryDeleteAPI(View):
+    """Soft delete: set is_active=False y desasocia productos."""
+
+    def post(self, request, pk):
+        org = request.organization
+        try:
+            category = ProductCategory.objects.get(pk=pk, organization=org, is_active=True)
+        except ProductCategory.DoesNotExist:
+            return JsonResponse({"error": "Categoría no encontrada"}, status=404)
+
+        # Desasociar productos (category_id = Null)
+        Product.objects.filter(category=category).update(category=None)
+
+        # Borrado lógico
+        category.is_active = False
+        category.updated_by = request.user
+        category.save(update_fields=["is_active", "updated_by"])
+
+        return JsonResponse({"ok": True})
 
 
 class RestockAPI(View):
     """API para procesar un reestock individual."""
 
     def post(self, request):
-        barbershop = request.barbershop
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
@@ -300,6 +347,12 @@ class RestockAPI(View):
             return JsonResponse({"error": "Producto requerido"}, status=400)
         if not quantity or int(quantity) <= 0:
             return JsonResponse({"error": "Cantidad debe ser mayor a 0"}, status=400)
+
+        try:
+            product = Product.objects.get(pk=product_id, barbershop__organization=request.organization, is_active=True)
+            barbershop = product.barbershop
+        except Product.DoesNotExist:
+            return JsonResponse({"error": "Producto no encontrado"}, status=404)
 
         try:
             movement = process_restock(
@@ -322,7 +375,6 @@ class BulkRestockAPI(View):
     """API para procesar reestock múltiple."""
 
     def post(self, request):
-        barbershop = request.barbershop
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
@@ -334,21 +386,42 @@ class BulkRestockAPI(View):
         if not items:
             return JsonResponse({"error": "No se proporcionaron ítems"}, status=400)
 
+        from django.db import transaction
+        from collections import defaultdict
+        
+        product_ids = [int(item["product_id"]) for item in items]
+        products = Product.objects.filter(pk__in=product_ids, barbershop__organization=request.organization, is_active=True)
+        product_dict = {p.id: p for p in products}
+
+        items_by_barbershop = defaultdict(list)
+        for item in items:
+            pid = int(item["product_id"])
+            if pid not in product_dict:
+                return JsonResponse({"error": f"Producto ID {pid} no encontrado"}, status=400)
+            items_by_barbershop[product_dict[pid].barbershop].append(item)
+
+        updated_stocks = {}
+        total_items = 0
+
         try:
-            movement = process_bulk_restock(
-                barbershop=barbershop,
-                user=request.user,
-                items=items,
-                notes=notes,
-            )
+            with transaction.atomic():
+                for barbershop, bs_items in items_by_barbershop.items():
+                    movement = process_bulk_restock(
+                        barbershop=barbershop,
+                        user=request.user,
+                        items=bs_items,
+                        notes=notes,
+                    )
+                    total_items += movement.items.count()
+                    for item in movement.items.all():
+                        updated_stocks[item.product_id] = item.stock_resulting
         except ValueError as e:
             return JsonResponse({"error": str(e)}, status=400)
 
         return JsonResponse({
             "message": "Reestock múltiple procesado",
-            "movement_id": movement.pk,
-            "total_items": movement.items.count(),
-            "updated_stocks": {item.product_id: item.stock_resulting for item in movement.items.all()}
+            "total_items": total_items,
+            "updated_stocks": updated_stocks
         }, status=201)
 
 
@@ -356,7 +429,6 @@ class TransferAPI(View):
     """API para procesar una transferencia individual."""
 
     def post(self, request):
-        barbershop = request.barbershop
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
@@ -373,6 +445,12 @@ class TransferAPI(View):
             return JsonResponse({"error": "Sucursal de destino requerida"}, status=400)
         if not quantity or int(quantity) <= 0:
             return JsonResponse({"error": "Cantidad debe ser mayor a 0"}, status=400)
+
+        try:
+            product = Product.objects.get(pk=product_id, barbershop__organization=request.organization, is_active=True)
+            barbershop = product.barbershop
+        except Product.DoesNotExist:
+            return JsonResponse({"error": "Producto no encontrado"}, status=404)
 
         from apps.accounts.models import Barbershop
         try:
