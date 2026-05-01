@@ -286,7 +286,6 @@ class RestockAPI(View):
     """API para procesar un reestock individual."""
 
     def post(self, request):
-        barbershop = request.barbershop
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
@@ -300,6 +299,12 @@ class RestockAPI(View):
             return JsonResponse({"error": "Producto requerido"}, status=400)
         if not quantity or int(quantity) <= 0:
             return JsonResponse({"error": "Cantidad debe ser mayor a 0"}, status=400)
+
+        try:
+            product = Product.objects.get(pk=product_id, barbershop__organization=request.organization, is_active=True)
+            barbershop = product.barbershop
+        except Product.DoesNotExist:
+            return JsonResponse({"error": "Producto no encontrado"}, status=404)
 
         try:
             movement = process_restock(
@@ -322,7 +327,6 @@ class BulkRestockAPI(View):
     """API para procesar reestock múltiple."""
 
     def post(self, request):
-        barbershop = request.barbershop
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
@@ -334,21 +338,42 @@ class BulkRestockAPI(View):
         if not items:
             return JsonResponse({"error": "No se proporcionaron ítems"}, status=400)
 
+        from django.db import transaction
+        from collections import defaultdict
+        
+        product_ids = [int(item["product_id"]) for item in items]
+        products = Product.objects.filter(pk__in=product_ids, barbershop__organization=request.organization, is_active=True)
+        product_dict = {p.id: p for p in products}
+
+        items_by_barbershop = defaultdict(list)
+        for item in items:
+            pid = int(item["product_id"])
+            if pid not in product_dict:
+                return JsonResponse({"error": f"Producto ID {pid} no encontrado"}, status=400)
+            items_by_barbershop[product_dict[pid].barbershop].append(item)
+
+        updated_stocks = {}
+        total_items = 0
+
         try:
-            movement = process_bulk_restock(
-                barbershop=barbershop,
-                user=request.user,
-                items=items,
-                notes=notes,
-            )
+            with transaction.atomic():
+                for barbershop, bs_items in items_by_barbershop.items():
+                    movement = process_bulk_restock(
+                        barbershop=barbershop,
+                        user=request.user,
+                        items=bs_items,
+                        notes=notes,
+                    )
+                    total_items += movement.items.count()
+                    for item in movement.items.all():
+                        updated_stocks[item.product_id] = item.stock_resulting
         except ValueError as e:
             return JsonResponse({"error": str(e)}, status=400)
 
         return JsonResponse({
             "message": "Reestock múltiple procesado",
-            "movement_id": movement.pk,
-            "total_items": movement.items.count(),
-            "updated_stocks": {item.product_id: item.stock_resulting for item in movement.items.all()}
+            "total_items": total_items,
+            "updated_stocks": updated_stocks
         }, status=201)
 
 
@@ -356,7 +381,6 @@ class TransferAPI(View):
     """API para procesar una transferencia individual."""
 
     def post(self, request):
-        barbershop = request.barbershop
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
@@ -373,6 +397,12 @@ class TransferAPI(View):
             return JsonResponse({"error": "Sucursal de destino requerida"}, status=400)
         if not quantity or int(quantity) <= 0:
             return JsonResponse({"error": "Cantidad debe ser mayor a 0"}, status=400)
+
+        try:
+            product = Product.objects.get(pk=product_id, barbershop__organization=request.organization, is_active=True)
+            barbershop = product.barbershop
+        except Product.DoesNotExist:
+            return JsonResponse({"error": "Producto no encontrado"}, status=404)
 
         from apps.accounts.models import Barbershop
         try:

@@ -173,31 +173,48 @@ def process_transfer(barbershop_origin, barbershop_destiny, user, items, notes="
                 updated_by=user,
             )
 
-            # Try to find product at destination
+            # Try to find product at destination by name
             product_destiny = Product.objects.filter(
-                pk=product_id, barbershop=barbershop_destiny, is_active=True
+                name__iexact=product_origin.name, barbershop=barbershop_destiny, is_active=True
             ).first()
 
             if product_destiny:
                 # Lock destination product for update
                 product_destiny = Product.objects.select_for_update().get(
-                    pk=product_id, barbershop=barbershop_destiny, is_active=True
+                    pk=product_destiny.pk
                 )
                 stock_previous_destiny = product_destiny.stock_quantity
                 stock_resulting_destiny = stock_previous_destiny + quantity
             else:
+                # Find or create category in destination branch
+                category_destiny = None
+                if product_origin.category:
+                    from apps.inventory.models import ProductCategory
+                    category_destiny = ProductCategory.objects.filter(
+                        name__iexact=product_origin.category.name,
+                        barbershop=barbershop_destiny
+                    ).first()
+                    if not category_destiny:
+                        category_destiny = ProductCategory.objects.create(
+                            barbershop=barbershop_destiny,
+                            name=product_origin.category.name,
+                            description=product_origin.category.description,
+                            created_by=user,
+                            updated_by=user,
+                        )
+
                 # Product doesn't exist at destination — create it
                 stock_previous_destiny = 0
                 stock_resulting_destiny = quantity
                 product_destiny = Product.objects.create(
                     barbershop=barbershop_destiny,
-                    category=product_origin.category,
+                    category=category_destiny,
                     name=product_origin.name,
                     description=product_origin.description,
                     sku=product_origin.sku,
                     price=product_origin.price,
                     cost=product_origin.cost,
-                    stock_quantity=stock_resulting_destiny,
+                    stock_quantity=0,
                     low_stock_threshold=product_origin.low_stock_threshold,
                     updated_by=user,
                 )
