@@ -17,7 +17,7 @@
         <!-- Right actions -->
         <div class="flex items-center gap-3">
             <!-- Booking link popover -->
-            {% if is_admin and current_barbershop %}
+            {% if current_organization %}
             <div class="relative hidden sm:block" id="booking-popover-wrapper">
                 <button onclick="toggleBookingPopover()"
                     class="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-brand bg-brand/10 rounded-full hover:bg-brand/20 transition-colors"
@@ -160,7 +160,7 @@
     });
 </script>
 
-{% if is_admin and current_barbershop %}
+{% if current_organization %}
 <script>
     function toggleBookingPopover() {
         const popover = document.getElementById('booking-popover');

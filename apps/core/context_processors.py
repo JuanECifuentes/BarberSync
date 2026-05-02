@@ -20,7 +20,7 @@ def tenant_context(request):
 
         # All active barbershops for booking link popover
         org = getattr(request, "organization", None)
-        if org and membership.role in ("owner", "admin"):
+        if org:
             ctx["all_barbershops"] = Barbershop.objects.filter(
                 organization=org, is_active=True
             )

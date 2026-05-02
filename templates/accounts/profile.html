@@ -131,14 +131,30 @@
 
             <div class="mt-4">
                 {% if google_account %}
-                    <div class="flex flex-col gap-2 p-3 bg-green-900/10 border border-green-900/30 rounded-xl">
-                        <div class="flex items-center gap-2 text-green-400">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="space-y-3">
+                        <div class="inline-flex items-center gap-1.5 text-green-400 mb-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                             </svg>
                             <span class="text-sm font-medium">Vinculada exitosamente</span>
                         </div>
-                        <p class="text-xs text-neutral-300 ml-7">{{ google_account.extra_data.email|default:"Cuenta conectada" }}</p>
+                        <div class="bg-neutral-800/40 border border-neutral-700/60 rounded-xl p-3 flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                                {% if google_account.extra_data.picture %}
+                                    <img src="{{ google_account.extra_data.picture }}" alt="Avatar" class="w-full h-full object-cover">
+                                {% else %}
+                                    <svg class="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                                    </svg>
+                                {% endif %}
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-xs text-neutral-500 uppercase tracking-wider font-semibold mb-0.5">Correo de Google</p>
+                                <p class="text-sm font-medium text-neutral-200 truncate" title="{{ google_account.extra_data.email|default:'Cuenta conectada' }}">
+                                    {{ google_account.extra_data.email|default:"Cuenta conectada" }}
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 {% else %}
                     <p class="text-sm text-neutral-300 mb-4">
