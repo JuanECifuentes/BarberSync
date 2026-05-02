@@ -4,6 +4,82 @@
 {% block page_title %}Configuración{% endblock %}
 
 {% block content %}
+<style>
+    /* ── Animated button ── */
+    .btn-action-primary {
+        position: relative;
+        overflow: hidden;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .btn-action-primary::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: #ff2301;
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 0;
+        border-radius: inherit;
+    }
+    .btn-action-primary:not(:disabled):hover::before { transform: scaleX(1); }
+    .btn-action-primary:not(:disabled):hover {
+        color: #fff !important;
+        border-color: #ff2301 !important;
+        transform: scale(1.03);
+        box-shadow: 0 4px 16px rgba(255, 35, 1, 0.3);
+    }
+    .btn-action-primary > *,
+    .btn-action-primary span,
+    .btn-action-primary svg { position: relative; z-index: 10; }
+
+    /* Custom tooltip styling */
+    [data-tooltip] {
+        position: relative;
+    }
+    [data-tooltip]::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: calc(100% + 8px);
+        left: 50%;
+        transform: translateX(-50%) scale(0.95);
+        padding: 6px 12px;
+        background: #2a2a2d;
+        border: 1px solid #4a4a4f;
+        color: #fff;
+        font-size: 11px;
+        font-family: 'Poppins', sans-serif;
+        font-weight: 500;
+        border-radius: 8px;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+        z-index: 50;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+    [data-tooltip]::before {
+        content: '';
+        position: absolute;
+        bottom: calc(100% + 2px);
+        left: 50%;
+        transform: translateX(-50%) scale(0.95);
+        border: 5px solid transparent;
+        border-top-color: #4a4a4f;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+        z-index: 50;
+    }
+    [data-tooltip]:hover::after,
+    [data-tooltip]:hover::before {
+        opacity: 1;
+        transform: translateX(-50%) scale(1);
+    }
+</style>
 <div class="space-y-8 max-w-4xl">
 
     <!-- ═══════════════════════════════════════════ -->
@@ -13,7 +89,7 @@
         <div class="flex items-center justify-between mb-6">
             <h2 class="font-heading font-bold text-xl text-white">Organización</h2>
             {% if is_owner %}
-            <button onclick="saveOrganization()" class="btn-primary text-sm">Guardar cambios</button>
+            <button onclick="saveOrganization()" class="btn-action-primary border border-neutral-700 px-4 py-2 rounded-lg text-sm text-neutral-300 font-medium transition-all"><span>Guardar cambios</span></button>
             {% endif %}
         </div>
 
@@ -60,36 +136,78 @@
     <section>
         <div class="flex items-center justify-between mb-4">
             <h2 class="font-heading font-bold text-xl text-white">Sucursales</h2>
-            <button onclick="openSucursalModal()" class="btn-primary text-sm">+ Nueva Sucursal</button>
+            <button onclick="openSucursalModal()" class="btn-action-primary border border-neutral-700 px-4 py-2 rounded-lg text-sm text-neutral-300 font-medium transition-all"><span>+ Nueva Sucursal</span></button>
         </div>
 
         <!-- Sucursales activas -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="sucursales-grid">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="sucursales-grid">
             {% for s in sucursales %}
-            <div class="card card-hover group" id="sucursal-{{ s.pk }}">
-                <div class="flex items-start justify-between">
-                    <div class="min-w-0">
-                        <p class="font-medium text-white truncate">{{ s.name }}</p>
+            <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5 hover:border-neutral-700 transition-all flex flex-col justify-between h-full" id="sucursal-{{ s.pk }}">
+                <div>
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-neutral-800 border border-neutral-700 rounded-lg flex items-center justify-center flex-shrink-0">
+                                <span class="font-heading font-bold text-neutral-400">{{ s.name|first|upper }}</span>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="font-medium text-white truncate">{{ s.name }}</p>
+                                <div class="flex items-center gap-2 mt-0.5">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-900/40 text-green-400 border border-green-800/50">Activa</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% if s.address or s.phone %}
+                    <div class="space-y-2 mb-5">
                         {% if s.address %}
-                        <p class="text-xs text-neutral-400 mt-1 truncate">{{ s.address }}</p>
+                        <div class="flex items-center gap-2 text-sm text-neutral-400">
+                            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            <span class="truncate">{{ s.address }}</span>
+                        </div>
+                        {% endif %}
+                        {% if s.phone %}
+                        <div class="flex items-center gap-2 text-sm text-neutral-400">
+                            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                            <span>{{ s.phone }}</span>
+                        </div>
                         {% endif %}
                     </div>
-                    <div class="flex items-center gap-2 ml-2">
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-900/40 text-green-400 border border-green-800/50">Activa</span>
-                    </div>
+                    {% endif %}
                 </div>
-                <div class="mt-3 flex items-center justify-between text-xs text-neutral-400">
-                    <span>{{ s.open_hour }}:00 – {{ s.close_hour }}:00</span>
-                    <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                
+                <div class="pt-4 border-t border-neutral-800 flex items-center justify-between">
+                    <div class="flex items-center gap-1.5 text-xs text-neutral-400 font-medium bg-neutral-800 px-2 py-1 rounded-md">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span>{{ s.open_hour }}:00 – {{ s.close_hour }}:00</span>
+                    </div>
+                    <div class="flex items-center gap-1 flex-shrink-0">
                         <button onclick="editSucursal({{ s.pk }}, '{{ s.name|escapejs }}', '{{ s.address|escapejs }}', '{{ s.phone|escapejs }}', {{ s.open_hour }}, {{ s.close_hour }})"
-                                class="text-brand hover:text-brand-400 transition-colors">Editar</button>
+                            data-tooltip="Editar Sucursal"
+                            class="border border-neutral-700 px-3 py-1.5 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-400 hover:text-white">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                        </button>
                         <button onclick="confirmDeactivateSucursal({{ s.pk }}, '{{ s.name|escapejs }}')"
-                                class="text-red-400 hover:text-red-300 transition-colors">Desactivar</button>
+                            data-tooltip="Desactivar Sucursal"
+                            class="border border-neutral-700 px-3 py-1.5 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-red-400 hover:text-red-300">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </button>
                     </div>
                 </div>
             </div>
             {% empty %}
-            <div class="col-span-full text-center py-12 text-neutral-400">No hay sucursales registradas.</div>
+            <div class="col-span-full flex flex-col items-center justify-center py-12 text-center bg-neutral-900 border border-neutral-800 rounded-xl border-dashed">
+                <div class="w-12 h-12 bg-neutral-800 rounded-full flex items-center justify-center mb-3">
+                    <svg class="w-6 h-6 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                </div>
+                <p class="text-neutral-300 font-medium">No hay sucursales registradas</p>
+                <p class="text-neutral-500 text-sm mt-1">Añade tu primera sucursal para empezar a recibir citas</p>
+            </div>
             {% endfor %}
         </div>
 
@@ -103,18 +221,25 @@
                 </svg>
                 {{ sucursales_inactivas|length }} sucursal{{ sucursales_inactivas|length|pluralize:"es" }} inactiva{{ sucursales_inactivas|length|pluralize:"s" }}
             </button>
-            <div id="inactivas-section" class="hidden mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div id="inactivas-section" class="hidden mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
                 {% for s in sucursales_inactivas %}
-                <div class="card border-neutral-800/50 opacity-60 group hover:opacity-100 transition-opacity">
-                    <div class="flex items-center justify-between">
+                <div class="bg-neutral-900 border border-neutral-800/50 rounded-xl p-4 opacity-60 hover:opacity-100 transition-opacity flex items-center justify-between">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="w-8 h-8 bg-neutral-800 border border-neutral-700/50 rounded-md flex items-center justify-center flex-shrink-0">
+                            <span class="font-heading font-bold text-neutral-500 text-xs">{{ s.name|first|upper }}</span>
+                        </div>
                         <div class="min-w-0">
                             <p class="font-medium text-neutral-400 truncate">{{ s.name }}</p>
                         </div>
-                        <button onclick="reactivateSucursal({{ s.pk }})"
-                                class="text-xs text-green-400 hover:text-green-300 opacity-0 group-hover:opacity-100 transition-all">
-                            Reactivar
-                        </button>
                     </div>
+                    <button onclick="reactivateSucursal({{ s.pk }})"
+                        data-tooltip="Reactivar Sucursal"
+                        class="border border-neutral-700 px-3 py-1.5 rounded-lg hover:border-green-500/50 transition-all shadow-sm text-green-500/70 hover:text-green-400">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                    </button>
                 </div>
                 {% endfor %}
             </div>
@@ -155,7 +280,9 @@
                 </div>
             </div>
         </div>
-        <button onclick="saveSucursal()" class="btn-primary w-full" id="btn-save-sucursal">Crear Sucursal</button>
+        <div class="flex gap-2 justify-center">
+            <button onclick="saveSucursal()" class="btn-action-primary btn-primary w-full border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm" id="btn-save-sucursal"><span id="btn-save-sucursal-text">Crear Sucursal</span></button>
+        </div>
     </div>
 </div>
 
@@ -235,7 +362,7 @@ function openSucursalModal() {
     document.getElementById('suc-open').value = '8';
     document.getElementById('suc-close').value = '20';
     document.getElementById('modal-sucursal-title').textContent = 'Nueva Sucursal';
-    document.getElementById('btn-save-sucursal').textContent = 'Crear Sucursal';
+    document.getElementById('btn-save-sucursal-text').textContent = 'Crear Sucursal';
     document.getElementById('modal-sucursal').classList.remove('hidden');
 }
 
@@ -247,7 +374,7 @@ function editSucursal(id, name, address, phone, open, close) {
     document.getElementById('suc-open').value = open;
     document.getElementById('suc-close').value = close;
     document.getElementById('modal-sucursal-title').textContent = 'Editar Sucursal';
-    document.getElementById('btn-save-sucursal').textContent = 'Guardar cambios';
+    document.getElementById('btn-save-sucursal-text').textContent = 'Guardar cambios';
     document.getElementById('modal-sucursal').classList.remove('hidden');
 }
 
