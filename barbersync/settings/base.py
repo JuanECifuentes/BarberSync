@@ -141,6 +141,8 @@ SOCIALACCOUNT_PROVIDERS = {
     }
 }
 
+SOCIALACCOUNT_ADAPTER = "apps.accounts.adapters.SocialAccountAdapter"
+
 # ──────────────────────────────────────────────
 # Internationalization
 # ──────────────────────────────────────────────
