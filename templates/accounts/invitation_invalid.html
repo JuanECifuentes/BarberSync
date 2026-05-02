@@ -1,0 +1,62 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invitación no válida – BarberSync</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Roboto:wght@500;700;900&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        neutral: {
+                            DEFAULT: '#59595D', 50: '#f7f7f8', 100: '#eeeef0', 200: '#d9d9dd', 300: '#b8b8be',
+                            400: '#91919a', 500: '#59595D', 600: '#5e5e63', 700: '#4a4a4f',
+                            800: '#3d3d41', 900: '#2a2a2d', 950: '#1a1a1c',
+                        }
+                    },
+                    fontFamily: { heading: ['Roboto', 'sans-serif'], body: ['Poppins', 'sans-serif'] },
+                }
+            }
+        }
+    </script>
+    <style>
+        body::before {
+            content: ''; position: fixed; inset: 0; z-index: 9999; pointer-events: none; opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            background-repeat: repeat; background-size: 256px 256px;
+        }
+        h1, h2, h3, h4 { font-family: 'Roboto', sans-serif; }
+        body, p, span, a, li, td, th, input, select, textarea, button { font-family: 'Poppins', sans-serif; }
+    </style>
+</head>
+<body class="h-full bg-neutral-950 text-white font-body antialiased">
+<main class="min-h-full">
+<div class="min-h-screen flex items-center justify-center px-4 py-12">
+    <div class="w-full max-w-sm text-center space-y-6 bg-neutral-900 border border-neutral-800 rounded-2xl p-8 shadow-xl">
+        <div class="w-16 h-16 bg-red-900/20 border border-red-500/30 rounded-full flex items-center justify-center mx-auto">
+            <svg class="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        </div>
+        
+        <div>
+            <h1 class="font-heading font-bold text-xl text-white mb-2">Invitación expirada o inválida</h1>
+            <p class="text-sm text-neutral-400">Esta invitación ya no es válida, ha expirado o ya fue utilizada.</p>
+        </div>
+
+        <a href="{% url 'account_login' %}" class="block w-full border border-neutral-700 py-3 rounded-xl font-medium text-white hover:bg-neutral-800 transition-colors">
+            Volver al inicio
+        </a>
+    </div>
+</div>
+</main>
+</body>
+</html>

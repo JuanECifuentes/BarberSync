@@ -620,6 +620,7 @@ const CSRF_TOKEN = '{{ csrf_token }}';
 const API_GRID_URL = '{% url "clients:api_grid" %}';
 const API_CREATE_URL = '{% url "clients:api_create" %}';
 const API_BASE_URL = '/app/clients/api/';
+const IS_ADMIN = {{ is_admin|yesno:"true,false" }};
 
 /* ══════════════════════════════════════════
    Flatpickr: confirmDate plugin helper
@@ -706,16 +707,19 @@ function accionesCellRenderer(params) {
         e.stopPropagation();
         document.dispatchEvent(new CustomEvent('edit-client', { detail: params.data.id }));
     });
-    const delBtn = document.createElement('button');
-    delBtn.className = 'grid-action-btn delete';
-    delBtn.title = 'Desactivar';
-    delBtn.innerHTML = '<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>';
-    delBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        document.dispatchEvent(new CustomEvent('delete-client', { detail: params.data.id }));
-    });
     container.appendChild(editBtn);
-    container.appendChild(delBtn);
+
+    if (IS_ADMIN) {
+        const delBtn = document.createElement('button');
+        delBtn.className = 'grid-action-btn delete';
+        delBtn.title = 'Desactivar';
+        delBtn.innerHTML = '<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>';
+        delBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.dispatchEvent(new CustomEvent('delete-client', { detail: params.data.id }));
+        });
+        container.appendChild(delBtn);
+    }
     return container;
 }
 

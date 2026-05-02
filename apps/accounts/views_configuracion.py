@@ -11,7 +11,8 @@ from django.views import View
 from django.views.generic import TemplateView
 
 from apps.core.mixins import RoleRequiredMixin
-from .models import Barbershop, Organization
+from .models import Barbershop, Organization, Membership, OrganizationInvitation
+from django.utils import timezone
 
 
 class ConfiguracionIndexView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
@@ -28,6 +29,15 @@ class ConfiguracionIndexView(LoginRequiredMixin, RoleRequiredMixin, TemplateView
         ctx["sucursales_inactivas"] = Barbershop.objects.filter(
             organization=org, is_active=False
         ).order_by("name")
+        
+        ctx["memberships"] = Membership.objects.filter(
+            organization=org, is_active=True
+        ).select_related("user").prefetch_related("sucursales").order_by("-role", "user__email")
+        
+        ctx["invitations"] = OrganizationInvitation.objects.filter(
+            organization=org, is_active=True, is_used=False, expires_at__gt=timezone.now()
+        ).prefetch_related("sucursales").order_by("-created_at")
+        
         return ctx
 
 
@@ -165,3 +175,191 @@ class SucursalReactivateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
         barbershop.is_active = True
         barbershop.save(update_fields=["is_active"])
         return JsonResponse({"ok": True})
+
+
+# ─────────────────────────────────────────────
+# Invitations APIs
+# ─────────────────────────────────────────────
+
+class SendInvitationAPI(LoginRequiredMixin, RoleRequiredMixin, View):
+    allowed_roles = ["owner", "admin"]
+
+    def post(self, request):
+        org = request.organization
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "JSON inválido"}, status=400)
+
+        email = data.get("email", "").strip().lower()
+        role = data.get("role", "").strip()
+        sucursales_ids = data.get("sucursales", [])
+
+        if not email or not role:
+            return JsonResponse({"error": "El email y el rol son obligatorios"}, status=400)
+
+        valid_roles = [r[0] for r in Membership.Role.choices]
+        if role not in valid_roles:
+            return JsonResponse({"error": "Rol inválido"}, status=400)
+
+        # Check if already has an active invitation
+        if OrganizationInvitation.objects.filter(
+            email=email, organization=org, is_active=True, is_used=False, expires_at__gt=timezone.now()
+        ).exists():
+            return JsonResponse({"error": "Ya existe una invitación activa para este correo"}, status=400)
+
+        # Check if user is already a member
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        user = User.objects.filter(email__iexact=email).first()
+        if user and Membership.objects.filter(user=user, organization=org, is_active=True).exists():
+            return JsonResponse({"error": "Este usuario ya es miembro de la organización"}, status=400)
+
+        # Create invitation
+        invitation = OrganizationInvitation.objects.create(
+            email=email,
+            organization=org,
+            role=role,
+        )
+
+        if sucursales_ids:
+            # Validate branches belong to organization
+            sucursales = Barbershop.objects.filter(id__in=sucursales_ids, organization=org)
+            invitation.sucursales.set(sucursales)
+
+        # Enqueue email task
+        try:
+            from django_q.tasks import async_task
+            async_task("apps.accounts.tasks.send_invitation_email_task", invitation.id)
+        except ImportError:
+            # fallback if django_q is not available during dev
+            from apps.accounts.tasks import send_invitation_email_task
+            send_invitation_email_task(invitation.id)
+
+        return JsonResponse({"ok": True, "id": invitation.id})
+
+
+class CancelInvitationAPI(LoginRequiredMixin, RoleRequiredMixin, View):
+    allowed_roles = ["owner", "admin"]
+
+    def post(self, request, pk):
+        org = request.organization
+        try:
+            invitation = OrganizationInvitation.objects.get(pk=pk, organization=org, is_active=True)
+            invitation.is_active = False
+            invitation.save(update_fields=["is_active"])
+            return JsonResponse({"ok": True})
+        except OrganizationInvitation.DoesNotExist:
+            return JsonResponse({"error": "Invitación no encontrada"}, status=404)
+
+
+class ResendInvitationAPI(LoginRequiredMixin, RoleRequiredMixin, View):
+    allowed_roles = ["owner", "admin"]
+
+    def post(self, request, pk):
+        org = request.organization
+        try:
+            old_invitation = OrganizationInvitation.objects.get(pk=pk, organization=org)
+        except OrganizationInvitation.DoesNotExist:
+            return JsonResponse({"error": "Invitación no encontrada"}, status=404)
+
+        # Cancel old
+        old_invitation.is_active = False
+        old_invitation.save(update_fields=["is_active"])
+
+        # Create new
+        from .models import get_default_expiration
+        new_invitation = OrganizationInvitation.objects.create(
+            email=old_invitation.email,
+            organization=org,
+            role=old_invitation.role,
+            expires_at=get_default_expiration()
+        )
+        new_invitation.sucursales.set(old_invitation.sucursales.all())
+
+        # Enqueue email task
+        try:
+            from django_q.tasks import async_task
+            async_task("apps.accounts.tasks.send_invitation_email_task", new_invitation.id)
+        except ImportError:
+            from apps.accounts.tasks import send_invitation_email_task
+            send_invitation_email_task(new_invitation.id)
+
+        return JsonResponse({"ok": True})
+
+
+# ─────────────────────────────────────────────
+# Users & Memberships APIs
+# ─────────────────────────────────────────────
+
+class UpdateMembershipAPI(LoginRequiredMixin, RoleRequiredMixin, View):
+    allowed_roles = ["owner", "admin"]
+
+    def post(self, request, pk):
+        org = request.organization
+        try:
+            membership = Membership.objects.get(pk=pk, organization=org, is_active=True)
+        except Membership.DoesNotExist:
+            return JsonResponse({"error": "Miembro no encontrado"}, status=404)
+
+        # Don't allow modifying owner unless it's the same user? Or just restrict owner role changes.
+        if membership.role == Membership.Role.OWNER and membership.user != request.user:
+            return JsonResponse({"error": "No puedes modificar al propietario"}, status=403)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "JSON inválido"}, status=400)
+
+        role = data.get("role", membership.role)
+        sucursales_ids = data.get("sucursales", [])
+
+        if role not in [r[0] for r in Membership.Role.choices]:
+            return JsonResponse({"error": "Rol inválido"}, status=400)
+
+        # If they are modifying the role of an owner to something else, protect it if it's the last owner
+        if membership.role == Membership.Role.OWNER and role != Membership.Role.OWNER:
+            owner_count = Membership.objects.filter(organization=org, role=Membership.Role.OWNER, is_active=True).count()
+            if owner_count <= 1:
+                return JsonResponse({"error": "Debe haber al menos un propietario en la organización"}, status=400)
+
+        membership.role = role
+        membership.save(update_fields=["role"])
+
+        # Update branches
+        sucursales = Barbershop.objects.filter(id__in=sucursales_ids, organization=org)
+        membership.sucursales.set(sucursales)
+
+        # If barber, update BarberProfile
+        if role == Membership.Role.BARBER:
+            from .models import BarberProfile
+            profile, _ = BarberProfile.objects.get_or_create(membership=membership)
+            profile.sucursales.set(sucursales)
+
+        return JsonResponse({"ok": True})
+
+
+class DeactivateMembershipAPI(LoginRequiredMixin, RoleRequiredMixin, View):
+    allowed_roles = ["owner", "admin"]
+
+    def post(self, request, pk):
+        org = request.organization
+        try:
+            membership = Membership.objects.get(pk=pk, organization=org, is_active=True)
+        except Membership.DoesNotExist:
+            return JsonResponse({"error": "Miembro no encontrado"}, status=404)
+
+        if membership.role == Membership.Role.OWNER:
+            owner_count = Membership.objects.filter(organization=org, role=Membership.Role.OWNER, is_active=True).count()
+            if owner_count <= 1:
+                return JsonResponse({"error": "No puedes eliminar al único propietario de la organización"}, status=400)
+
+        membership.is_active = False
+        membership.save(update_fields=["is_active"])
+
+        # If user is logged in, clear cache
+        if hasattr(membership.user, "_membership_cache"):
+            del membership.user._membership_cache
+
+        return JsonResponse({"ok": True})
+

@@ -147,6 +147,7 @@ class Membership(models.Model):
         OWNER = "owner", "Propietario"
         ADMIN = "admin", "Administrador"
         BARBER = "barber", "Barbero"
+        STAFF = "staff", "Personal Barberia"
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -165,6 +166,12 @@ class Membership(models.Model):
         null=True,
         blank=True,
         help_text="Null = acceso a todas las sucursales de la organización.",
+    )
+    sucursales = models.ManyToManyField(
+        Barbershop,
+        related_name="memberships_assigned",
+        blank=True,
+        help_text="Sucursales adicionales asignadas (para selección múltiple).",
     )
     role = models.CharField(max_length=10, choices=Role.choices)
     is_active = models.BooleanField(default=True)
@@ -247,3 +254,37 @@ class BarberProfile(models.Model):
     @property
     def user(self):
         return self.membership.user
+
+
+# ─────────────────────────────────────────────
+# Organization Invitation
+# ─────────────────────────────────────────────
+def get_default_expiration():
+    return timezone.now() + timezone.timedelta(days=2)
+
+class OrganizationInvitation(models.Model):
+    email = models.EmailField("correo electrónico")
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="invitations"
+    )
+    sucursales = models.ManyToManyField(
+        Barbershop, blank=True, related_name="invitations"
+    )
+    role = models.CharField(max_length=10, choices=Membership.Role.choices)
+    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(default=get_default_expiration)
+    is_used = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "accounts_organization_invitation"
+        verbose_name = "invitación a organización"
+        verbose_name_plural = "invitaciones a organización"
+
+    def __str__(self):
+        return f"Inv {self.email} -> {self.organization.name}"
+
+    @property
+    def is_valid(self):
+        return self.is_active and not self.is_used and timezone.now() < self.expires_at

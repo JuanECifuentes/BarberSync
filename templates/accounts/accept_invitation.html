@@ -1,0 +1,245 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invitación a {{ invitation.organization.name }} – BarberSync</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Roboto:wght@500;700;900&display=swap" rel="stylesheet">
+
+    <!-- TailwindCSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { DEFAULT: '#ff2301' },
+                        neutral: {
+                            DEFAULT: '#59595D',
+                            50: '#f7f7f8', 100: '#eeeef0', 200: '#d9d9dd', 300: '#b8b8be',
+                            400: '#91919a', 500: '#59595D', 600: '#5e5e63', 700: '#4a4a4f',
+                            800: '#3d3d41', 900: '#2a2a2d', 950: '#1a1a1c',
+                        }
+                    },
+                    fontFamily: {
+                        heading: ['Roboto', 'sans-serif'],
+                        body: ['Poppins', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <!-- AlpineJS -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <style>
+        body::before {
+            content: ''; position: fixed; inset: 0; z-index: 9999; pointer-events: none; opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            background-repeat: repeat; background-size: 256px 256px;
+        }
+        h1, h2, h3, h4 { font-family: 'Roboto', sans-serif; }
+        body, p, span, a, li, td, th, input, select, textarea, button { font-family: 'Poppins', sans-serif; }
+        .btn-action-primary {
+            background-color: #ff2301; color: white;
+            transition: all 0.2s ease-out;
+        }
+        .btn-action-primary:hover:not(:disabled) {
+            transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(255, 35, 1, 0.3);
+        }
+        .btn-action-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    </style>
+</head>
+<body class="h-full bg-neutral-950 text-white font-body antialiased">
+
+<main class="min-h-full">
+<div class="min-h-screen flex items-center justify-center px-4 py-12" x-data="invitationApp()">
+    <div class="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-2xl p-8 shadow-xl">
+        
+        <div class="text-center mb-8">
+            <div class="w-20 h-20 bg-brand/10 border border-brand/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <span class="text-brand font-heading font-bold text-4xl">{{ invitation.organization.name|first|upper }}</span>
+            </div>
+            <h1 class="font-heading font-bold text-2xl text-white mb-2">¡Te han invitado!</h1>
+            <p class="text-neutral-400">Has sido invitado a unirte a <strong class="text-white">{{ invitation.organization.name }}</strong> como <strong class="text-white">{{ invitation.get_role_display }}</strong>.</p>
+        </div>
+
+        {% if request.user.is_authenticated %}
+            {% if email_match %}
+                <div class="bg-brand/10 border border-brand/30 rounded-xl p-4 mb-6 text-center">
+                    <p class="text-sm text-brand font-medium">Estás conectado como {{ request.user.email }}</p>
+                </div>
+                <button @click="acceptInvitation()" :disabled="loading" class="w-full btn-action-primary py-3 rounded-xl font-bold border border-brand text-white flex items-center justify-center gap-2">
+                    <svg x-show="loading" class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <span x-text="loading ? 'Aceptando...' : 'Aceptar Invitación'"></span>
+                </button>
+            {% else %}
+                <div class="bg-red-900/20 border border-red-500/30 rounded-xl p-4 mb-6 text-center">
+                    <p class="text-sm text-red-400">Esta invitación es para <strong>{{ invitation.email }}</strong>, pero estás conectado como <strong>{{ request.user.email }}</strong>.</p>
+                </div>
+                <form method="post" action="{% url 'account_logout' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="w-full border border-neutral-700 py-3 rounded-xl font-medium text-white hover:bg-neutral-800 transition-colors">
+                        Cerrar sesión para continuar
+                    </button>
+                </form>
+            {% endif %}
+        {% else %}
+            {% if user_exists %}
+                <div class="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4 mb-6 text-center">
+                    <p class="text-sm text-blue-400 mb-3">Ya tienes una cuenta registrada con <strong>{{ invitation.email }}</strong>.</p>
+                    <a href="{% url 'account_login' %}?next={{ request.path }}" class="block w-full btn-action-primary py-3 rounded-xl font-bold border border-brand text-white transition-colors">
+                        Iniciar sesión para aceptar
+                    </a>
+                </div>
+            {% else %}
+                <div class="space-y-4">
+                    <p class="text-sm text-neutral-400 text-center mb-4">Crea tu cuenta para aceptar la invitación.</p>
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-neutral-400 mb-1">Nombre</label>
+                            <input type="text" x-model="form.first_name" class="w-full px-4 py-2.5 bg-neutral-950 border border-neutral-800 rounded-lg text-white focus:ring-1 focus:ring-brand focus:border-brand transition-colors text-sm" placeholder="Juan">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-neutral-400 mb-1">Apellido</label>
+                            <input type="text" x-model="form.last_name" class="w-full px-4 py-2.5 bg-neutral-950 border border-neutral-800 rounded-lg text-white focus:ring-1 focus:ring-brand focus:border-brand transition-colors text-sm" placeholder="Pérez">
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-medium text-neutral-400 mb-1">Correo electrónico</label>
+                        <input type="email" value="{{ invitation.email }}" disabled class="w-full px-4 py-2.5 bg-neutral-950 border border-neutral-800 rounded-lg text-neutral-500 text-sm cursor-not-allowed">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-neutral-400 mb-1">Crea una contraseña</label>
+                        <input type="password" x-model="form.password" class="w-full px-4 py-2.5 bg-neutral-950 border border-neutral-800 rounded-lg text-white focus:ring-1 focus:ring-brand focus:border-brand transition-colors text-sm" placeholder="••••••••">
+                    </div>
+
+                    <button @click="registerAndAccept()" :disabled="loading" class="w-full btn-action-primary py-3 mt-4 rounded-xl font-bold border border-brand text-white flex items-center justify-center gap-2">
+                        <svg x-show="loading" class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        <span x-text="loading ? 'Creando cuenta...' : 'Crear cuenta y Aceptar'"></span>
+                    </button>
+                </div>
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+
+<!-- SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('invitationApp', () => ({
+        loading: false,
+        form: {
+            first_name: '',
+            last_name: '',
+            password: ''
+        },
+        
+        async acceptInvitation() {
+            this.loading = true;
+            try {
+                const formData = new FormData();
+                formData.append('action', 'accept_logged_in');
+                formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+                
+                const res = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await res.json();
+                if(res.ok && data.ok) {
+                    await Swal.fire({
+                        title: '¡Invitación aceptada!',
+                        text: 'Bienvenido a la organización.',
+                        icon: 'success',
+                        background: '#1a1a1c',
+                        color: '#fff',
+                        confirmButtonColor: '#ff2301'
+                    });
+                    window.location.href = "{% url 'scheduling:calendar' %}";
+                } else {
+                    Swal.fire({
+                        title: 'Error',
+                        text: data.error || 'Ocurrió un error',
+                        icon: 'error',
+                        background: '#1a1a1c',
+                        color: '#fff',
+                        confirmButtonColor: '#ff2301'
+                    });
+                }
+            } catch (err) {
+                Swal.fire('Error', 'Error de conexión', 'error');
+            }
+            this.loading = false;
+        },
+        
+        async registerAndAccept() {
+            if(!this.form.password || this.form.password.length < 6) {
+                return Swal.fire({
+                    title: 'Contraseña inválida',
+                    text: 'La contraseña debe tener al menos 6 caracteres.',
+                    icon: 'warning',
+                    background: '#1a1a1c',
+                    color: '#fff',
+                    confirmButtonColor: '#ff2301'
+                });
+            }
+            
+            this.loading = true;
+            try {
+                const formData = new FormData();
+                formData.append('action', 'register');
+                formData.append('first_name', this.form.first_name);
+                formData.append('last_name', this.form.last_name);
+                formData.append('password', this.form.password);
+                formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+                
+                const res = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await res.json();
+                if(res.ok && data.ok) {
+                    await Swal.fire({
+                        title: '¡Cuenta creada!',
+                        text: 'Bienvenido a la organización.',
+                        icon: 'success',
+                        background: '#1a1a1c',
+                        color: '#fff',
+                        confirmButtonColor: '#ff2301',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                    window.location.href = "{% url 'scheduling:calendar' %}";
+                } else {
+                    Swal.fire({
+                        title: 'Error',
+                        text: data.error || 'Ocurrió un error',
+                        icon: 'error',
+                        background: '#1a1a1c',
+                        color: '#fff',
+                        confirmButtonColor: '#ff2301'
+                    });
+                }
+            } catch (err) {
+                Swal.fire('Error', 'Error de conexión', 'error');
+            }
+            this.loading = false;
+        }
+    }));
+});
+</script>
+</main>
+</body>
+</html>

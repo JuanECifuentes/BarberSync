@@ -5,8 +5,10 @@ from django.views import View
 from django.views.generic import UpdateView
 from django.urls import reverse_lazy
 from django.contrib import messages
+from django.utils import timezone
+from django.shortcuts import render
 
-from .models import Barbershop, Membership
+from .models import Barbershop, Membership, OrganizationInvitation
 from .forms import ProfileForm
 
 
@@ -57,3 +59,126 @@ class SwitchBarbershopView(LoginRequiredMixin, View):
             del request.user._membership_cache
 
         return redirect("scheduling:calendar")
+
+
+class AcceptInvitationView(View):
+    """
+    Handles when a user clicks the invitation link.
+    """
+    def get(self, request, token):
+        invitation = get_object_or_404(OrganizationInvitation, token=token)
+
+        if not invitation.is_valid:
+            return render(request, "accounts/invitation_invalid.html")
+
+        # Check if user with this email exists
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        user_exists = User.objects.filter(email__iexact=invitation.email).exists()
+
+        print('user_exists',user_exists)
+        try:
+            print('email request.user',request.user.is_authenticated, request.user.email.lower())
+        except Exception as e:
+            print('email request.user',e)
+        print('email invitation',invitation.email.lower())
+        context = {
+            "invitation": invitation,
+            "user_exists": user_exists,
+            "email_match": request.user.is_authenticated and request.user.email.lower() == invitation.email.lower()
+        }
+
+        print('context',context)
+        
+        # Guardar token en sesión para que los signals funcionen si el usuario inicia sesión o se registra vía AllAuth
+        request.session["invitation_token"] = str(token)
+        
+        return render(request, "accounts/accept_invitation.html", context)
+
+    def post(self, request, token):
+        invitation = get_object_or_404(OrganizationInvitation, token=token)
+
+        if not invitation.is_valid:
+            return JsonResponse({"error": "La invitación ya no es válida o expiró."}, status=400)
+
+        action = request.POST.get("action")
+
+        if action == "accept_logged_in":
+            if not request.user.is_authenticated:
+                return JsonResponse({"error": "No estás autenticado."}, status=401)
+            if request.user.email.lower() != invitation.email.lower():
+                return JsonResponse({"error": "El correo no coincide."}, status=403)
+            
+            self.process_invitation(request.user, invitation)
+            if "invitation_token" in request.session:
+                del request.session["invitation_token"]
+            return JsonResponse({"ok": True})
+
+        elif action == "register":
+            if request.user.is_authenticated:
+                return JsonResponse({"error": "Ya estás autenticado."}, status=400)
+            
+            password = request.POST.get("password")
+            first_name = request.POST.get("first_name", "")
+            last_name = request.POST.get("last_name", "")
+
+            if not password or len(password) < 6:
+                return JsonResponse({"error": "La contraseña debe tener al menos 6 caracteres."}, status=400)
+
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            if User.objects.filter(email__iexact=invitation.email).exists():
+                return JsonResponse({"error": "Este correo ya está registrado. Por favor inicia sesión."}, status=400)
+
+            user = User.objects.create_user(
+                username=invitation.email,  # o generar un username
+                email=invitation.email,
+                password=password,
+                first_name=first_name,
+                last_name=last_name
+            )
+
+            # Auto login
+            from django.contrib.auth import login
+            # Allauth requiere backend especificado
+            from django.contrib.auth.backends import ModelBackend
+            login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+
+            self.process_invitation(user, invitation)
+            if "invitation_token" in request.session:
+                del request.session["invitation_token"]
+
+            return JsonResponse({"ok": True})
+
+        return JsonResponse({"error": "Acción no válida."}, status=400)
+
+    @staticmethod
+    def process_invitation(user, invitation):
+        if not invitation.is_valid:
+            return
+
+        # Check if membership already exists
+        membership, created = Membership.objects.get_or_create(
+            user=user,
+            organization=invitation.organization,
+            defaults={"role": invitation.role, "is_active": True}
+        )
+        if not created:
+            membership.role = invitation.role
+            membership.is_active = True
+            membership.save(update_fields=["role", "is_active"])
+
+        # Update branches
+        if invitation.sucursales.exists():
+            membership.sucursales.set(invitation.sucursales.all())
+
+        invitation.is_used = True
+        invitation.save(update_fields=["is_used"])
+
+        # If barber, ensure BarberProfile exists
+        if invitation.role == Membership.Role.BARBER:
+            from .models import BarberProfile
+            profile, _ = BarberProfile.objects.get_or_create(membership=membership)
+            if invitation.sucursales.exists():
+                profile.sucursales.set(invitation.sucursales.all())
+
