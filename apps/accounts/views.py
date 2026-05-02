@@ -2,13 +2,31 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.views import View
-from django.views.generic import TemplateView
+from django.views.generic import UpdateView
+from django.urls import reverse_lazy
+from django.contrib import messages
 
 from .models import Barbershop, Membership
+from .forms import ProfileForm
 
 
-class ProfileView(LoginRequiredMixin, TemplateView):
+class ProfileView(LoginRequiredMixin, UpdateView):
     template_name = "accounts/profile.html"
+    form_class = ProfileForm
+    success_url = reverse_lazy("accounts:profile")
+
+    def get_object(self, queryset=None):
+        return self.request.user
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Check if Google is linked and get the account info
+        context['google_account'] = self.request.user.socialaccount_set.filter(provider='google').first()
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, "Tu perfil ha sido actualizado correctamente.")
+        return super().form_valid(form)
 
 
 class SwitchBarbershopView(LoginRequiredMixin, View):

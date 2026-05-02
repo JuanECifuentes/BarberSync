@@ -47,6 +47,11 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             User = get_user_model()
             user = User.objects.filter(email__iexact=email).first()
 
+        # If the user is already authenticated and matches the found user, 
+        # they are just connecting their account, so we should allow it.
+        if user and request.user.is_authenticated and request.user == user:
+            return
+
         if user:
             if user.has_usable_password():
                 # User exists with this email and has a password

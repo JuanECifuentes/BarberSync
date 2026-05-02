@@ -102,8 +102,8 @@
             {% endif %}
 
             <!-- User menu -->
-            <div class="relative" x-data="{ open: false }">
-                <button id="user-menu-btn" onclick="document.getElementById('user-dropdown').classList.toggle('hidden')"
+            <div class="relative" id="user-menu-wrapper">
+                <button id="user-menu-btn" onclick="toggleUserDropdown(event)"
                     class="flex items-center gap-2 p-1.5 rounded-lg hover:bg-neutral-800 transition-colors">
                     <div class="w-8 h-8 bg-brand/20 rounded-full flex items-center justify-center">
                         <span class="text-sm font-semibold text-brand">
@@ -122,30 +122,50 @@
                         Mi perfil
                     </a>
                     <hr class="border-neutral-800 my-1">
-                    <a href="{% url 'account_logout' %}"
-                        class="block px-4 py-2 text-sm text-red-400 hover:bg-neutral-800 transition-colors">
-                        Cerrar sesi&oacute;n
-                    </a>
+                    <form method="post" action="{% url 'account_logout' %}">
+                        {% csrf_token %}
+                        <button type="submit"
+                            class="w-full text-left block px-4 py-2 text-sm text-red-400 hover:bg-neutral-800 transition-colors">
+                            Cerrar sesi&oacute;n
+                        </button>
+                    </form>
                 </div>
             </div>
         </div>
     </div>
 </header>
 
+<script>
+    function toggleUserDropdown(e) {
+        if (e) e.stopPropagation();
+        const dropdown = document.getElementById('user-dropdown');
+        if (dropdown) dropdown.classList.toggle('hidden');
+    }
+
+    // Handle clicks outside dropdowns
+    document.addEventListener('click', function(e) {
+        // User dropdown
+        const userWrapper = document.getElementById('user-menu-wrapper');
+        const userDropdown = document.getElementById('user-dropdown');
+        if (userWrapper && userDropdown && !userWrapper.contains(e.target)) {
+            userDropdown.classList.add('hidden');
+        }
+
+        // Booking popover
+        const bookingWrapper = document.getElementById('booking-popover-wrapper');
+        const bookingPopover = document.getElementById('booking-popover');
+        if (bookingWrapper && bookingPopover && !bookingWrapper.contains(e.target)) {
+            bookingPopover.classList.add('hidden');
+        }
+    });
+</script>
+
 {% if is_admin and current_barbershop %}
 <script>
     function toggleBookingPopover() {
         const popover = document.getElementById('booking-popover');
-        popover.classList.toggle('hidden');
+        if (popover) popover.classList.toggle('hidden');
     }
-
-    // Close popover when clicking outside
-    document.addEventListener('click', function(e) {
-        const wrapper = document.getElementById('booking-popover-wrapper');
-        if (wrapper && !wrapper.contains(e.target)) {
-            document.getElementById('booking-popover').classList.add('hidden');
-        }
-    });
 
     function copyBookingLink(btn, type, shopPath) {
         let url;
