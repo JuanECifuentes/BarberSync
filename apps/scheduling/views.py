@@ -41,6 +41,9 @@ class CalendarView(LoginRequiredMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         barbershop = self.request.barbershop
         membership = self.request.user.membership
+        if not membership:
+            from django.core.exceptions import PermissionDenied
+            raise PermissionDenied("No perteneces a ninguna organización o tu cuenta no tiene rol de empleado.")
 
         # Barbers for filter dropdown
         barbers = BarberProfile.objects.filter(
@@ -49,6 +52,7 @@ class CalendarView(LoginRequiredMixin, TemplateView):
         ).select_related("membership__user")
 
         ctx["barbers"] = barbers
+        print("membership", membership, "role", membership.role)
         ctx["is_barber"] = membership.role == "barber"
 
         # If user is a barber, pre-select their own profile
@@ -310,14 +314,32 @@ class ServiceListView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         barbershop = self.request.barbershop
+        org = self.request.organization
 
-        services = Service.objects.filter(
-            barbershop=barbershop, is_active=True,
-        ).select_related("category").order_by("category__name", "name")
+        if barbershop:
+            services = Service.objects.filter(
+                barbershop=barbershop, is_active=True,
+            ).select_related("category").order_by("category__name", "name")
 
-        categories = CategoriaServicio.objects.filter(
-            barbershop=barbershop, is_active=True,
-        ).order_by("name")
+            categories = CategoriaServicio.objects.filter(
+                barbershop=barbershop, is_active=True,
+            ).order_by("name")
+            
+            products = Product.objects.filter(
+                barbershop=barbershop, is_active=True,
+            ).select_related("category").order_by("category__name", "name")
+        else:
+            services = Service.objects.filter(
+                barbershop__organization=org, is_active=True,
+            ).select_related("category").order_by("category__name", "name")
+
+            categories = CategoriaServicio.objects.filter(
+                barbershop__organization=org, is_active=True,
+            ).order_by("name")
+            
+            products = Product.objects.filter(
+                barbershop__organization=org, is_active=True,
+            ).select_related("category").order_by("category__name", "name")
 
         # Group services by category for accordion display
         grouped = OrderedDict()
@@ -334,9 +356,7 @@ class ServiceListView(LoginRequiredMixin, TemplateView):
         ctx["barbershop"] = barbershop
 
         # Products grouped by category for the product consumption selector
-        products = Product.objects.filter(
-            barbershop=barbershop, is_active=True,
-        ).select_related("category").order_by("category__name", "name")
+
         grouped_products = OrderedDict()
         for prod in products:
             cat_name = prod.category.name if prod.category else "Sin Categoría"

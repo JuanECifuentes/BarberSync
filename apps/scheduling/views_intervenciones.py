@@ -37,18 +37,36 @@ class IntervencionListView(LoginRequiredMixin, TemplateView):
         org = self.request.organization
         barbershop = self.request.barbershop
 
-        ctx["barbers"] = BarberProfile.objects.filter(
-            Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
-            is_active=True,
-        ).select_related("membership__user").distinct()
-        services = Service.objects.filter(
-            barbershop=barbershop, is_active=True,
-        ).select_related("category")
+        if barbershop:
+            ctx["barbers"] = BarberProfile.objects.filter(
+                Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
+                is_active=True,
+            ).select_related("membership__user").distinct()
+            services = Service.objects.filter(
+                barbershop=barbershop, is_active=True,
+            ).select_related("category")
+            ctx["sucursal_name"] = str(barbershop)
+            ctx["current_barbershop_id"] = barbershop.pk
+            products = Product.objects.filter(
+                barbershop=barbershop, is_active=True,
+            ).select_related("category").order_by("category__name", "name")
+        else:
+            ctx["barbers"] = BarberProfile.objects.filter(
+                membership__organization=org,
+                is_active=True,
+            ).select_related("membership__user").distinct()
+            services = Service.objects.filter(
+                barbershop__organization=org, is_active=True,
+            ).select_related("category")
+            ctx["sucursal_name"] = "Todas las sucursales"
+            ctx["current_barbershop_id"] = ""
+            products = Product.objects.filter(
+                barbershop__organization=org, is_active=True,
+            ).select_related("category").order_by("category__name", "name")
+
         ctx["services"] = services
         ctx["estados"] = Intervencion.Estado.choices
         ctx["sucursales"] = Barbershop.objects.filter(organization=org)
-        ctx["sucursal_name"] = str(barbershop)
-        ctx["current_barbershop_id"] = barbershop.pk
 
         # Group services by category for accordion display in modals
         grouped = OrderedDict()
@@ -61,9 +79,7 @@ class IntervencionListView(LoginRequiredMixin, TemplateView):
         ctx["grouped_services"] = grouped
 
         # Products grouped by category for the product selector
-        products = Product.objects.filter(
-            barbershop=barbershop, is_active=True,
-        ).select_related("category").order_by("category__name", "name")
+
         grouped_products = OrderedDict()
         for prod in products:
             cat_name = prod.category.name if prod.category else "Sin Categoría"
@@ -86,10 +102,8 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
 
     def get(self, request):
         barbershop = request.barbershop
-        if not barbershop:
-            return JsonResponse({"error": "Sin barbería"}, status=403)
-
-        org = barbershop.organization
+        org = request.organization
+        
         qs = Intervencion.objects.filter(
             barbershop__organization=org,
         ).select_related(
@@ -104,6 +118,9 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
                 queryset=IntervencionProducto.objects.select_related("producto"),
             ),
         )
+
+        if barbershop:
+            qs = qs.filter(barbershop=barbershop)
 
         # ── Filtros externos (multi-select checkboxes) ──
 

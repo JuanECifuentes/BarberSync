@@ -156,7 +156,9 @@
     <!-- Header -->
     <div class="flex items-center justify-between flex-wrap gap-3">
         <h2 class="font-heading font-bold text-xl text-white">Equipo de Barberos</h2>
+        {% if is_admin %}
         <button onclick="openCreateModal()" class="btn-action-primary btn-primary text-sm border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm"><span>+ Nuevo Barbero</span></button>
+        {% endif %}
     </div>
 
     <!-- Barbers grid -->
@@ -192,6 +194,7 @@
                 </div>
 
                 <!-- Right: Action buttons (always visible) -->
+                {% if is_admin %}
                 <div class="flex items-center gap-1 flex-shrink-0">
                     <button onclick="openScheduleModal({{ b.pk }})"
                         data-tooltip="Horario Semanal"
@@ -218,6 +221,7 @@
                         </svg>
                     </button>
                 </div>
+                {% endif %}
             </div>
 
             <!-- Sucursales (1 line max) -->
@@ -264,8 +268,10 @@
                 <div class="flex items-center justify-between">
                     <p class="font-medium text-neutral-400 truncate">{{ b.display_name|default:b.user.get_full_name }}
                     </p>
+                    {% if is_admin %}
                     <button onclick="reactivateBarber({{ b.pk }})"
                         class="text-xs text-green-400 hover:text-green-300 opacity-0 group-hover:opacity-100 transition-all">Reactivar</button>
+                    {% endif %}
                 </div>
             </div>
             {% endfor %}

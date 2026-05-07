@@ -28,7 +28,7 @@ from .models import BarberProfile, Barbershop, Membership, User
 
 class BarberoListView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
     template_name = "barberos/barbero_list.html"
-    allowed_roles = ["owner", "admin"]
+    allowed_roles = ["owner", "admin", "staff", "barber"]
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -71,7 +71,7 @@ class BarberoListView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
 
 
 class BarberoDetailAPI(LoginRequiredMixin, RoleRequiredMixin, View):
-    allowed_roles = ["owner", "admin"]
+    allowed_roles = ["owner", "admin", "staff", "barber"]
 
     def get(self, request, pk):
         org = request.organization
@@ -233,7 +233,7 @@ class BarberoCreateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
 
 
 class BarberoUpdateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
-    allowed_roles = ["owner", "admin"]
+    allowed_roles = ["owner", "admin", "staff", "barber"]
 
     def post(self, request, pk):
         org = request.organization
@@ -244,6 +244,9 @@ class BarberoUpdateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
             )
         except BarberProfile.DoesNotExist:
             return JsonResponse({"error": "Barbero no encontrado"}, status=404)
+
+        if request.user.membership.role == "barber" and barber.user != request.user:
+            return JsonResponse({"error": "No tienes permiso para editar este barbero"}, status=403)
 
         try:
             data = json.loads(request.body)
@@ -382,7 +385,7 @@ def _apply_customizations(barber, customizations, user):
 
 class HorarioSaveAPI(LoginRequiredMixin, RoleRequiredMixin, View):
     """Save/replace the full weekly schedule for a barber, including lunch and buffer."""
-    allowed_roles = ["owner", "admin"]
+    allowed_roles = ["owner", "admin", "staff", "barber"]
 
     def post(self, request, pk):
         org = request.organization
@@ -390,6 +393,9 @@ class HorarioSaveAPI(LoginRequiredMixin, RoleRequiredMixin, View):
             barber = BarberProfile.objects.get(pk=pk, membership__organization=org)
         except BarberProfile.DoesNotExist:
             return JsonResponse({"error": "Barbero no encontrado"}, status=404)
+
+        if request.user.membership.role == "barber" and barber.user != request.user:
+            return JsonResponse({"error": "No tienes permiso para editar este horario"}, status=403)
 
         try:
             data = json.loads(request.body)
@@ -433,7 +439,7 @@ class HorarioSaveAPI(LoginRequiredMixin, RoleRequiredMixin, View):
 
 
 class ExcepcionCreateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
-    allowed_roles = ["owner", "admin"]
+    allowed_roles = ["owner", "admin", "staff", "barber"]
 
     def post(self, request, pk):
         org = request.organization
@@ -441,6 +447,9 @@ class ExcepcionCreateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
             barber = BarberProfile.objects.get(pk=pk, membership__organization=org)
         except BarberProfile.DoesNotExist:
             return JsonResponse({"error": "Barbero no encontrado"}, status=404)
+
+        if request.user.membership.role == "barber" and barber.user != request.user:
+            return JsonResponse({"error": "No tienes permiso para agregar excepciones"}, status=403)
 
         try:
             data = json.loads(request.body)
@@ -471,7 +480,7 @@ class ExcepcionCreateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
 
 
 class ExcepcionDeleteAPI(LoginRequiredMixin, RoleRequiredMixin, View):
-    allowed_roles = ["owner", "admin"]
+    allowed_roles = ["owner", "admin", "staff", "barber"]
 
     def post(self, request, pk, exc_pk):
         org = request.organization
@@ -479,6 +488,9 @@ class ExcepcionDeleteAPI(LoginRequiredMixin, RoleRequiredMixin, View):
             barber = BarberProfile.objects.get(pk=pk, membership__organization=org)
         except BarberProfile.DoesNotExist:
             return JsonResponse({"error": "Barbero no encontrado"}, status=404)
+
+        if request.user.membership.role == "barber" and barber.user != request.user:
+            return JsonResponse({"error": "No tienes permiso para eliminar esta excepción"}, status=403)
 
         deleted, _ = ScheduleException.objects.filter(pk=exc_pk, barber=barber).delete()
         if not deleted:

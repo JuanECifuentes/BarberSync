@@ -3,6 +3,11 @@
 {% block title %}Configuración – BarberSync{% endblock %}
 {% block page_title %}Configuración{% endblock %}
 
+{% block extra_head %}
+<!-- Alpine.js -->
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+{% endblock %}
+
 {% block content %}
 <style>
     /* ── Animated button ── */
@@ -79,177 +84,426 @@
         opacity: 1;
         transform: translateX(-50%) scale(1);
     }
+
+    /* ── Multi-select dropdown ── */
+    .ms-dropdown { position: relative; }
+    .ms-trigger {
+        display: flex; align-items: center; justify-content: space-between;
+        width: 100%; padding: 8px 12px;
+        background: #2a2a2d; border: 1px solid #4a4a4f; border-radius: 8px;
+        color: #fff; font-size: 13px; cursor: pointer; transition: border-color 0.2s; min-height: 38px;
+    }
+    .ms-trigger:hover, .ms-trigger:focus { border-color: #ff2301; }
+    .ms-trigger .ms-count {
+        background: rgba(255, 35, 1, 0.2); color: #ff6b56;
+        font-size: 11px; font-weight: 600; padding: 2px 8px;
+        border-radius: 9999px; margin-left: 8px;
+    }
+    .ms-panel {
+        position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+        background: #2a2a2d; border: 1px solid #4a4a4f; border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4); z-index: 30;
+        max-height: 220px; overflow-y: auto; padding: 4px 0;
+    }
+    .ms-option {
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 12px; cursor: pointer; font-size: 13px; color: #d9d9dd; transition: background 0.15s;
+    }
+    .ms-option:hover { background: rgba(255, 255, 255, 0.05); }
+    .ms-option input[type="checkbox"] {
+        width: 16px; height: 16px; border-radius: 4px;
+        border: 1px solid #4a4a4f; background: #1a1a1c; accent-color: #ff2301; cursor: pointer;
+    }
 </style>
-<div class="space-y-8 max-w-4xl">
+
+<div x-data="configApp()" class="flex flex-col h-full">
+
+    <!-- ═══════ Tabs Navigation ═══════ -->
+    <div class="flex items-center border-b border-neutral-800 mb-6 flex-shrink-0">
+        <button @click="tab = 'organizacion'" 
+                :class="tab === 'organizacion' ? 'border-b-2 border-brand text-brand' : 'text-neutral-400 hover:text-neutral-300'"
+                class="px-4 py-2 text-sm font-medium transition-colors">
+            Organización
+        </button>
+        <button @click="tab = 'usuarios'" 
+                :class="tab === 'usuarios' ? 'border-b-2 border-brand text-brand' : 'text-neutral-400 hover:text-neutral-300'"
+                class="px-4 py-2 text-sm font-medium transition-colors">
+            Usuarios y roles
+        </button>
+    </div>
 
     <!-- ═══════════════════════════════════════════ -->
-    <!-- ORGANIZACIÓN                                -->
+    <!-- TAB: ORGANIZACIÓN                           -->
     <!-- ═══════════════════════════════════════════ -->
-    <section class="card">
-        <div class="flex items-center justify-between mb-6">
-            <h2 class="font-heading font-bold text-xl text-white">Organización</h2>
-            {% if is_owner %}
-            <button onclick="saveOrganization()" class="btn-action-primary border border-neutral-700 px-4 py-2 rounded-lg text-sm text-neutral-300 font-medium transition-all"><span>Guardar cambios</span></button>
-            {% endif %}
-        </div>
+    <div x-show="tab === 'organizacion'" class="space-y-8 max-w-4xl" x-transition>
+        <section class="card">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="font-heading font-bold text-xl text-white">Organización</h2>
+                {% if is_owner %}
+                <button onclick="saveOrganization()" class="btn-action-primary border border-neutral-700 px-4 py-2 rounded-lg text-sm text-neutral-300 font-medium transition-all"><span>Guardar cambios</span></button>
+                {% endif %}
+            </div>
 
-        <div class="flex flex-col sm:flex-row gap-6">
-            <!-- Logo -->
-            <div class="flex-shrink-0">
-                <div id="org-logo-preview" class="w-24 h-24 rounded-xl border-2 border-dashed border-neutral-700 flex items-center justify-center overflow-hidden bg-neutral-800 cursor-pointer hover:border-brand transition-colors"
-                     onclick="document.getElementById('logo-input').click()">
-                    {% if organization.logo %}
-                    <img src="{{ organization.logo.url }}" alt="Logo" class="w-full h-full object-cover">
-                    {% else %}
-                    <div class="text-center">
-                        <svg class="w-8 h-8 mx-auto text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                        </svg>
-                        <span class="text-[10px] text-neutral-400 mt-1 block">Logo</span>
+            <div class="flex flex-col sm:flex-row gap-6">
+                <!-- Logo -->
+                <div class="flex-shrink-0">
+                    <div id="org-logo-preview" class="w-24 h-24 rounded-xl border-2 border-dashed border-neutral-700 flex items-center justify-center overflow-hidden bg-neutral-800 cursor-pointer hover:border-brand transition-colors"
+                         onclick="document.getElementById('logo-input').click()">
+                        {% if organization.logo %}
+                        <img src="{{ organization.logo.url }}" alt="Logo" class="w-full h-full object-cover">
+                        {% else %}
+                        <div class="text-center">
+                            <svg class="w-8 h-8 mx-auto text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            <span class="text-[10px] text-neutral-400 mt-1 block">Logo</span>
+                        </div>
+                        {% endif %}
                     </div>
-                    {% endif %}
+                    <input type="file" id="logo-input" accept="image/*" class="hidden" onchange="uploadLogo(this)">
                 </div>
-                <input type="file" id="logo-input" accept="image/*" class="hidden" onchange="uploadLogo(this)">
+
+                <!-- Fields -->
+                <div class="flex-1 space-y-4">
+                    <div>
+                        <label class="text-xs text-neutral-400 mb-1 block">Nombre de la organización</label>
+                        <input id="org-name" type="text" value="{{ organization.name }}"
+                               class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors"
+                               {% if not is_owner %}disabled{% endif %}>
+                    </div>
+                    <div>
+                        <label class="text-xs text-neutral-400 mb-1 block">Slug (URL)</label>
+                        <input id="org-slug" type="text" value="{{ organization.slug }}"
+                               class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors"
+                               {% if not is_owner %}disabled{% endif %}>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SUCURSALES -->
+        <section>
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="font-heading font-bold text-xl text-white">Sucursales</h2>
+                <button onclick="openSucursalModal()" class="btn-action-primary border border-neutral-700 px-4 py-2 rounded-lg text-sm text-neutral-300 font-medium transition-all"><span>+ Nueva Sucursal</span></button>
             </div>
 
-            <!-- Fields -->
-            <div class="flex-1 space-y-4">
-                <div>
-                    <label class="text-xs text-neutral-400 mb-1 block">Nombre de la organización</label>
-                    <input id="org-name" type="text" value="{{ organization.name }}"
-                           class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors"
-                           {% if not is_owner %}disabled{% endif %}>
-                </div>
-                <div>
-                    <label class="text-xs text-neutral-400 mb-1 block">Slug (URL)</label>
-                    <input id="org-slug" type="text" value="{{ organization.slug }}"
-                           class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors"
-                           {% if not is_owner %}disabled{% endif %}>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ═══════════════════════════════════════════ -->
-    <!-- SUCURSALES                                  -->
-    <!-- ═══════════════════════════════════════════ -->
-    <section>
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="font-heading font-bold text-xl text-white">Sucursales</h2>
-            <button onclick="openSucursalModal()" class="btn-action-primary border border-neutral-700 px-4 py-2 rounded-lg text-sm text-neutral-300 font-medium transition-all"><span>+ Nueva Sucursal</span></button>
-        </div>
-
-        <!-- Sucursales activas -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="sucursales-grid">
-            {% for s in sucursales %}
-            <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5 hover:border-neutral-700 transition-all flex flex-col justify-between h-full" id="sucursal-{{ s.pk }}">
-                <div>
-                    <div class="flex items-start justify-between mb-4">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 bg-neutral-800 border border-neutral-700 rounded-lg flex items-center justify-center flex-shrink-0">
-                                <span class="font-heading font-bold text-neutral-400">{{ s.name|first|upper }}</span>
-                            </div>
-                            <div class="min-w-0">
-                                <p class="font-medium text-white truncate">{{ s.name }}</p>
-                                <div class="flex items-center gap-2 mt-0.5">
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-900/40 text-green-400 border border-green-800/50">Activa</span>
+            <!-- Sucursales activas -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="sucursales-grid">
+                {% for s in sucursales %}
+                <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5 hover:border-neutral-700 transition-all flex flex-col justify-between h-full" id="sucursal-{{ s.pk }}">
+                    <div>
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-neutral-800 border border-neutral-700 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <span class="font-heading font-bold text-neutral-400">{{ s.name|first|upper }}</span>
+                                </div>
+                                <div class="min-w-0">
+                                    <p class="font-medium text-white truncate">{{ s.name }}</p>
+                                    <div class="flex items-center gap-2 mt-0.5">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-900/40 text-green-400 border border-green-800/50">Activa</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    {% if s.address or s.phone %}
-                    <div class="space-y-2 mb-5">
-                        {% if s.address %}
-                        <div class="flex items-center gap-2 text-sm text-neutral-400">
-                            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                            <span class="truncate">{{ s.address }}</span>
+                        {% if s.address or s.phone %}
+                        <div class="space-y-2 mb-5">
+                            {% if s.address %}
+                            <div class="flex items-center gap-2 text-sm text-neutral-400">
+                                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                <span class="truncate">{{ s.address }}</span>
+                            </div>
+                            {% endif %}
+                            {% if s.phone %}
+                            <div class="flex items-center gap-2 text-sm text-neutral-400">
+                                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                                <span>{{ s.phone }}</span>
+                            </div>
+                            {% endif %}
                         </div>
                         {% endif %}
-                        {% if s.phone %}
-                        <div class="flex items-center gap-2 text-sm text-neutral-400">
-                            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
-                            <span>{{ s.phone }}</span>
+                    </div>
+                    
+                    <div class="pt-4 border-t border-neutral-800 flex items-center justify-between">
+                        <div class="flex items-center gap-1.5 text-xs text-neutral-400 font-medium bg-neutral-800 px-2 py-1 rounded-md">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <span>{{ s.open_hour }}:00 – {{ s.close_hour }}:00</span>
                         </div>
+                        <div class="flex items-center gap-1 flex-shrink-0">
+                            <button onclick="editSucursal({{ s.pk }}, '{{ s.name|escapejs }}', '{{ s.address|escapejs }}', '{{ s.phone|escapejs }}', {{ s.open_hour }}, {{ s.close_hour }})"
+                                data-tooltip="Editar Sucursal"
+                                class="border border-neutral-700 px-3 py-1.5 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-400 hover:text-white">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                            </button>
+                            <button onclick="confirmDeactivateSucursal({{ s.pk }}, '{{ s.name|escapejs }}')"
+                                data-tooltip="Desactivar Sucursal"
+                                class="border border-neutral-700 px-3 py-1.5 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-red-400 hover:text-red-300">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col-span-full flex flex-col items-center justify-center py-12 text-center bg-neutral-900 border border-neutral-800 rounded-xl border-dashed">
+                    <div class="w-12 h-12 bg-neutral-800 rounded-full flex items-center justify-center mb-3">
+                        <svg class="w-6 h-6 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                    </div>
+                    <p class="text-neutral-300 font-medium">No hay sucursales registradas</p>
+                    <p class="text-neutral-500 text-sm mt-1">Añade tu primera sucursal para empezar a recibir citas</p>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Sucursales inactivas -->
+            {% if sucursales_inactivas %}
+            <div class="mt-6">
+                <button onclick="document.getElementById('inactivas-section').classList.toggle('hidden')"
+                        class="text-sm text-neutral-400 hover:text-neutral-300 transition-colors flex items-center gap-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                    {{ sucursales_inactivas|length }} sucursal{{ sucursales_inactivas|length|pluralize:"es" }} inactiva{{ sucursales_inactivas|length|pluralize:"s" }}
+                </button>
+                <div id="inactivas-section" class="hidden mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {% for s in sucursales_inactivas %}
+                    <div class="bg-neutral-900 border border-neutral-800/50 rounded-xl p-4 opacity-60 hover:opacity-100 transition-opacity flex items-center justify-between">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div class="w-8 h-8 bg-neutral-800 border border-neutral-700/50 rounded-md flex items-center justify-center flex-shrink-0">
+                                <span class="font-heading font-bold text-neutral-500 text-xs">{{ s.name|first|upper }}</span>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="font-medium text-neutral-400 truncate">{{ s.name }}</p>
+                            </div>
+                        </div>
+                        <button onclick="reactivateSucursal({{ s.pk }})"
+                            data-tooltip="Reactivar Sucursal"
+                            class="border border-neutral-700 px-3 py-1.5 rounded-lg hover:border-green-500/50 transition-all shadow-sm text-green-500/70 hover:text-green-400">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </button>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </section>
+    </div>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- TAB: USUARIOS Y ROLES                       -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div x-show="tab === 'usuarios'" class="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden" x-transition x-cloak>
+        
+        <!-- Contenedor Izquierdo: Usuarios -->
+        <section class="card flex-1 flex flex-col min-h-0">
+            <div class="flex items-start justify-between mb-2 flex-shrink-0">
+                <div>
+                    <h2 class="font-heading font-bold text-xl text-white">Usuarios de la organización</h2>
+                    <p class="text-xs text-neutral-400 mt-1">Invita personas y asígnales roles a nivel organización o por sucursal.</p>
+                </div>
+                <button @click="openInviteModal()" class="btn-action-primary border border-neutral-700 px-4 py-2 rounded-lg text-sm text-neutral-300 font-medium transition-all flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    <span>Invitar</span>
+                </button>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto mt-4 space-y-3 pr-2" id="users-container">
+                {% for membership in memberships %}
+                <div class="bg-[#1a1a1c] border border-neutral-800 rounded-xl p-4 flex items-center justify-between hover:border-neutral-700 transition-colors">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-brand/10 border border-brand/30 flex items-center justify-center flex-shrink-0 text-brand font-bold font-heading">
+                            {{ membership.user.get_full_name|default:membership.user.email|first|upper }}
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-white">{{ membership.user.get_full_name|default:"Sin nombre" }}</p>
+                            <p class="text-xs text-neutral-400">{{ membership.user.email }}</p>
+                            <div class="flex items-center gap-2 mt-1">
+                                <span class="px-2 py-0.5 rounded-full bg-neutral-800 border border-neutral-700 text-[10px] text-neutral-300">{{ membership.get_role_display }}</span>
+                                {% if membership.sucursales.count > 0 %}
+                                <span class="text-[10px] text-neutral-500">{{ membership.sucursales.count }} sucursal(es)</span>
+                                {% else %}
+                                <span class="text-[10px] text-neutral-500">Toda la organización</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% if membership.role != 'owner' or is_owner %}
+                    <div class="flex items-center gap-2">
+                        <button @click="openEditModal({{ membership.id }}, '{{ membership.user.email }}', '{{ membership.user.get_full_name|escapejs }}', '{{ membership.role }}', [{% for s in membership.sucursales.all %}{{ s.id }}{% if not forloop.last %},{% endif %}{% endfor %}])" 
+                                class="border border-neutral-700 text-neutral-400 hover:text-white p-2 rounded-lg hover:bg-neutral-800 transition-colors" data-tooltip="Editar">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                        </button>
+                        {% if membership.role != 'owner' %}
+                        <button @click="deleteUser({{ membership.id }})" 
+                                class="border border-red-900/50 text-red-400 hover:text-red-300 p-2 rounded-lg hover:bg-red-900/30 transition-colors" data-tooltip="Eliminar">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
                         {% endif %}
                     </div>
                     {% endif %}
                 </div>
-                
-                <div class="pt-4 border-t border-neutral-800 flex items-center justify-between">
-                    <div class="flex items-center gap-1.5 text-xs text-neutral-400 font-medium bg-neutral-800 px-2 py-1 rounded-md">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        <span>{{ s.open_hour }}:00 – {{ s.close_hour }}:00</span>
-                    </div>
-                    <div class="flex items-center gap-1 flex-shrink-0">
-                        <button onclick="editSucursal({{ s.pk }}, '{{ s.name|escapejs }}', '{{ s.address|escapejs }}', '{{ s.phone|escapejs }}', {{ s.open_hour }}, {{ s.close_hour }})"
-                            data-tooltip="Editar Sucursal"
-                            class="border border-neutral-700 px-3 py-1.5 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-400 hover:text-white">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                        </button>
-                        <button onclick="confirmDeactivateSucursal({{ s.pk }}, '{{ s.name|escapejs }}')"
-                            data-tooltip="Desactivar Sucursal"
-                            class="border border-neutral-700 px-3 py-1.5 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-red-400 hover:text-red-300">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-            </div>
-            {% empty %}
-            <div class="col-span-full flex flex-col items-center justify-center py-12 text-center bg-neutral-900 border border-neutral-800 rounded-xl border-dashed">
-                <div class="w-12 h-12 bg-neutral-800 rounded-full flex items-center justify-center mb-3">
-                    <svg class="w-6 h-6 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-                </div>
-                <p class="text-neutral-300 font-medium">No hay sucursales registradas</p>
-                <p class="text-neutral-500 text-sm mt-1">Añade tu primera sucursal para empezar a recibir citas</p>
-            </div>
-            {% endfor %}
-        </div>
-
-        <!-- Sucursales inactivas -->
-        {% if sucursales_inactivas %}
-        <div class="mt-6">
-            <button onclick="document.getElementById('inactivas-section').classList.toggle('hidden')"
-                    class="text-sm text-neutral-400 hover:text-neutral-300 transition-colors flex items-center gap-1">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                </svg>
-                {{ sucursales_inactivas|length }} sucursal{{ sucursales_inactivas|length|pluralize:"es" }} inactiva{{ sucursales_inactivas|length|pluralize:"s" }}
-            </button>
-            <div id="inactivas-section" class="hidden mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
-                {% for s in sucursales_inactivas %}
-                <div class="bg-neutral-900 border border-neutral-800/50 rounded-xl p-4 opacity-60 hover:opacity-100 transition-opacity flex items-center justify-between">
-                    <div class="flex items-center gap-3 min-w-0">
-                        <div class="w-8 h-8 bg-neutral-800 border border-neutral-700/50 rounded-md flex items-center justify-center flex-shrink-0">
-                            <span class="font-heading font-bold text-neutral-500 text-xs">{{ s.name|first|upper }}</span>
-                        </div>
-                        <div class="min-w-0">
-                            <p class="font-medium text-neutral-400 truncate">{{ s.name }}</p>
-                        </div>
-                    </div>
-                    <button onclick="reactivateSucursal({{ s.pk }})"
-                        data-tooltip="Reactivar Sucursal"
-                        class="border border-neutral-700 px-3 py-1.5 rounded-lg hover:border-green-500/50 transition-all shadow-sm text-green-500/70 hover:text-green-400">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                    </button>
-                </div>
+                {% empty %}
+                <p class="text-sm text-neutral-500 text-center py-6">No hay usuarios activos.</p>
                 {% endfor %}
             </div>
+        </section>
+
+        <!-- Contenedor Derecho: Invitaciones -->
+        <section class="card w-full md:w-1/3 flex flex-col min-h-0 bg-[#151516]">
+            <h2 class="font-heading font-bold text-lg text-white mb-4 flex-shrink-0">Invitaciones pendientes</h2>
+            
+            <div class="flex-1 overflow-y-auto space-y-3 pr-2" id="invitations-container">
+                {% for inv in invitations %}
+                <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-3">
+                    <p class="text-sm font-medium text-white mb-1 truncate" title="{{ inv.email }}">{{ inv.email }}</p>
+                    <div class="flex justify-between items-end">
+                        <div class="space-y-1">
+                            <p class="text-[10px] text-neutral-400">Rol: {{ inv.get_role_display }}</p>
+                            <p class="text-[10px] text-neutral-400">Expira: {{ inv.expires_at|date:"d/m/Y H:i" }}</p>
+                            {% if inv.sucursales.count > 0 %}
+                            <p class="text-[10px] text-neutral-500">{{ inv.sucursales.count }} sucursales</p>
+                            {% endif %}
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button @click="resendInvitation({{ inv.id }})" class="border border-brand/50 text-brand hover:text-white p-1.5 rounded-lg bg-brand/10 hover:bg-brand/20 transition-colors" data-tooltip="Reenviar">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                            </button>
+                            <button @click="cancelInvitation({{ inv.id }})" class="border border-red-500/50 text-red-400 hover:text-white p-1.5 rounded-lg bg-red-900/20 hover:bg-red-900/40 transition-colors" data-tooltip="Cancelar">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-xs text-neutral-500 text-center py-6">No hay invitaciones pendientes.</p>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- MODALES DE USUARIOS E INVITACIONES          -->
+    <!-- ═══════════════════════════════════════════ -->
+    
+    <!-- Modal Invitar -->
+    <div x-show="modals.invite" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" x-transition x-cloak>
+        <div class="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4" @click.outside="modals.invite = false">
+            <h3 class="font-heading font-bold text-lg text-white">Invitar a la organización</h3>
+            
+            <div class="space-y-3">
+                <div>
+                    <label class="text-xs text-neutral-400 mb-1 block">Correo electrónico</label>
+                    <input type="email" x-model="inviteForm.email" placeholder="correo@ejemplo.com"
+                           class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                </div>
+                <div>
+                    <label class="text-xs text-neutral-400 mb-1 block">Rol</label>
+                    <select x-model="inviteForm.role" class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors appearance-none">
+                        <option value="admin">Administrador</option>
+                        <option value="barber">Barbero</option>
+                        <option value="staff">Personal Barbería</option>
+                    </select>
+                </div>
+                <!-- Sucursales selector -->
+                <div class="ms-dropdown" @click.outside="dropdowns.inviteBranches = false">
+                    <label class="block text-xs text-neutral-400 mb-1">Sucursales asignadas</label>
+                    <button type="button" class="ms-trigger" @click="dropdowns.inviteBranches = !dropdowns.inviteBranches">
+                        <span x-show="!inviteForm.sucursales.length">Toda la organización</span>
+                        <span x-show="inviteForm.sucursales.length" class="truncate text-neutral-300"
+                              x-text="inviteForm.sucursales.length + ' seleccionada(s)'"></span>
+                        <span x-show="inviteForm.sucursales.length" class="ms-count" x-text="inviteForm.sucursales.length"></span>
+                        <svg class="w-4 h-4 text-neutral-400 ml-1 transition-transform" :class="dropdowns.inviteBranches ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div class="ms-panel" x-show="dropdowns.inviteBranches" x-transition>
+                        {% for suc in sucursales %}
+                        <label class="ms-option">
+                            <input type="checkbox" :value="{{ suc.id }}" x-model.number="inviteForm.sucursales">
+                            <span>{{ suc.name }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    <p class="text-[10px] text-neutral-500 mt-1 leading-tight">Selecciona al menos una sucursal. Si no seleccionas ninguna, tendrá acceso a toda la organización.</p>
+                </div>
+            </div>
+            
+            <div class="flex gap-3 pt-2">
+                <button @click="modals.invite = false" class="flex-1 py-2 rounded-lg text-sm font-medium border border-neutral-700 text-neutral-300 hover:bg-neutral-800 transition-colors">Cancelar</button>
+                <button @click="sendInvitation()" :disabled="loading" class="btn-action-primary flex-1 py-2 rounded-lg text-sm font-medium border border-brand text-white disabled:opacity-50 flex items-center justify-center gap-2">
+                    <svg x-show="loading" class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <span x-text="loading ? 'Enviando...' : 'Enviar invitación'"></span>
+                </button>
+            </div>
         </div>
-        {% endif %}
-    </section>
+    </div>
+
+    <!-- Modal Editar Usuario -->
+    <div x-show="modals.editUser" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" x-transition x-cloak>
+        <div class="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4" @click.outside="modals.editUser = false">
+            <h3 class="font-heading font-bold text-lg text-white">Editar Usuario</h3>
+            
+            <div class="space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs text-neutral-400 mb-1 block">Nombre</label>
+                        <input type="text" x-model="editForm.name" disabled
+                               class="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-800 rounded-lg text-neutral-500 text-sm cursor-not-allowed">
+                    </div>
+                    <div>
+                        <label class="text-xs text-neutral-400 mb-1 block">Correo</label>
+                        <input type="email" x-model="editForm.email" disabled
+                               class="w-full px-4 py-3 bg-neutral-800/50 border border-neutral-800 rounded-lg text-neutral-500 text-sm cursor-not-allowed">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-xs text-neutral-400 mb-1 block">Rol</label>
+                    <select x-model="editForm.role" class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors appearance-none">
+                        <option value="admin">Administrador</option>
+                        <option value="barber">Barbero</option>
+                        <option value="staff">Personal Barbería</option>
+                    </select>
+                </div>
+                <!-- Sucursales selector -->
+                <div class="ms-dropdown" @click.outside="dropdowns.editBranches = false">
+                    <label class="block text-xs text-neutral-400 mb-1">Sucursales asignadas</label>
+                    <button type="button" class="ms-trigger" @click="dropdowns.editBranches = !dropdowns.editBranches">
+                        <span x-show="!editForm.sucursales.length">Toda la organización</span>
+                        <span x-show="editForm.sucursales.length" class="truncate text-neutral-300"
+                              x-text="editForm.sucursales.length + ' seleccionada(s)'"></span>
+                        <span x-show="editForm.sucursales.length" class="ms-count" x-text="editForm.sucursales.length"></span>
+                        <svg class="w-4 h-4 text-neutral-400 ml-1 transition-transform" :class="dropdowns.editBranches ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div class="ms-panel" x-show="dropdowns.editBranches" x-transition>
+                        {% for suc in sucursales %}
+                        <label class="ms-option">
+                            <input type="checkbox" :value="{{ suc.id }}" x-model.number="editForm.sucursales">
+                            <span>{{ suc.name }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex gap-3 pt-2">
+                <button @click="modals.editUser = false" class="flex-1 py-2 rounded-lg text-sm font-medium border border-neutral-700 text-neutral-300 hover:bg-neutral-800 transition-colors">Cancelar</button>
+                <button @click="updateUser()" :disabled="loading" class="btn-action-primary flex-1 py-2 rounded-lg text-sm font-medium border border-brand text-white disabled:opacity-50 flex items-center justify-center gap-2">
+                    <svg x-show="loading" class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <span x-text="loading ? 'Guardando...' : 'Guardar cambios'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- ═══════════════════════════════════════════ -->
-<!-- MODAL: Crear/Editar Sucursal               -->
+<!-- MODALES DE SUCURSALES (Conservados)         -->
 <!-- ═══════════════════════════════════════════ -->
 <div id="modal-sucursal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
     <div class="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
@@ -286,9 +540,6 @@
     </div>
 </div>
 
-<!-- ═══════════════════════════════════════════ -->
-<!-- MODAL: Confirmación de desactivación       -->
-<!-- ═══════════════════════════════════════════ -->
 <div id="modal-confirm-deactivate" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
     <div class="w-full max-w-sm bg-neutral-900 border border-red-900/50 rounded-xl p-6 space-y-4">
         <div class="flex items-center gap-3">
@@ -321,6 +572,174 @@ function getCookie(name) {
 }
 const csrfToken = getCookie('csrftoken');
 const headers = {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken};
+
+// Alpine App
+document.addEventListener('alpine:init', () => {
+    Alpine.data('configApp', () => ({
+        tab: 'organizacion',
+        loading: false,
+        modals: {
+            invite: false,
+            editUser: false,
+        },
+        dropdowns: {
+            inviteBranches: false,
+            editBranches: false,
+        },
+        inviteForm: {
+            email: '',
+            role: 'barber',
+            sucursales: []
+        },
+        editForm: {
+            id: null,
+            email: '',
+            name: '',
+            role: '',
+            sucursales: []
+        },
+        
+        openInviteModal() {
+            this.inviteForm = { email: '', role: 'barber', sucursales: [] };
+            this.modals.invite = true;
+        },
+        
+        openEditModal(id, email, name, role, sucursales) {
+            this.editForm = {
+                id: id,
+                email: email,
+                name: name,
+                role: role,
+                sucursales: sucursales || []
+            };
+            this.modals.editUser = true;
+        },
+
+        async fetchContainers() {
+            try {
+                const res = await fetch(window.location.href);
+                const text = await res.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, 'text/html');
+                const newInvitations = doc.getElementById('invitations-container').innerHTML;
+                document.getElementById('invitations-container').innerHTML = newInvitations;
+                const newUsers = doc.getElementById('users-container').innerHTML;
+                document.getElementById('users-container').innerHTML = newUsers;
+            } catch (err) { console.error('Error fetching data', err); }
+        },
+        
+        async sendInvitation() {
+            if(!this.inviteForm.email) return Swal.fire('Atención', 'Ingresa un correo', 'warning');
+            this.loading = true;
+            try {
+                const res = await fetch('{% url "configuracion:api_send_invitation" %}', {
+                    method: 'POST', headers, body: JSON.stringify(this.inviteForm)
+                });
+                if(res.ok) {
+                    this.modals.invite = false;
+                    await this.fetchContainers();
+                    Swal.fire({
+                        title: '¡Invitación enviada!',
+                        icon: 'success',
+                        background: '#1a1a1c',
+                        color: '#fff',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                }
+                else Swal.fire('Error', (await res.json()).error || 'Error enviando invitación', 'error');
+            } catch (err) { Swal.fire('Error', 'Error de conexión', 'error'); }
+            this.loading = false;
+        },
+        
+        async updateUser() {
+            this.loading = true;
+            try {
+                const res = await fetch(`/app/configuracion/api/memberships/${this.editForm.id}/update/`, {
+                    method: 'POST', headers, body: JSON.stringify({
+                        role: this.editForm.role,
+                        sucursales: this.editForm.sucursales
+                    })
+                });
+                if(res.ok) {
+                    this.modals.editUser = false;
+                    await this.fetchContainers();
+                    Swal.fire({
+                        title: 'Guardado',
+                        icon: 'success',
+                        background: '#1a1a1c',
+                        color: '#fff',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                }
+                else Swal.fire('Error', (await res.json()).error || 'Error actualizando usuario', 'error');
+            } catch (err) { Swal.fire('Error', 'Error de conexión', 'error'); }
+            this.loading = false;
+        },
+        
+        async deleteUser(id) {
+            const result = await Swal.fire({
+                title: '¿Quitar acceso?',
+                text: "El usuario ya no podrá acceder a la plataforma.",
+                icon: 'warning',
+                showCancelButton: true,
+                background: '#1a1a1c',
+                color: '#fff',
+                confirmButtonColor: '#ff2301',
+                cancelButtonColor: '#3f3f46',
+                confirmButtonText: 'Sí, quitar acceso',
+                cancelButtonText: 'Cancelar'
+            });
+            if(!result.isConfirmed) return;
+
+            try {
+                const res = await fetch(`/app/configuracion/api/memberships/${id}/deactivate/`, {
+                    method: 'POST', headers, body: '{}'
+                });
+                if(res.ok) {
+                    await this.fetchContainers();
+                }
+                else Swal.fire('Error', (await res.json()).error || 'Error eliminando usuario', 'error');
+            } catch (err) { Swal.fire('Error', 'Error de conexión', 'error'); }
+        },
+        
+        async cancelInvitation(id) {
+            const result = await Swal.fire({
+                title: '¿Cancelar invitación?',
+                icon: 'warning',
+                showCancelButton: true,
+                background: '#1a1a1c',
+                color: '#fff',
+                confirmButtonColor: '#ff2301',
+                cancelButtonColor: '#3f3f46',
+                confirmButtonText: 'Sí, cancelar'
+            });
+            if(!result.isConfirmed) return;
+
+            try {
+                const res = await fetch(`/app/configuracion/api/invitations/${id}/cancel/`, {
+                    method: 'POST', headers, body: '{}'
+                });
+                if(res.ok) {
+                    await this.fetchContainers();
+                }
+                else Swal.fire('Error', (await res.json()).error || 'Error cancelando invitación', 'error');
+            } catch (err) { Swal.fire('Error', 'Error de conexión', 'error'); }
+        },
+        
+        async resendInvitation(id) {
+            try {
+                const res = await fetch(`/app/configuracion/api/invitations/${id}/resend/`, {
+                    method: 'POST', headers, body: '{}'
+                });
+                if(res.ok) {
+                    await this.fetchContainers();
+                } else alert((await res.json()).error || 'Error reenviando invitación');
+            } catch (err) { alert('Error de conexión'); }
+        }
+    }));
+});
 
 // ── Organization ──
 async function saveOrganization() {
