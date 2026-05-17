@@ -1,0 +1,445 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#ff2301">
+    <meta name="description" content="BarberSync - Agenda inteligente, inventario y analítica financiera para barberías.">
+    <link rel="manifest" href="{% static 'manifest.json' %}">
+    <title>BarberSync - El Software que tu Barbería Estaba Esperando</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Roboto:wght@500;700;900&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            DEFAULT: '#ff2301',
+                            50:  '#fff1f0',
+                            100: '#ffe0dc',
+                            200: '#ffc7c0',
+                            300: '#ffa093',
+                            400: '#ff6b56',
+                            500: '#ff2301',
+                            600: '#e01e00',
+                            700: '#b81800',
+                            800: '#971600',
+                            900: '#7d1600',
+                        },
+                        neutral: {
+                            DEFAULT: '#59595D',
+                            50:  '#f7f7f8',
+                            100: '#eeeef0',
+                            200: '#d9d9dd',
+                            300: '#b8b8be',
+                            400: '#91919a',
+                            500: '#59595D',
+                            600: '#5e5e63',
+                            700: '#4a4a4f',
+                            800: '#3d3d41',
+                            900: '#2a2a2d',
+                            950: '#1a1a1c',
+                        }
+                    },
+                    fontFamily: {
+                        heading: ['Roboto', 'sans-serif'],
+                        body: ['Poppins', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            pointer-events: none;
+            opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            background-repeat: repeat;
+            background-size: 256px 256px;
+        }
+        .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.6s ease-out, transform 0.6s ease-out; }
+        .reveal.visible { opacity: 1; transform: translateY(0); }
+        .hero-blob { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.35; pointer-events: none; }
+        .faq-content { max-height: 0; overflow: hidden; transition: max-height 0.35s ease-out, padding 0.35s ease-out; }
+        .faq-item.active .faq-content { max-height: 300px; }
+        .faq-icon { transition: transform 0.3s ease; }
+        .faq-item.active .faq-icon { transform: rotate(180deg); }
+        html { scroll-behavior: smooth; }
+        .glass { background: rgba(26,26,28,0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+        h1, h2, h3, h4 { font-family: 'Roboto', sans-serif; }
+        body, p, span, a, li, td, th, input, select, textarea, button { font-family: 'Poppins', sans-serif; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1a1a1c; }
+        ::-webkit-scrollbar-thumb { background: #59595D; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #ff2301; }
+    </style>
+</head>
+<body class="h-full bg-neutral-950 text-white font-body antialiased">
+
+<nav id="landing-nav" class="fixed top-0 left-0 right-0 z-50 transition-all duration-300">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center justify-between h-16">
+            <a href="/" class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-brand rounded-lg flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm5.95-5.95a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243z"/></svg>
+                </div>
+                <span class="font-heading font-bold text-xl text-white tracking-tight">Barber<span class="text-brand">Sync</span></span>
+            </a>
+            <div class="hidden md:flex items-center gap-8">
+                <a href="#funciona" class="text-sm text-neutral-400 hover:text-white transition-colors duration-200">C&oacute;mo funciona</a>
+                <a href="#planes" class="text-sm text-neutral-400 hover:text-white transition-colors duration-200">Planes</a>
+                <a href="#faq" class="text-sm text-neutral-400 hover:text-white transition-colors duration-200">FAQ</a>
+            </div>
+            <div class="flex items-center gap-3">
+                {% if user.is_authenticated %}
+                    <a href="{% url 'scheduling:calendar' %}" class="hidden sm:inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-neutral-800 border border-neutral-700 rounded-lg hover:bg-neutral-700 hover:-translate-y-0.5 transition-all duration-200">Ir a la aplicaci&oacute;n</a>
+                    <a href="{% url 'accounts:profile' %}" class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand rounded-lg hover:bg-brand-600 hover:-translate-y-0.5 transition-all duration-200 shadow-sm hover:shadow-brand/30">
+                        <div class="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center text-xs font-bold">{{ user.first_name|first|default:user.email|first|upper }}</div>Perfil
+                    </a>
+                {% else %}
+                    <a href="{% url 'account_signup' %}" class="text-sm font-medium text-neutral-300 hover:text-white transition-colors duration-200 px-3 py-2">Registrarse</a>
+                    <a href="{% url 'account_login' %}" class="text-sm font-medium text-white bg-brand px-5 py-2.5 rounded-lg hover:bg-brand-600 hover:-translate-y-0.5 transition-all duration-200 shadow-sm hover:shadow-brand/30">Iniciar Sesi&oacute;n</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</nav>
+
+<section class="relative min-h-screen flex items-center justify-center overflow-hidden pt-16">
+    <div class="hero-blob w-96 h-96 bg-brand top-0 left-0 -translate-x-1/2 -translate-y-1/2"></div>
+    <div class="hero-blob w-80 h-80 bg-purple-600 bottom-0 right-0 translate-x-1/3 translate-y-1/3 opacity-20"></div>
+    <div class="hero-blob w-64 h-64 bg-orange-500 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-10"></div>
+    <div class="absolute inset-0 z-0">
+        <img src="https://images.unsplash.com/photo-1585747860715-2ba37e788e70?q=80&w=2074&auto=format&fit=crop" alt="Barbershop interior" class="w-full h-full object-cover opacity-10">
+        <div class="absolute inset-0 bg-gradient-to-b from-neutral-950/80 via-neutral-950/90 to-neutral-950"></div>
+    </div>
+    <div class="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-neutral-900/80 border border-neutral-800 backdrop-blur-sm mb-8 reveal">
+            <span class="relative flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-brand"></span>
+            </span>
+            <span class="text-xs font-medium text-neutral-300 tracking-wide">Automatizando la operaci&oacute;n de <span class="text-white font-semibold">m&aacute;s de 500 barberos</span> y procesando <span class="text-white font-semibold">120,000+ intervenciones</span> anuales con cero margen de error en inventario.</span>
+        </div>
+        <h1 class="font-heading font-black text-4xl sm:text-5xl md:text-6xl lg:text-7xl text-white leading-[1.1] mb-6 reveal" style="transition-delay: 0.1s;">
+            El software que sabe que<br class="hidden sm:block"> tus barberos tambi&eacute;n <span class="text-brand">almuerzan</span><br class="hidden sm:block"> y venden <span class="text-brand">ceras</span>.
+        </h1>
+        <p class="max-w-2xl mx-auto text-lg sm:text-xl text-neutral-400 mb-10 reveal" style="transition-delay: 0.2s;">Agenda inteligente, inventario que se descuenta solo y anal&iacute;tica financiera real. Todo en una plataforma multi-tenant dise&ntilde;ada para barber&iacute;as que facturan en serio.</p>
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12 reveal" style="transition-delay: 0.3s;">
+            <a href="{% url 'account_signup' %}" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-brand text-white font-body font-semibold px-8 py-4 rounded-xl transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand/30 active:translate-y-0 text-base">Comenzar Prueba Gratis<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg></a>
+            <a href="#funciona" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-neutral-900 text-white font-body font-medium px-8 py-4 rounded-xl border border-neutral-700 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-neutral-800 hover:shadow-lg text-base">Ver c&oacute;mo funciona</a>
+        </div>
+        <p class="text-xs text-neutral-500 reveal" style="transition-delay: 0.4s;">No requiere tarjeta de cr&eacute;dito. Configuraci&oacute;n en menos de 60 segundos.</p>
+    </div>
+    <div class="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
+        <svg class="w-6 h-6 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+    </div>
+</section>
+
+<section class="relative py-24 sm:py-32">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="grid lg:grid-cols-2 gap-12 lg:gap-20 items-start">
+            <div class="reveal">
+                <span class="inline-block px-3 py-1 rounded-full bg-red-500/10 text-red-400 text-xs font-semibold tracking-wider uppercase mb-4">El Problema Real</span>
+                <h2 class="font-heading font-bold text-3xl sm:text-4xl text-white mb-8">S&aacute;bados con agendas cruzadas, inventario desaparecido y clientes que no aparecen.</h2>
+                <div class="space-y-6">
+                    <div class="flex gap-4 p-5 rounded-xl bg-neutral-900/50 border border-neutral-800/50">
+                        <div class="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center flex-shrink-0"><svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
+                        <div><h3 class="font-heading font-semibold text-white mb-1">Agendamiento cruzado y p&eacute;rdida de turnos</h3><p class="text-sm text-neutral-400">Dos clientes en el mismo horario porque nadie respeta los buffers de descanso entre barberos.</p></div>
+                    </div>
+                    <div class="flex gap-4 p-5 rounded-xl bg-neutral-900/50 border border-neutral-800/50">
+                        <div class="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center flex-shrink-0"><svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg></div>
+                        <div><h3 class="font-heading font-semibold text-white mb-1">P&eacute;rdidas ocultas de inventario</h3><p class="text-sm text-neutral-400">Ceras, champ&uacute;s y after-shave que se agotan sin aviso y nadie sabe cu&aacute;ndo ni por qu&eacute;.</p></div>
+                    </div>
+                    <div class="flex gap-4 p-5 rounded-xl bg-neutral-900/50 border border-neutral-800/50">
+                        <div class="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center flex-shrink-0"><svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg></div>
+                        <div><h3 class="font-heading font-semibold text-white mb-1">Ausentismo sin control</h3><p class="text-sm text-neutral-400">Clientes que reservan y no llegan, dejando huecos muertos que nadie logra cubrir a tiempo.</p></div>
+                    </div>
+                </div>
+            </div>
+            <div class="reveal" style="transition-delay: 0.2s;">
+                <span class="inline-block px-3 py-1 rounded-full bg-brand/10 text-brand text-xs font-semibold tracking-wider uppercase mb-4">La Soluci&oacute;n BarberSync</span>
+                <h2 class="font-heading font-bold text-3xl sm:text-4xl text-white mb-8">Sincronizaci&oacute;n total, stock autom&aacute;tico y recordatorios que funcionan.</h2>
+                <div class="space-y-6">
+                    <div class="flex gap-4 p-5 rounded-xl bg-neutral-900 border border-neutral-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-neutral-700">
+                        <div class="w-10 h-10 rounded-lg bg-brand/10 flex items-center justify-center flex-shrink-0"><svg class="w-5 h-5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
+                        <div><h3 class="font-heading font-semibold text-white mb-1">Sincronizaci&oacute;n en tiempo real</h3><p class="text-sm text-neutral-400">Buffers de descanso y horarios de almuerzo personalizados por barbero. Nunca m&aacute;s turnos superpuestos.</p></div>
+                    </div>
+                    <div class="flex gap-4 p-5 rounded-xl bg-neutral-900 border border-neutral-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-neutral-700">
+                        <div class="w-10 h-10 rounded-lg bg-brand/10 flex items-center justify-center flex-shrink-0"><svg class="w-5 h-5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg></div>
+                        <div><h3 class="font-heading font-semibold text-white mb-1">Descuento autom&aacute;tico de stock por intervenci&oacute;n</h3><p class="text-sm text-neutral-400">Vincula cada servicio a los productos que consume. El inventario se descuenta solo cuando se marca como hecho.</p></div>
+                    </div>
+                    <div class="flex gap-4 p-5 rounded-xl bg-neutral-900 border border-neutral-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-neutral-700">
+                        <div class="w-10 h-10 rounded-lg bg-brand/10 flex items-center justify-center flex-shrink-0"><svg class="w-5 h-5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></div>
+                        <div><h3 class="font-heading font-semibold text-white mb-1">Recordatorios autom&aacute;ticos as&iacute;ncronos</h3><p class="text-sm text-neutral-400">Email y notificaciones 1 d&iacute;a y 1 hora antes. Reduce el ausentismo hasta en un 70% desde el primer mes.</p></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="funciona" class="relative py-24 sm:py-32 bg-neutral-900/30">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-16 reveal">
+            <span class="inline-block px-3 py-1 rounded-full bg-brand/10 text-brand text-xs font-semibold tracking-wider uppercase mb-4">Proceso</span>
+            <h2 class="font-heading font-bold text-3xl sm:text-4xl text-white mb-4">De la configuraci&oacute;n a la primera reserva en 3 pasos</h2>
+            <p class="text-neutral-400 max-w-2xl mx-auto">No necesitas soporte t&eacute;cnico. BarberSync est&aacute; dise&ntilde;ado para que lo configures t&uacute; mismo en minutos, no en d&iacute;as.</p>
+        </div>
+        <div class="relative space-y-12 md:space-y-0">
+            <div class="hidden md:block absolute left-1/2 top-8 bottom-8 w-px -translate-x-1/2 bg-gradient-to-b from-brand via-brand/50 to-neutral-800"></div>
+            <div class="relative md:flex items-center gap-8 reveal">
+                <div class="md:w-1/2 md:text-right md:pr-12">
+                    <div class="p-6 rounded-2xl bg-neutral-900 border border-neutral-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-neutral-700">
+                        <h3 class="font-heading font-bold text-xl text-white mb-2">Registra tus sucursales y barberos</h3>
+                        <p class="text-sm text-neutral-400">Crea cada sede con sus horarios, zonas horarias y asigna barberos con sus horarios de almuerzo y d&iacute;as de descanso reales.</p>
+                    </div>
+                </div>
+                <div class="hidden md:flex absolute left-1/2 -translate-x-1/2 w-12 h-12 rounded-full bg-brand border-4 border-neutral-950 items-center justify-center z-10 shadow-lg shadow-brand/20"><span class="font-heading font-bold text-white text-sm">01</span></div>
+                <div class="md:w-1/2 md:pl-12 mt-4 md:mt-0">
+                    <img src="https://images.unsplash.com/photo-1621605815971-fbc98d665033?q=80&w=2070&auto=format&fit=crop" alt="Equipo de barberos" class="w-full h-48 object-cover rounded-xl opacity-80 hover:opacity-100 transition-opacity duration-300">
+                </div>
+            </div>
+            <div class="relative md:flex items-center gap-8 reveal">
+                <div class="md:w-1/2 md:pr-12 order-2 md:order-1 mt-4 md:mt-0">
+                    <img src="https://images.unsplash.com/photo-1503951914875-452162b0f3f1?q=80&w=2070&auto=format&fit=crop" alt="Servicios de barberia" class="w-full h-48 object-cover rounded-xl opacity-80 hover:opacity-100 transition-opacity duration-300">
+                </div>
+                <div class="hidden md:flex absolute left-1/2 -translate-x-1/2 w-12 h-12 rounded-full bg-brand border-4 border-neutral-950 items-center justify-center z-10 shadow-lg shadow-brand/20 order-1 md:order-2"><span class="font-heading font-bold text-white text-sm">02</span></div>
+                <div class="md:w-1/2 md:pl-12 md:text-left order-1 md:order-3">
+                    <div class="p-6 rounded-2xl bg-neutral-900 border border-neutral-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-neutral-700">
+                        <h3 class="font-heading font-bold text-xl text-white mb-2">Personaliza servicios y consumos</h3>
+                        <p class="text-sm text-neutral-400">Define cada corte, su duraci&oacute;n exacta, precio y los productos que autom&aacute;ticamente descuentan del inventario al ejecutarse.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="relative md:flex items-center gap-8 reveal">
+                <div class="md:w-1/2 md:text-right md:pr-12">
+                    <div class="p-6 rounded-2xl bg-neutral-900 border border-neutral-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-neutral-700">
+                        <h3 class="font-heading font-bold text-xl text-white mb-2">Comparte tu link y ve crecer tus ingresos</h3>
+                        <p class="text-sm text-neutral-400">Recibe reservas online con Google Auth, monitorea ocupaci&oacute;n por sucursal y controla tus finanzas en un solo dashboard centralizado.</p>
+                    </div>
+                </div>
+                <div class="hidden md:flex absolute left-1/2 -translate-x-1/2 w-12 h-12 rounded-full bg-brand border-4 border-neutral-950 items-center justify-center z-10 shadow-lg shadow-brand/20"><span class="font-heading font-bold text-white text-sm">03</span></div>
+                <div class="md:w-1/2 md:pl-12 mt-4 md:mt-0">
+                    <img src="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?q=80&w=2070&auto=format&fit=crop" alt="Clientes reservando" class="w-full h-48 object-cover rounded-xl opacity-80 hover:opacity-100 transition-opacity duration-300">
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="relative py-24 sm:py-32 overflow-hidden">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-16 reveal">
+            <span class="inline-block px-3 py-1 rounded-full bg-brand/10 text-brand text-xs font-semibold tracking-wider uppercase mb-4">Resultados Reales</span>
+            <h2 class="font-heading font-bold text-3xl sm:text-4xl text-white mb-4">Antes vs Despu&eacute;s: BarberSync en operaci&oacute;n</h2>
+            <p class="text-neutral-400 max-w-2xl mx-auto">Datos reales de migraci&oacute;n de barber&iacute;as que operaban con papel, WhatsApp y hojas de Excel.</p>
+        </div>
+        <div class="grid md:grid-cols-3 gap-6" id="evidence-grid">
+            <div class="reveal group p-6 rounded-2xl bg-neutral-900 border border-neutral-800 hover:border-neutral-700 transition-all duration-300 hover:-translate-y-1">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center text-sm font-bold text-neutral-400">BS</div>
+                    <div><p class="text-sm font-semibold text-white">Barber&iacute;a Estilo Urbano</p><p class="text-xs text-neutral-500">3 sucursales, 12 barberos</p></div>
+                </div>
+                <div class="space-y-4">
+                    <div class="p-3 rounded-lg bg-red-500/5 border border-red-500/10"><p class="text-[10px] uppercase tracking-wider text-red-400 font-semibold mb-1">Antes</p><p class="text-sm text-neutral-300">&quot;Los s&aacute;bados era un caos. Agendas en papel, descuadres constantes y clientes que se iban porque el barbero ya estaba ocupado.&quot;</p></div>
+                    <div class="p-3 rounded-lg bg-brand/5 border border-brand/10"><p class="text-[10px] uppercase tracking-wider text-brand font-semibold mb-1">Despu&eacute;s</p><p class="text-sm text-neutral-300">Sincronizaci&oacute;n total entre las 3 sedes. Zero turnos cruzados. Tracking financiero autom&aacute;tico por sucursal y por barbero.</p></div>
+                </div>
+            </div>
+            <div class="reveal group p-6 rounded-2xl bg-neutral-900 border border-neutral-800 hover:border-neutral-700 transition-all duration-300 hover:-translate-y-1" style="transition-delay: 0.1s;">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center text-sm font-bold text-neutral-400">GB</div>
+                    <div><p class="text-sm font-semibold text-white">Gentlemens Barbershop</p><p class="text-xs text-neutral-500">1 local, 4 barberos</p></div>
+                </div>
+                <div class="space-y-4">
+                    <div class="p-3 rounded-lg bg-red-500/5 border border-red-500/10"><p class="text-[10px] uppercase tracking-wider text-red-400 font-semibold mb-1">Antes</p><p class="text-sm text-neutral-300">&quot;Compraba cera a granel y a mitad de mes no sab&iacute;a qu&eacute; pas&oacute;. Se agotaba sin aviso y perd&iacute;a ventas por no tener stock.&quot;</p></div>
+                    <div class="p-3 rounded-lg bg-brand/5 border border-brand/10"><p class="text-[10px] uppercase tracking-wider text-brand font-semibold mb-1">Despu&eacute;s</p><p class="text-sm text-neutral-300">Alertas de stock bajo por email. Descuento autom&aacute;tico vinculado a cada corte. Zero roturas de inventario en 8 meses.</p></div>
+                </div>
+            </div>
+            <div class="reveal group p-6 rounded-2xl bg-neutral-900 border border-neutral-800 hover:border-neutral-700 transition-all duration-300 hover:-translate-y-1" style="transition-delay: 0.2s;">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center text-sm font-bold text-neutral-400">CB</div>
+                    <div><p class="text-sm font-semibold text-white">Corte &amp; Barba Cadena</p><p class="text-xs text-neutral-500">8 sucursales, 45 barberos</p></div>
+                </div>
+                <div class="space-y-4">
+                    <div class="p-3 rounded-lg bg-red-500/5 border border-red-500/10"><p class="text-[10px] uppercase tracking-wider text-red-400 font-semibold mb-1">Antes</p><p class="text-sm text-neutral-300">&quot;Cada gerente usaba su propio sistema. No ten&iacute;a visi&oacute;n centralizada de cu&aacute;nto facturaba la cadena en realidad.&quot;</p></div>
+                    <div class="p-3 rounded-lg bg-brand/5 border border-brand/10"><p class="text-[10px] uppercase tracking-wider text-brand font-semibold mb-1">Despu&eacute;s</p><p class="text-sm text-neutral-300">Dashboard multi-tenant con anal&iacute;tica por sede y consolidado. Control total de ingresos, costos y rentabilidad por punto.</p></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="planes" class="relative py-24 sm:py-32 bg-neutral-900/30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-16 reveal">
+            <span class="inline-block px-3 py-1 rounded-full bg-brand/10 text-brand text-xs font-semibold tracking-wider uppercase mb-4">Planes</span>
+            <h2 class="font-heading font-bold text-3xl sm:text-4xl text-white mb-4">Un plan para cada escala de operaci&oacute;n</h2>
+            <p class="text-neutral-400 max-w-2xl mx-auto">Empieza gratis y escala sin fricci&oacute;n. Sin contratos de permanencia. Cancela cuando quieras.</p>
+        </div>
+        <div class="grid md:grid-cols-3 gap-8 items-center">
+            <div class="reveal p-8 rounded-2xl bg-neutral-900 border border-neutral-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-neutral-700">
+                <h3 class="font-heading font-bold text-xl text-white mb-2">Barbero Independiente</h3>
+                <p class="text-sm text-neutral-400 mb-6">Para el profesional que trabaja solo y necesita orden.</p>
+                <div class="mb-6"><span class="font-heading font-black text-4xl text-white">$19</span><span class="text-neutral-400 text-sm">/mes</span></div>
+                <ul class="space-y-3 mb-8">
+                    <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>1 sucursal</li>
+                    <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Agenda inteligente</li>
+                    <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Control de inventario b&aacute;sico</li>
+                    <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Recordatorios por email</li>
+                </ul>
+                <a href="{% url 'account_signup' %}" class="block w-full text-center py-3 rounded-xl border border-neutral-700 text-white font-medium hover:bg-neutral-800 hover:-translate-y-0.5 transition-all duration-200">Elegir plan</a>
+            </div>
+            <div class="reveal p-8 rounded-2xl bg-neutral-900 border-2 border-brand relative transform md:scale-105 shadow-2xl shadow-brand/10">
+                <div class="absolute -top-4 left-1/2 -translate-x-1/2">
+                    <span class="inline-block px-4 py-1 rounded-full bg-brand text-white text-xs font-bold tracking-wider uppercase">M&aacute;s Popular</span>
+                </div>
+                <h3 class="font-heading font-bold text-xl text-white mb-2">Barber&iacute;a Local</h3>
+                <p class="text-sm text-neutral-400 mb-6">Para la barber&iacute;a establecida que quiere crecer sin caos.</p>
+                <div class="mb-6"><span class="font-heading font-black text-4xl text-white">$49</span><span class="text-neutral-400 text-sm">/mes</span></div>
+                <ul class="space-y-3 mb-8">
+                    <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>1 sucursal</li>
+                    <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Hasta 8 barberos</li>
+                    <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Portal de reservas con Google Auth</li>
+                    <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>CRM y tracking financiero</li>
+                    <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Inventario inteligente con descuento auto</li>
+                </ul>
+                <a href="{% url 'account_signup' %}" class="block w-full text-center py-3 rounded-xl bg-brand text-white font-semibold hover:bg-brand-600 hover:-translate-y-0.5 transition-all duration-200 shadow-lg shadow-brand/20">Comenzar prueba gratis</a>
+            </div>
+            <div class="reveal p-8 rounded-2xl bg-neutral-900 border border-neutral-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-neutral-700">
+                <h3 class="font-heading font-bold text-xl text-white mb-2">Cadenas Multi-sucursal</h3>
+                <p class="text-sm text-neutral-400 mb-6">Para cadenas que necesitan visi&oacute;n centralizada y control total.</p>
+                <div class="mb-6"><span class="font-heading font-black text-4xl text-white">$129</span><span class="text-neutral-400 text-sm">/mes</span></div>
+                <ul class="space-y-3 mb-8">
+                    <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Sucursales ilimitadas</li>
+                    <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Barberos ilimitados</li>
+                    <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Anal&iacute;tica consolidada por cadena</li>
+                    <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Roles y permisos avanzados</li>
+                    <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Soporte prioritario</li>
+                </ul>
+                <a href="{% url 'account_signup' %}" class="block w-full text-center py-3 rounded-xl border border-neutral-700 text-white font-medium hover:bg-neutral-800 hover:-translate-y-0.5 transition-all duration-200">Elegir plan</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="faq" class="relative py-24 sm:py-32">
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-12 reveal">
+            <span class="inline-block px-3 py-1 rounded-full bg-brand/10 text-brand text-xs font-semibold tracking-wider uppercase mb-4">FAQ</span>
+            <h2 class="font-heading font-bold text-3xl sm:text-4xl text-white mb-4">Preguntas r&aacute;pidas</h2>
+            <p class="text-neutral-400">Respuestas directas sobre c&oacute;mo BarberSync opera en el d&iacute;a a d&iacute;a de tu negocio.</p>
+        </div>
+        <div class="space-y-4">
+            <div class="faq-item reveal rounded-xl bg-neutral-900 border border-neutral-800 overflow-hidden">
+                <button class="faq-toggle w-full flex items-center justify-between p-5 text-left">
+                    <span class="font-heading font-semibold text-white text-sm sm:text-base">&iquest;Qu&eacute; significa multi-tenant y por qu&eacute; importa para mi cadena?</span>
+                    <svg class="faq-icon w-5 h-5 text-neutral-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div class="faq-content px-5">
+                    <p class="text-sm text-neutral-400 pb-5">Multi-tenant significa que cada sucursal opera con su propia agenda, inventario y barberos, pero t&uacute; como due&ntilde;o ves todo consolidado en un solo dashboard. No necesitas m&uacute;ltiples cuentas ni sistemas separados. BarberSync separa los datos por tenant (sucursal) autom&aacute;ticamente, con permisos granulares por rol.</p>
+                </div>
+            </div>
+            <div class="faq-item reveal rounded-xl bg-neutral-900 border border-neutral-800 overflow-hidden" style="transition-delay: 0.1s;">
+                <button class="faq-toggle w-full flex items-center justify-between p-5 text-left">
+                    <span class="font-heading font-semibold text-white text-sm sm:text-base">&iquest;C&oacute;mo funciona la integraci&oacute;n de Google Auth para mis clientes?</span>
+                    <svg class="faq-icon w-5 h-5 text-neutral-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div class="faq-content px-5">
+                    <p class="text-sm text-neutral-400 pb-5">Tus clientes reservan a trav&eacute;s de tu link p&uacute;blico personalizado y pueden autenticarse con su cuenta de Google en un clic. Esto elimina fricci&oacute;n, reduce errores de datos de contacto y permite que BarberSync env&iacute;e recordatorios autom&aacute;ticos al email correcto sin que el cliente tenga que recordar contrase&ntilde;as.</p>
+                </div>
+            </div>
+            <div class="faq-item reveal rounded-xl bg-neutral-900 border border-neutral-800 overflow-hidden" style="transition-delay: 0.2s;">
+                <button class="faq-toggle w-full flex items-center justify-between p-5 text-left">
+                    <span class="font-heading font-semibold text-white text-sm sm:text-base">&iquest;El control de inventario descuenta stock autom&aacute;ticamente por cada corte?</span>
+                    <svg class="faq-icon w-5 h-5 text-neutral-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div class="faq-content px-5">
+                    <p class="text-sm text-neutral-400 pb-5">S&iacute;. Cuando configuras un servicio (ej: Corte Premium), defines los productos que consume (ej: 3ml de cera, 1 toalla desechable). Al momento de marcar la intervenci&oacute;n como realizada, BarberSync descuenta esas cantidades del inventario en tiempo real y alerta cuando el stock llega al m&iacute;nimo configurado.</p>
+                </div>
+            </div>
+            <div class="faq-item reveal rounded-xl bg-neutral-900 border border-neutral-800 overflow-hidden" style="transition-delay: 0.3s;">
+                <button class="faq-toggle w-full flex items-center justify-between p-5 text-left">
+                    <span class="font-heading font-semibold text-white text-sm sm:text-base">&iquest;Puedo migrar desde otro sistema o desde papel?</span>
+                    <svg class="faq-icon w-5 h-5 text-neutral-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div class="faq-content px-5">
+                    <p class="text-sm text-neutral-400 pb-5">Absolutamente. Puedes empezar desde cero en 60 segundos importando tu cat&aacute;logo de servicios y productos v&iacute;a CSV. Si vienes de Google Calendar o una agenda f&iacute;sica, nuestro equipo de onboarding te ayuda a cargar tus turnos hist&oacute;ricos para no perder continuidad.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="relative py-24 sm:py-32 bg-neutral-900/30">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center reveal">
+        <h2 class="font-heading font-black text-3xl sm:text-4xl md:text-5xl text-white mb-6">Tu barber&iacute;a ya deber&iacute;a estar sincronizada.</h2>
+        <p class="text-lg text-neutral-400 mb-10">Configura tu cuenta en 60 segundos. No requiere tarjeta de cr&eacute;dito. Cancela cuando quieras.</p>
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <a href="{% url 'account_signup' %}" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-brand text-white font-body font-semibold px-8 py-4 rounded-xl transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand/30 active:translate-y-0 text-base">Registrar mi Barber&iacute;a<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg></a>
+            <a href="{% url 'account_login' %}" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-neutral-900 text-white font-body font-medium px-8 py-4 rounded-xl border border-neutral-700 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-neutral-800 hover:shadow-lg text-base">Ya tengo cuenta</a>
+        </div>
+    </div>
+</section>
+
+<footer class="border-t border-neutral-800 py-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-brand rounded-lg flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm5.95-5.95a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243z"/></svg>
+                </div>
+                <span class="font-heading font-bold text-lg text-white">Barber<span class="text-brand">Sync</span></span>
+            </div>
+            <div class="flex items-center gap-6 text-sm text-neutral-400">
+                <a href="#" class="hover:text-white transition-colors">T&eacute;rminos</a>
+                <a href="#" class="hover:text-white transition-colors">Privacidad</a>
+                <a href="#" class="hover:text-white transition-colors">Contacto</a>
+            </div>
+            <p class="text-xs text-neutral-500">&copy; 2025 BarberSync. Todos los derechos reservados.</p>
+        </div>
+    </div>
+</footer>
+
+<script>
+    const revealElements = document.querySelectorAll('.reveal');
+    const revealObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+            }
+        });
+    }, { threshold: 0.1 });
+    revealElements.forEach(el => revealObserver.observe(el));
+
+    const nav = document.getElementById('landing-nav');
+    window.addEventListener('scroll', () => {
+        if (window.scrollY > 40) {
+            nav.classList.add('glass', 'border-b', 'border-neutral-800/50');
+        } else {
+            nav.classList.remove('glass', 'border-b', 'border-neutral-800/50');
+        }
+    });
+
+    document.querySelectorAll('.faq-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const item = btn.closest('.faq-item');
+            const isActive = item.classList.contains('active');
+            document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('active'));
+            if (!isActive) item.classList.add('active');
+        });
+    });
+</script>
+</body>
+</html>

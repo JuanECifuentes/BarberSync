@@ -5,6 +5,8 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 
+from apps.core.views import LandingPageView
+
 
 def root_redirect(request):
     if request.user.is_authenticated:
@@ -13,13 +15,11 @@ def root_redirect(request):
 
 
 urlpatterns = [
-    path("", root_redirect, name="root"),
+    path("", LandingPageView.as_view(), name="root"),
     path("admin/", admin.site.urls),
-
     # Auth (allauth handles Google OAuth + email login)
     path("accounts/", include("allauth.urls")),
     path("accounts/", include("apps.accounts.urls")),
-
     # Internal app (requires login)
     path("app/schedule/", include("apps.scheduling.urls")),
     path("app/clients/", include("apps.clients.urls")),
@@ -28,7 +28,6 @@ urlpatterns = [
     path("app/intervenciones/", include("apps.scheduling.urls_intervenciones")),
     path("app/configuracion/", include("apps.accounts.urls_configuracion")),
     path("app/barberos/", include("apps.accounts.urls_barberos")),
-
     # Public booking page (no login required – clients use Google Auth)
     path("book/", include("apps.booking.urls")),
 ]
