@@ -53,3 +53,18 @@ Notas BarberSync:
   - bewe.io
   - agendapro.co
   - beunik
+
+Stripe 
+Configuración del webhook:
+Debes configurar el webhook en el Stripe Dashboard (Developers > Webhooks) apuntando a:
+https://tudominio.com/billing/webhook/stripe/
+Y seleccionar estos 3 eventos específicos:
+Evento	Propósito
+checkout.session.completed	Activación principal: se dispara cuando el Checkout se completa exitosamente. Aquí se crea la Subscription y la Invoice
+customer.subscription.updated	Cambios de estado: cuando Stripe actualiza el estado de la suscripción (trialing → active, active → past_due, etc.)
+customer.subscription.deleted	Cancelación definitiva: cuando la suscripción se elimina al final del periodo de gracia
+No selecciones "Send all events" — escuchar solo los 3 eventos necesarios reduce superficie de ataque y procesamiento innecesario.
+Stripe te dará un whsec_... que va en tu .env como STRIPE_WEBHOOK_SECRET=whsec_xxxxx.
+Para desarrollo local, usá el CLI de Stripe:
+stripe listen --forward-to localhost:8000/billing/webhook/stripe/
+Eso te genera un whsec_ de prueba y reenvía los eventos a tu servidor local.

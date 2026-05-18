@@ -9,8 +9,71 @@ from django.utils import timezone
 from django.shortcuts import render
 
 from .models import Barbershop, Membership, OrganizationInvitation
-from .forms import ProfileForm
+from .forms import ProfileForm, OrganizationOnboardingForm, BarbershopOnboardingForm
+from django.db import transaction
 
+class OnboardingView(LoginRequiredMixin, View):
+    template_name = "accounts/onboarding.html"
+
+    def get(self, request):
+        # Redirect if user already has an active membership with an organization
+        membership = request.user.memberships.filter(is_active=True).first()
+        if membership and membership.organization:
+            return redirect("root")
+            
+        org_form = OrganizationOnboardingForm()
+        shop_form = BarbershopOnboardingForm()
+        return render(request, self.template_name, {
+            "org_form": org_form,
+            "shop_form": shop_form,
+            "is_booking_page": True,
+        })
+
+    def post(self, request):
+        membership = request.user.memberships.filter(is_active=True).first()
+        if membership and membership.organization:
+            return redirect("root")
+
+        org_form = OrganizationOnboardingForm(request.POST)
+        shop_form = BarbershopOnboardingForm(request.POST)
+
+        if org_form.is_valid() and shop_form.is_valid():
+            with transaction.atomic():
+                org = org_form.save(commit=False)
+                org.owner = request.user
+                org.save()
+
+                shop = shop_form.save(commit=False)
+                shop.organization = org
+                shop.save()
+
+                if not membership:
+                    membership = Membership.objects.create(
+                        user=request.user,
+                        organization=org,
+                        role=Membership.Role.OWNER,
+                        is_active=True
+                    )
+                else:
+                    membership.organization = org
+                    membership.save(update_fields=["organization"])
+
+                # Update orphaned subscriptions and invoices
+                from apps.billing.models import Subscription, Invoice
+                Subscription.objects.filter(user=request.user, organization__isnull=True).update(organization=org)
+                Invoice.objects.filter(user=request.user, organization__isnull=True).update(organization=org)
+                
+                if hasattr(request.user, "_membership_cache"):
+                    del request.user._membership_cache
+
+                messages.success(request, "¡Organización creada exitosamente! Bienvenido a BarberSync.")
+                return redirect("root")
+
+        return render(request, self.template_name, {
+            "org_form": org_form,
+            "shop_form": shop_form,
+            "is_booking_page": True,
+        })
 
 class ProfileView(LoginRequiredMixin, UpdateView):
     template_name = "accounts/profile.html"

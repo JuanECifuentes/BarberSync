@@ -28,6 +28,8 @@ urlpatterns = [
     path("app/intervenciones/", include("apps.scheduling.urls_intervenciones")),
     path("app/configuracion/", include("apps.accounts.urls_configuracion")),
     path("app/barberos/", include("apps.accounts.urls_barberos")),
+    # Billing / Payments
+    path("billing/", include("apps.billing.urls")),
     # Public booking page (no login required – clients use Google Auth)
     path("book/", include("apps.booking.urls")),
 ]

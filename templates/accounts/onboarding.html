@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Configurar Organización - BarberSync{% endblock %}
+
+{% block public_content %}
+<div class="min-h-screen bg-neutral-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div class="sm:mx-auto sm:w-full sm:max-w-md text-center">
+        <!-- Logo placeholder -->
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand/10 mb-4 shadow-lg shadow-brand/20">
+            <svg class="w-8 h-8 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+        </div>
+        <h2 class="text-3xl font-heading font-bold tracking-tight text-white">Configura tu Barbería</h2>
+        <p class="mt-2 text-sm text-neutral-400">
+            Ingresa los datos principales para empezar a usar BarberSync.
+        </p>
+    </div>
+
+    <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div class="card p-8 shadow-xl">
+            <form method="post" class="space-y-6">
+                {% csrf_token %}
+                
+                <div>
+                    <h3 class="text-lg font-medium text-white mb-4 border-b border-neutral-800 pb-2 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                        Datos de la Organización
+                    </h3>
+                    <div class="space-y-4">
+                        {% for field in org_form %}
+                        <div>
+                            <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-neutral-300 mb-1">
+                                {{ field.label }}
+                            </label>
+                            {{ field }}
+                            {% if field.errors %}
+                            <p class="mt-1 text-sm text-red-400">{{ field.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="pt-4">
+                    <h3 class="text-lg font-medium text-white mb-4 border-b border-neutral-800 pb-2 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.243-4.243a8 8 0 1111.314 0z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Tu Primera Sucursal
+                    </h3>
+                    <div class="space-y-4">
+                        {% for field in shop_form %}
+                        <div>
+                            <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-neutral-300 mb-1">
+                                {{ field.label }}
+                            </label>
+                            {{ field }}
+                            {% if field.errors %}
+                            <p class="mt-1 text-sm text-red-400">{{ field.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="pt-2">
+                    <button type="submit" class="w-full btn-primary flex justify-center items-center gap-2">
+                        <span>Comenzar a usar BarberSync</span>
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

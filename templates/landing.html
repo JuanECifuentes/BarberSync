@@ -299,7 +299,15 @@
                     <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Control de inventario b&aacute;sico</li>
                     <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Recordatorios por email</li>
                 </ul>
-                <a href="{% url 'account_signup' %}" class="block w-full text-center py-3 rounded-xl border border-neutral-700 text-white font-medium hover:bg-neutral-800 hover:-translate-y-0.5 transition-all duration-200">Elegir plan</a>
+                {% if user.is_authenticated %}
+                <form method="POST" action="{% url 'billing:checkout' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="plan_code" value="INDEPENDIENTE">
+                    <button type="submit" class="block w-full text-center py-3 rounded-xl border border-neutral-700 text-white font-medium hover:bg-neutral-800 hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand/50">Comenzar prueba</button>
+                </form>
+                {% else %}
+                <a href="{% url 'account_signup' %}?plan=INDEPENDIENTE" class="block w-full text-center py-3 rounded-xl border border-neutral-700 text-white font-medium hover:bg-neutral-800 hover:-translate-y-0.5 transition-all duration-200">Elegir plan</a>
+                {% endif %}
             </div>
             <div class="reveal p-8 rounded-2xl bg-neutral-900 border-2 border-brand relative transform md:scale-105 shadow-2xl shadow-brand/10">
                 <div class="absolute -top-4 left-1/2 -translate-x-1/2">
@@ -315,7 +323,15 @@
                     <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>CRM y tracking financiero</li>
                     <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Inventario inteligente con descuento auto</li>
                 </ul>
-                <a href="{% url 'account_signup' %}" class="block w-full text-center py-3 rounded-xl bg-brand text-white font-semibold hover:bg-brand-600 hover:-translate-y-0.5 transition-all duration-200 shadow-lg shadow-brand/20">Comenzar prueba gratis</a>
+                {% if user.is_authenticated %}
+                <form method="POST" action="{% url 'billing:checkout' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="plan_code" value="LOCAL">
+                    <button type="submit" class="block w-full text-center py-3 rounded-xl bg-brand text-white font-semibold hover:bg-brand-600 hover:-translate-y-0.5 transition-all duration-200 shadow-lg shadow-brand/20 focus:outline-none focus:ring-2 focus:ring-brand/50">Comenzar prueba gratis</button>
+                </form>
+                {% else %}
+                <a href="{% url 'account_signup' %}?plan=LOCAL" class="block w-full text-center py-3 rounded-xl bg-brand text-white font-semibold hover:bg-brand-600 hover:-translate-y-0.5 transition-all duration-200 shadow-lg shadow-brand/20">Comenzar prueba gratis</a>
+                {% endif %}
             </div>
             <div class="reveal p-8 rounded-2xl bg-neutral-900 border border-neutral-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-neutral-700">
                 <h3 class="font-heading font-bold text-xl text-white mb-2">Cadenas Multi-sucursal</h3>
@@ -328,7 +344,15 @@
                     <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Roles y permisos avanzados</li>
                     <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Soporte prioritario</li>
                 </ul>
-                <a href="{% url 'account_signup' %}" class="block w-full text-center py-3 rounded-xl border border-neutral-700 text-white font-medium hover:bg-neutral-800 hover:-translate-y-0.5 transition-all duration-200">Elegir plan</a>
+                {% if user.is_authenticated %}
+                <form method="POST" action="{% url 'billing:checkout' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="plan_code" value="CADENA">
+                    <button type="submit" class="block w-full text-center py-3 rounded-xl border border-neutral-700 text-white font-medium hover:bg-neutral-800 hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand/50">Comenzar prueba</button>
+                </form>
+                {% else %}
+                <a href="{% url 'account_signup' %}?plan=CADENA" class="block w-full text-center py-3 rounded-xl border border-neutral-700 text-white font-medium hover:bg-neutral-800 hover:-translate-y-0.5 transition-all duration-200">Elegir plan</a>
+                {% endif %}
             </div>
         </div>
     </div>
