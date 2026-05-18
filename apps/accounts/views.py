@@ -21,8 +21,8 @@ class OnboardingView(LoginRequiredMixin, View):
         if membership and membership.organization:
             return redirect("root")
             
-        org_form = OrganizationOnboardingForm()
-        shop_form = BarbershopOnboardingForm()
+        org_form = OrganizationOnboardingForm(prefix="org")
+        shop_form = BarbershopOnboardingForm(prefix="shop")
         return render(request, self.template_name, {
             "org_form": org_form,
             "shop_form": shop_form,
@@ -34,8 +34,8 @@ class OnboardingView(LoginRequiredMixin, View):
         if membership and membership.organization:
             return redirect("root")
 
-        org_form = OrganizationOnboardingForm(request.POST)
-        shop_form = BarbershopOnboardingForm(request.POST)
+        org_form = OrganizationOnboardingForm(request.POST, prefix="org")
+        shop_form = BarbershopOnboardingForm(request.POST, prefix="shop")
 
         if org_form.is_valid() and shop_form.is_valid():
             with transaction.atomic():
@@ -67,7 +67,7 @@ class OnboardingView(LoginRequiredMixin, View):
                     del request.user._membership_cache
 
                 messages.success(request, "¡Organización creada exitosamente! Bienvenido a BarberSync.")
-                return redirect("root")
+                return redirect("/app/schedule/")
 
         return render(request, self.template_name, {
             "org_form": org_form,

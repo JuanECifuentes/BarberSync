@@ -6,6 +6,8 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect
 from django.views import View
 from django.views.generic import TemplateView
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 
 from .models import Plan, PlanPrice, ProcessedWebhookEvent, Subscription, Invoice
 from .providers import BillingProviderFactory
@@ -79,6 +81,7 @@ class BillingCancelView(LoginRequiredMixin, TemplateView):
         return ctx
 
 
+@method_decorator(csrf_exempt, name="dispatch")
 class StripeWebhookView(View):
     def post(self, request):
         provider = BillingProviderFactory.get_provider("stripe")
