@@ -18,7 +18,7 @@ environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
 
 SECRET_KEY = env("SECRET_KEY", default="insecure-dev-key-change-me")
 DEBUG = env("DEBUG", default=True)
-ALLOWED_HOSTS = env.get_value("ALLOWED_HOSTS", default="localhost,127.0.0.1").split(',')
+ALLOWED_HOSTS = env.get_value("ALLOWED_HOSTS", default="localhost,127.0.0.1").split(",")
 
 # ──────────────────────────────────────────────
 # Application definition
@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "apps.clients",
     "apps.notifications",
     "apps.booking",
+    "apps.billing",
 ]
 
 MIDDLEWARE = [
@@ -62,6 +63,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     # BarberSync: inject current tenant into request
     "apps.core.middleware.TenantMiddleware",
+    "apps.accounts.middleware.OnboardingMiddleware",
 ]
 
 ROOT_URLCONF = "barbersync.urls"
@@ -89,13 +91,13 @@ WSGI_APPLICATION = "barbersync.wsgi.application"
 # Database – PostgreSQL
 # ──────────────────────────────────────────────
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME', 'workforce_db'),
-        'USER': os.getenv('DB_USER', 'postgres'),
-        'PASSWORD': os.getenv('DB_PASSWORD', 'postgres'),
-        'HOST': os.getenv('DB_HOST', 'localhost'),
-        'PORT': os.getenv('DB_PORT', '5432'),
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.getenv("DB_NAME", "workforce_db"),
+        "USER": os.getenv("DB_USER", "postgres"),
+        "PASSWORD": os.getenv("DB_PASSWORD", "postgres"),
+        "HOST": os.getenv("DB_HOST", "localhost"),
+        "PORT": os.getenv("DB_PORT", "5432"),
     }
 }
 # ──────────────────────────────────────────────
@@ -109,7 +111,9 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
+    },
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
@@ -176,7 +180,7 @@ Q_CLUSTER = {
     "timeout": 120,
     "retry": 180,
     "compress": True,
-    "orm": "default",       # Uses the DB as broker (no Redis needed to start)
+    "orm": "default",  # Uses the DB as broker (no Redis needed to start)
     "ack_failures": True,
     "max_attempts": 3,
     "label": "Django Q2",
@@ -208,3 +212,12 @@ CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
 BARBERSYNC_DEFAULT_OPEN_HOUR = 8
 BARBERSYNC_DEFAULT_CLOSE_HOUR = 20
 BARBERSYNC_DEFAULT_HISTORY_MONTHS = 6
+
+# ──────────────────────────────────────────────
+# Stripe / Billing
+# ──────────────────────────────────────────────
+STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY", default="")
+STRIPE_PUBLISHABLE_KEY = env("STRIPE_PUBLISHABLE_KEY", default="")
+STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", default="")
+BILLING_DEFAULT_PROVIDER = env("BILLING_DEFAULT_PROVIDER", default="stripe")
+BILLING_DEFAULT_CURRENCY = env("BILLING_DEFAULT_CURRENCY", default="USD")

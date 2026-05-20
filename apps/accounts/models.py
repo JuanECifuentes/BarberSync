@@ -158,6 +158,8 @@ class Membership(models.Model):
         Organization,
         on_delete=models.CASCADE,
         related_name="memberships",
+        null=True,
+        blank=True,
     )
     barbershop = models.ForeignKey(
         Barbershop,
