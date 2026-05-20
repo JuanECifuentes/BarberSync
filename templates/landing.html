@@ -76,6 +76,7 @@
         .faq-icon { transition: transform 0.3s ease; }
         .faq-item.active .faq-icon { transform: rotate(180deg); }
         .glass { background: rgba(26,26,28,0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+        html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
         h1, h2, h3, h4 { font-family: 'Roboto', sans-serif; }
         body, p, span, a, li, td, th, input, select, textarea, button { font-family: 'Poppins', sans-serif; }
         ::-webkit-scrollbar { width: 6px; }
@@ -94,7 +95,6 @@
                     <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm5.95-5.95a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243z"/></svg>
                 </div>
                 <span class="font-heading font-bold text-xl text-white tracking-tight">Barber<span class="text-brand">Sync</span></span>
-            <!-- </div> -->
             <div class="hidden md:flex items-center gap-8">
                 <a href="#solucion" class="nav-link text-sm text-neutral-400 hover:text-white transition-colors duration-200">Soluci&oacute;n</a>
                 <a href="#planes" class="nav-link text-sm text-neutral-400 hover:text-white transition-colors duration-200">Planes</a>
@@ -559,19 +559,40 @@
         }
     });
 
-    // Custom Smooth Scroll for Navbar Links
-    document.querySelectorAll('.nav-link').forEach(anchor => {
-        anchor.addEventListener('click', function (e) {
+    // Custom JS Smooth Scroll Animation (requestAnimationFrame)
+    function smoothScrollTo(targetEl, duration) {
+        const targetPosition = targetEl.getBoundingClientRect().top + window.scrollY - 80;
+        const startPosition = window.scrollY;
+        const distance = targetPosition - startPosition;
+        let startTime = null;
+
+        function animation(currentTime) {
+            if (startTime === null) startTime = currentTime;
+            const timeElapsed = currentTime - startTime;
+            const run = ease(timeElapsed, startPosition, distance, duration);
+            window.scrollTo(0, run);
+            if (timeElapsed < duration) {
+                requestAnimationFrame(animation);
+            } else {
+                window.scrollTo(0, targetPosition); // Asegurar posición exacta al final
+            }
+        }
+
+        function ease(t, b, c, d) {
+            t /= d;
+            return -c * t * (t - 2) + b; // Easing cuadrático de desaceleración
+        }
+
+        requestAnimationFrame(animation);
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function(e) {
+            e.preventDefault();
             const targetId = this.getAttribute('href');
-            if(targetId.startsWith('#')) {
-                e.preventDefault();
-                const targetElement = document.querySelector(targetId);
-                if (targetElement) {
-                    window.scrollTo({
-                        top: targetElement.offsetTop - 80, // Offset para el navbar fijo
-                        behavior: 'smooth'
-                    });
-                }
+            const targetElement = document.querySelector(targetId);
+            if (targetElement) {
+                smoothScrollTo(targetElement, 800); // Duración de 800ms para una bajada suave
             }
         });
     });
