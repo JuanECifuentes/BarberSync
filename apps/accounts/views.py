@@ -177,12 +177,15 @@ class AcceptInvitationView(View):
         user_exists = User.objects.filter(email__iexact=invitation.email).exists()
 
         current_active_org_name = ""
+        has_blocking_subscription = False
         if request.user.is_authenticated:
             active_membership = request.user.memberships.filter(
                 is_active=True
             ).exclude(organization=invitation.organization).first()
             if active_membership and active_membership.organization:
                 current_active_org_name = active_membership.organization.name
+                if active_membership.role == "owner" and active_membership.organization.has_active_subscription:
+                    has_blocking_subscription = True
 
         context = {
             "invitation": invitation,
@@ -190,6 +193,7 @@ class AcceptInvitationView(View):
             "email_match": request.user.is_authenticated
             and request.user.email.lower() == invitation.email.lower(),
             "current_active_org_name": current_active_org_name,
+            "has_blocking_subscription": has_blocking_subscription,
         }
 
         # Guardar token en sesión para que los signals funcionen si el usuario inicia sesión o se registra vía AllAuth
@@ -212,6 +216,15 @@ class AcceptInvitationView(View):
                 return JsonResponse({"error": "No estás autenticado."}, status=401)
             if request.user.email.lower() != invitation.email.lower():
                 return JsonResponse({"error": "El correo no coincide."}, status=403)
+
+            active_membership = request.user.memberships.filter(
+                is_active=True
+            ).exclude(organization=invitation.organization).first()
+            if active_membership and active_membership.organization:
+                if active_membership.role == "owner" and active_membership.organization.has_active_subscription:
+                    return JsonResponse({
+                        "error": "No se pudo completar la operación debido a que cuentas con una suscripción activa como propietario. Debes cancelarla primero antes de aceptar la invitación."
+                    }, status=400)
 
             self.process_invitation(request.user, invitation)
             if "invitation_token" in request.session:

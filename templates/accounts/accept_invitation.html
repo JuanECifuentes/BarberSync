@@ -173,6 +173,19 @@ document.addEventListener('alpine:init', () => {
         },
         
         async acceptInvitation() {
+            const hasBlockingSub = {{ has_blocking_subscription|yesno:"true,false" }};
+            if (hasBlockingSub) {
+                return Swal.fire({
+                    title: 'Suscripción Activa',
+                    text: 'No se pudo completar la operación debido a que cuentas con una suscripción activa como propietario. Debes cancelarla primero antes de aceptar la invitación.',
+                    icon: 'error',
+                    background: '#1a1a1c',
+                    color: '#fff',
+                    confirmButtonColor: '#ff2301',
+                    customClass: { popup: 'border border-neutral-800 rounded-xl' }
+                });
+            }
+
             const currentActiveOrg = '{{ current_active_org_name|escapejs }}';
             if (currentActiveOrg) {
                 const confirmResult = await Swal.fire({
