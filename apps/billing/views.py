@@ -1,18 +1,73 @@
+import json
 import logging
 
+from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse
 from django.shortcuts import redirect
+from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
-from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 
 from .models import Plan, PlanPrice, ProcessedWebhookEvent, Subscription, Invoice
 from .providers import BillingProviderFactory
 
 logger = logging.getLogger(__name__)
+
+ALLOWED_PROVIDERS = ["stripe", "wompi"]
+
+
+def _resolve_provider_and_price(request, plan_code):
+    chosen_provider = request.POST.get("chosen_provider", "").strip().lower()
+    user = request.user
+
+    membership = user.memberships.filter(is_active=True).first()
+    organization = membership.organization if membership else None
+    country_code = getattr(organization, "country_code", "") if organization else ""
+
+    country_config = settings.BILLING_COUNTRY_PROVIDER_MAP.get(country_code.upper(), {})
+    default_provider = country_config.get("default", settings.BILLING_DEFAULT_PROVIDER)
+    allowed = country_config.get("allowed", [settings.BILLING_DEFAULT_PROVIDER])
+
+    if chosen_provider and chosen_provider in allowed:
+        provider_name = chosen_provider
+    elif chosen_provider and chosen_provider not in allowed:
+        provider_name = default_provider
+    else:
+        provider_name = default_provider
+
+    currency = settings.BILLING_COUNTRY_CURRENCY_MAP.get(
+        country_code.upper(),
+        settings.BILLING_DEFAULT_CURRENCY,
+    )
+
+    plan = Plan.objects.get(code=plan_code, is_active=True)
+    plan_price = (
+        PlanPrice.objects.filter(
+            plan=plan, is_current=True, provider=provider_name, currency=currency
+        )
+        .order_by("-valid_from")
+        .first()
+    )
+
+    if not plan_price:
+        plan_price = (
+            PlanPrice.objects.filter(plan=plan, is_current=True, provider=provider_name)
+            .order_by("-valid_from")
+            .first()
+        )
+
+    if not plan_price:
+        plan_price = (
+            PlanPrice.objects.filter(plan=plan, is_current=True)
+            .order_by("-valid_from")
+            .first()
+        )
+
+    return provider_name, plan_price, organization
 
 
 class CheckoutView(LoginRequiredMixin, View):
@@ -22,33 +77,30 @@ class CheckoutView(LoginRequiredMixin, View):
             return redirect("root")
 
         try:
-            plan = Plan.objects.get(code=plan_code, is_active=True)
+            provider_name, plan_price, organization = _resolve_provider_and_price(
+                request, plan_code
+            )
         except Plan.DoesNotExist:
             return redirect("root")
 
-        plan_price = (
-            PlanPrice.objects.filter(plan=plan, is_current=True, provider="stripe")
-            .order_by("-valid_from")
-            .first()
-        )
-
-        print("PROBANDO PLAN_CODE", plan_code)
-        print("PROBANDO PLAN", plan)
-        print("PROBANDO PLAN PRICE", plan_price)
-
         if not plan_price:
+            logger.error("No PlanPrice found for plan_code=%s", plan_code)
             return redirect("root")
 
-        provider = BillingProviderFactory.get_provider("stripe")
-
-        success_url = request.build_absolute_uri("/billing/success/")
-        cancel_url = request.build_absolute_uri("/billing/cancel/")
+        provider = BillingProviderFactory.get_provider(provider_name)
+        base_url = getattr(settings, "BILLING_BASE_URL", "").rstrip("/")
+        if base_url:
+            success_url = f"{base_url}/billing/success/"
+            cancel_url = f"{base_url}/billing/cancel/"
+        else:
+            success_url = request.build_absolute_uri("/billing/success/")
+            cancel_url = request.build_absolute_uri("/billing/cancel/")
 
         try:
             session_data = provider.create_checkout_session(
                 user=request.user,
                 plan_price=plan_price,
-                success_url=success_url + "?session_id={CHECKOUT_SESSION_ID}",
+                success_url=success_url,
                 cancel_url=cancel_url,
             )
         except Exception:
@@ -89,8 +141,6 @@ class StripeWebhookView(View):
         if not provider.validate_webhook_signature(request):
             return HttpResponse(status=403)
 
-        import json
-
         try:
             payload = json.loads(request.body)
         except (json.JSONDecodeError, ValueError):
@@ -117,10 +167,8 @@ class StripeWebhookView(View):
 
         if event_type == "checkout.session.completed":
             self._handle_checkout_completed(payload)
-
         elif event_type == "customer.subscription.updated":
             self._handle_subscription_updated(payload)
-
         elif event_type == "customer.subscription.deleted":
             self._handle_subscription_deleted(payload)
 
@@ -128,26 +176,26 @@ class StripeWebhookView(View):
             provider="stripe", event_id=event_id
         ).update(
             status=ProcessedWebhookEvent.EventStatus.PROCESSED,
-            processed_at=__import__("django").utils.timezone.now(),
+            processed_at=timezone.now(),
         )
 
         return HttpResponse(status=200)
 
-    def _handle_checkout_completed(self, payload):
+    def _activate_subscription(self, payload, provider_name, plan_key="plan_code"):
+        from django.contrib.auth import get_user_model
+        from apps.accounts.models import Organization
+
         data = payload.get("data", {}).get("object", {})
         metadata = data.get("metadata", {})
-        plan_code = metadata.get("plan_code")
+        plan_code = metadata.get(plan_key)
         organization_id = metadata.get("organization_id")
         user_id = metadata.get("user_id")
         customer_id = data.get("customer")
         subscription_id = data.get("subscription")
 
         if not plan_code:
-            logger.warning("Webhook missing plan_code: %s", payload.get("id"))
+            logger.warning("Webhook missing %s: %s", plan_key, payload.get("id"))
             return
-
-        from django.contrib.auth import get_user_model
-        from apps.accounts.models import Organization
 
         User = get_user_model()
         user = None
@@ -172,12 +220,14 @@ class StripeWebhookView(View):
             return
 
         plan_price = (
-            PlanPrice.objects.filter(plan=plan, is_current=True, provider="stripe")
+            PlanPrice.objects.filter(plan=plan, is_current=True, provider=provider_name)
             .order_by("-valid_from")
             .first()
         )
         if not plan_price:
-            logger.error("No current price for plan %s", plan_code)
+            logger.error(
+                "No current price for plan %s provider %s", plan_code, provider_name
+            )
             return
 
         if organization:
@@ -194,10 +244,15 @@ class StripeWebhookView(View):
             user=user,
             plan=plan,
             plan_price=plan_price,
-            provider="stripe",
+            provider=provider_name,
             provider_subscription_id=subscription_id or "",
             provider_customer_id=customer_id or "",
             status=Subscription.Status.ACTIVE,
+        )
+
+        invoice_id = (
+            data.get("payment_intent")
+            or f"{provider_name}_{subscription_id or payload.get('id', '')}"
         )
 
         Invoice.objects.create(
@@ -207,22 +262,15 @@ class StripeWebhookView(View):
             plan_price_snapshot=plan_price,
             amount_paid_minor=plan_price.amount_minor,
             currency=plan_price.currency,
-            provider="stripe",
-            provider_invoice_id=data.get("payment_intent") or f"sub_{subscription_id}",
+            provider=provider_name,
+            provider_invoice_id=invoice_id,
             status=Invoice.InvoiceStatus.PAID,
-            paid_at=__import__("django").utils.timezone.now(),
+            paid_at=timezone.now(),
             raw_webhook_data=payload,
         )
 
-        if user and not organization:
-            from apps.accounts.models import Membership
-            if not user.memberships.exists():
-                Membership.objects.create(
-                    user=user,
-                    organization=None,
-                    role=Membership.Role.OWNER,
-                    is_active=True
-                )
+    def _handle_checkout_completed(self, payload):
+        self._activate_subscription(payload, "stripe")
 
     def _handle_subscription_updated(self, payload):
         data = payload.get("data", {}).get("object", {})
@@ -251,4 +299,142 @@ class StripeWebhookView(View):
 
         Subscription.objects.filter(provider_subscription_id=subscription_id).update(
             status=Subscription.Status.CANCELED
+        )
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class WompiWebhookView(View):
+    def post(self, request):
+        provider = BillingProviderFactory.get_provider("wompi")
+
+        if not provider.validate_webhook_signature(request):
+            return HttpResponse(status=403)
+
+        try:
+            payload = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return HttpResponse(status=400)
+
+        event_type = provider.get_event_type(payload)
+        event_id = provider.get_event_id(payload)
+
+        with transaction.atomic():
+            _, created = (
+                ProcessedWebhookEvent.objects.select_for_update().get_or_create(
+                    provider="wompi",
+                    event_id=event_id,
+                    defaults={
+                        "event_type": event_type,
+                        "status": ProcessedWebhookEvent.EventStatus.PROCESSING,
+                        "raw_payload": payload,
+                    },
+                )
+            )
+
+            if not created:
+                return HttpResponse(status=200)
+
+        if event_type == "transaction.updated":
+            self._handle_transaction_updated(payload)
+
+        ProcessedWebhookEvent.objects.filter(
+            provider="wompi", event_id=event_id
+        ).update(
+            status=ProcessedWebhookEvent.EventStatus.PROCESSED,
+            processed_at=timezone.now(),
+        )
+
+        return HttpResponse(status=200)
+
+    def _handle_transaction_updated(self, payload):
+        data = payload.get("data", {}).get("transaction", {})
+        status = data.get("status", "")
+        reference = data.get("reference", "")
+        transaction_id = str(data.get("id", ""))
+
+        if status not in ("APPROVED", "PAYED"):
+            return
+
+        metadata = data.get("metadata", {})
+        plan_code = (
+            metadata.get("plan_code") or reference.split("_")[1]
+            if "_" in reference
+            else ""
+        )
+        organization_id = metadata.get("organization_id")
+        user_id = metadata.get("user_id")
+
+        if not plan_code:
+            logger.warning(
+                "Wompi webhook missing plan_code in reference: %s", reference
+            )
+            return
+
+        from django.contrib.auth import get_user_model
+        from apps.accounts.models import Organization
+
+        User = get_user_model()
+        user = None
+        if user_id:
+            try:
+                user = User.objects.get(pk=user_id)
+            except User.DoesNotExist:
+                logger.error("Wompi: User %s not found", user_id)
+
+        organization = None
+        if organization_id:
+            try:
+                organization = Organization.objects.get(pk=organization_id)
+            except Organization.DoesNotExist:
+                logger.error("Wompi: Organization %s not found", organization_id)
+                return
+
+        try:
+            plan = Plan.objects.get(code=plan_code, is_active=True)
+        except Plan.DoesNotExist:
+            logger.error("Wompi: Plan %s not found", plan_code)
+            return
+
+        plan_price = (
+            PlanPrice.objects.filter(plan=plan, is_current=True, provider="wompi")
+            .order_by("-valid_from")
+            .first()
+        )
+        if not plan_price:
+            logger.error("Wompi: No current price for plan %s", plan_code)
+            return
+
+        if organization:
+            Subscription.objects.filter(organization=organization).exclude(
+                status__in=["canceled", "expired"]
+            ).update(status="canceled")
+        elif user:
+            Subscription.objects.filter(user=user, organization__isnull=True).exclude(
+                status__in=["canceled", "expired"]
+            ).update(status="canceled")
+
+        sub = Subscription.objects.create(
+            organization=organization,
+            user=user,
+            plan=plan,
+            plan_price=plan_price,
+            provider="wompi",
+            provider_subscription_id=reference,
+            provider_customer_id="",
+            wompi_transaction_id=transaction_id,
+            status=Subscription.Status.ACTIVE,
+        )
+
+        Invoice.objects.create(
+            organization=organization,
+            user=user,
+            subscription=sub,
+            plan_price_snapshot=plan_price,
+            amount_paid_minor=plan_price.amount_minor,
+            currency=plan_price.currency,
+            provider="wompi",
+            provider_invoice_id=f"wompi_{transaction_id}",
+            status=Invoice.InvoiceStatus.PAID,
+            paid_at=timezone.now(),
+            raw_webhook_data=payload,
         )

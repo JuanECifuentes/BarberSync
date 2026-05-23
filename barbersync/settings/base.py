@@ -221,3 +221,25 @@ STRIPE_PUBLISHABLE_KEY = env("STRIPE_PUBLISHABLE_KEY", default="")
 STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", default="")
 BILLING_DEFAULT_PROVIDER = env("BILLING_DEFAULT_PROVIDER", default="stripe")
 BILLING_DEFAULT_CURRENCY = env("BILLING_DEFAULT_CURRENCY", default="USD")
+BILLING_BASE_URL = env("BILLING_BASE_URL", default="")
+
+# ──────────────────────────────────────────────
+# Wompi (Colombia – COP)
+# ──────────────────────────────────────────────
+WOMPI_PUBLIC_KEY = env("WOMPI_PUBLIC_KEY", default="")
+WOMPI_PRIVATE_KEY = env("WOMPI_PRIVATE_KEY", default="")
+WOMPI_EVENT_SECRET = env("WOMPI_EVENT_SECRET", default="")
+WOMPI_INTEGRITY_SECRET = env("WOMPI_INTEGRITY_SECRET", default="")
+WOMPI_SANDBOX = env.bool("WOMPI_SANDBOX", default=True)
+
+# ──────────────────────────────────────────────
+# Country-to-provider routing
+# ──────────────────────────────────────────────
+BILLING_COUNTRY_PROVIDER_MAP = {
+    "CO": {"default": "wompi", "allowed": ["wompi", "stripe"]},
+}
+BILLING_COUNTRY_CURRENCY_MAP = {
+    "CO": "COP",
+    "US": "USD",
+    "MX": "MXN",
+}

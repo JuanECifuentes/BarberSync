@@ -26,6 +26,10 @@ class Plan(models.Model):
 
 
 class PlanPrice(models.Model):
+    PROVIDER_CHOICES = [
+        ("stripe", "Stripe"),
+        ("wompi", "Wompi"),
+    ]
     INTERVAL_CHOICES = [
         ("month", "Mensual"),
         ("year", "Anual"),
@@ -35,7 +39,7 @@ class PlanPrice(models.Model):
     amount_minor = models.PositiveBigIntegerField()
     currency = models.CharField(max_length=3)
     interval = models.CharField(max_length=10, choices=INTERVAL_CHOICES)
-    provider = models.CharField(max_length=20)
+    provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES)
     provider_price_id = models.CharField(max_length=100)
     valid_from = models.DateTimeField(default=timezone.now)
     valid_to = models.DateTimeField(null=True, blank=True)
@@ -99,9 +103,10 @@ class Subscription(models.Model):
         on_delete=models.PROTECT,
         related_name="subscriptions",
     )
-    provider = models.CharField(max_length=20)
+    provider = models.CharField(max_length=20, choices=PlanPrice.PROVIDER_CHOICES)
     provider_subscription_id = models.CharField(max_length=100, blank=True)
     provider_customer_id = models.CharField(max_length=100, blank=True)
+    wompi_transaction_id = models.CharField(max_length=100, blank=True, db_index=True)
     status = models.CharField(
         max_length=15, choices=Status.choices, default=Status.TRIALING
     )
@@ -159,7 +164,7 @@ class Invoice(models.Model):
     )
     amount_paid_minor = models.PositiveBigIntegerField()
     currency = models.CharField(max_length=3)
-    provider = models.CharField(max_length=20)
+    provider = models.CharField(max_length=20, choices=PlanPrice.PROVIDER_CHOICES)
     provider_invoice_id = models.CharField(max_length=100, unique=True)
     status = models.CharField(
         max_length=15, choices=InvoiceStatus.choices, default=InvoiceStatus.PENDING
@@ -191,7 +196,7 @@ class ProcessedWebhookEvent(models.Model):
         PROCESSED = "processed", "Procesado"
         FAILED = "failed", "Fallido"
 
-    provider = models.CharField(max_length=20)
+    provider = models.CharField(max_length=20, choices=PlanPrice.PROVIDER_CHOICES)
     event_id = models.CharField(max_length=100)
     event_type = models.CharField(max_length=80)
     received_at = models.DateTimeField(default=timezone.now)

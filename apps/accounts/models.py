@@ -72,6 +72,12 @@ class Organization(models.Model):
         on_delete=models.PROTECT,
         related_name="owned_organizations",
     )
+    country_code = models.CharField(
+        "país (ISO 3166-1 alpha-2)",
+        max_length=2,
+        default="CO",
+        help_text="Código ISO del país. Determina la pasarela de pago por defecto.",
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -108,20 +114,17 @@ class Barbershop(models.Model):
         "teléfono", max_length=20, blank=True, validators=[phone_validator]
     )
     timezone = models.CharField(
-        max_length=50, default="America/Bogota",
+        max_length=50,
+        default="America/Bogota",
         help_text="Zona horaria de la sucursal.",
     )
-    open_hour = models.PositiveSmallIntegerField(
-        "hora de apertura", default=8
-    )
-    close_hour = models.PositiveSmallIntegerField(
-        "hora de cierre", default=20
-    )
+    open_hour = models.PositiveSmallIntegerField("hora de apertura", default=8)
+    close_hour = models.PositiveSmallIntegerField("hora de cierre", default=20)
     closed_days = models.JSONField(
         "días cerrados",
         default=list,
         blank=True,
-        help_text='Lista de días de la semana cerrados (0=lunes, 6=domingo). Ej: [6]',
+        help_text="Lista de días de la semana cerrados (0=lunes, 6=domingo). Ej: [6]",
     )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -229,15 +232,20 @@ class BarberProfile(models.Model):
 
     # Time management
     buffer_minutes = models.PositiveSmallIntegerField(
-        "descanso entre servicios (min)", default=0,
+        "descanso entre servicios (min)",
+        default=0,
         help_text="Minutos de buffer entre citas.",
     )
     lunch_start = models.TimeField(
-        "inicio almuerzo", null=True, blank=True,
+        "inicio almuerzo",
+        null=True,
+        blank=True,
         help_text="Dejar vacío si no tiene horario fijo de almuerzo.",
     )
     lunch_end = models.TimeField(
-        "fin almuerzo", null=True, blank=True,
+        "fin almuerzo",
+        null=True,
+        blank=True,
     )
     is_active = models.BooleanField(default=True)
 
@@ -263,6 +271,7 @@ class BarberProfile(models.Model):
 # ─────────────────────────────────────────────
 def get_default_expiration():
     return timezone.now() + timezone.timedelta(days=2)
+
 
 class OrganizationInvitation(models.Model):
     email = models.EmailField("correo electrónico")

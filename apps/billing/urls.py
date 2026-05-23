@@ -9,4 +9,5 @@ urlpatterns = [
     path("success/", views.BillingSuccessView.as_view(), name="success"),
     path("cancel/", views.BillingCancelView.as_view(), name="cancel"),
     path("webhook/stripe/", views.StripeWebhookView.as_view(), name="webhook_stripe"),
+    path("webhook/wompi/", views.WompiWebhookView.as_view(), name="webhook_wompi"),
 ]
