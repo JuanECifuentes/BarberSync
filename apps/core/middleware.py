@@ -35,6 +35,16 @@ class TenantMiddleware(MiddlewareMixin):
                 request.organization = membership.organization
                 request.barbershop = membership.barbershop
 
+                # Fallback to default barbershop if None (e.g., for invited barbers or multi-branch staff)
+                if request.barbershop is None and request.organization is not None:
+                    if membership.role == "barber":
+                        profile = getattr(membership, "barber_profile", None)
+                        if profile:
+                            request.barbershop = profile.sucursales.filter(is_active=True).first()
+                    
+                    if request.barbershop is None:
+                        request.barbershop = request.organization.barbershops.filter(is_active=True).first()
+
         _thread_locals.organization = request.organization
         _thread_locals.barbershop = request.barbershop
 
@@ -43,3 +53,6 @@ class TenantMiddleware(MiddlewareMixin):
         _thread_locals.organization = None
         _thread_locals.barbershop = None
         return response
+
+# Reload trigger comment
+

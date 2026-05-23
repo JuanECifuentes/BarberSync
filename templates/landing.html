@@ -83,6 +83,14 @@
         ::-webkit-scrollbar-track { background: #1a1a1c; }
         ::-webkit-scrollbar-thumb { background: #59595D; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #ff2301; }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
     </style>
 </head>
 <body class="h-full bg-neutral-950 text-white font-body antialiased">
@@ -95,6 +103,7 @@
                     <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm5.95-5.95a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243z"/></svg>
                 </div>
                 <span class="font-heading font-bold text-xl text-white tracking-tight">Barber<span class="text-brand">Sync</span></span>
+            </a>
             <div class="hidden md:flex items-center gap-8">
                 <a href="#solucion" class="nav-link text-sm text-neutral-400 hover:text-white transition-colors duration-200">Soluci&oacute;n</a>
                 <a href="#planes" class="nav-link text-sm text-neutral-400 hover:text-white transition-colors duration-200">Planes</a>
@@ -103,12 +112,18 @@
             </div>
             <div class="flex items-center gap-3">
                 {% if user.is_authenticated %}
+                    {% if has_active_subscription %}
                     <a href="{% url 'scheduling:calendar' %}" class="group hidden sm:inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-neutral-300 bg-neutral-900/60 hover:bg-neutral-800/80 hover:text-white border border-neutral-800 hover:border-neutral-700/80 rounded-xl hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 shadow-sm">
                         <svg class="w-4 h-4 text-neutral-400 group-hover:text-neutral-200 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                         </svg>
                         Ir a la aplicaci&oacute;n
                     </a>
+                    {% else %}
+                    <a href="#planes" class="nav-link inline-flex items-center gap-2 bg-brand text-white font-semibold px-5 py-2.5 rounded-lg hover:bg-brand-600 hover:-translate-y-0.5 transition-all duration-200 shadow-sm text-sm">Activar mi Plan</a>
+                    {% endif %}
+
+
                     <div class="relative" id="user-menu-wrapper">
                         <button id="user-menu-btn" onclick="toggleUserDropdown(event)"
                             class="group flex items-center gap-2.5 p-1.5 pr-3 rounded-xl bg-neutral-900/60 hover:bg-neutral-800/80 border border-neutral-800 hover:border-neutral-700/80 transition-all duration-200 shadow-sm">
@@ -206,11 +221,29 @@
             <h2 class="font-heading font-bold text-3xl sm:text-4xl text-white mb-4">Un plan para cada escala de operaci&oacute;n</h2>
             <p class="text-neutral-400 max-w-2xl mx-auto">Sin contratos de permanencia. Escala tu infraestructura a medida que crecen tus sucursales.</p>
         </div>
+
+        {% if billing_allowed_providers|length > 1 %}
+        <div class="flex justify-center mb-10 reveal" style="transition-delay: 0.05s;">
+            <div class="inline-flex items-center gap-3 rounded-xl bg-neutral-900 border border-neutral-800 p-1.5">
+                {% for prov in billing_allowed_providers %}
+                <button type="button"
+                    onclick="selectProvider('{{ prov }}')"
+                    id="provider-btn-{{ prov }}"
+                    data-provider="{{ prov }}"
+                    class="provider-toggle px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer {% if prov == billing_default_provider %}bg-brand text-white shadow-sm{% else %}text-neutral-400 hover:text-white{% endif %}">
+                    {% if prov == 'wompi' %}PSE / Tarjeta local{% else %}Tarjeta Internacional{% endif %}
+                </button>
+                {% endfor %}
+            </div>
+            <input type="hidden" id="chosen_provider_input" name="chosen_provider" value="{{ billing_default_provider }}">
+        </div>
+        {% endif %}
+
         <div class="grid md:grid-cols-3 gap-8 items-center">
             <div class="reveal p-8 rounded-2xl bg-neutral-900 border border-neutral-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-neutral-700">
                 <h3 class="font-heading font-bold text-xl text-white mb-2">Barbero Independiente</h3>
                 <p class="text-sm text-neutral-400 mb-6">Para el profesional que trabaja solo y necesita control absoluto.</p>
-                <div class="mb-6"><span class="font-heading font-black text-4xl text-white">$19</span><span class="text-neutral-400 text-sm">/mes</span></div>
+                <div class="mb-6"><span class="font-heading font-black text-4xl text-white plan-price-display" data-plan="INDEPENDIENTE">$19</span><span class="text-neutral-400 text-sm">/mes</span></div>
                 <ul class="space-y-3 mb-8">
                     <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>1 sucursal</li>
                     <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Agenda inteligente</li>
@@ -221,6 +254,7 @@
                 <form method="POST" action="{% url 'billing:checkout' %}">
                     {% csrf_token %}
                     <input type="hidden" name="plan_code" value="INDEPENDIENTE">
+                    <input type="hidden" name="chosen_provider" value="{{ billing_default_provider }}" class="chosen-provider-input">
                     <button type="submit" class="block w-full text-center py-3 rounded-xl border border-neutral-700 text-white font-medium hover:bg-neutral-800 hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand/50">Elegir plan</button>
                 </form>
                 {% else %}
@@ -233,7 +267,7 @@
                 </div>
                 <h3 class="font-heading font-bold text-xl text-white mb-2">Barber&iacute;a Local</h3>
                 <p class="text-sm text-neutral-400 mb-6">Para due&ntilde;os de barber&iacute;as que quieren erradicar el ausentismo.</p>
-                <div class="mb-6"><span class="font-heading font-black text-4xl text-white">$49</span><span class="text-neutral-400 text-sm">/mes</span></div>
+                <div class="mb-6"><span class="font-heading font-black text-4xl text-white plan-price-display" data-plan="LOCAL">$49</span><span class="text-neutral-400 text-sm">/mes</span></div>
                 <ul class="space-y-3 mb-8">
                     <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>1 sucursal</li>
                     <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Hasta 8 barberos</li>
@@ -245,6 +279,7 @@
                 <form method="POST" action="{% url 'billing:checkout' %}">
                     {% csrf_token %}
                     <input type="hidden" name="plan_code" value="LOCAL">
+                    <input type="hidden" name="chosen_provider" value="{{ billing_default_provider }}" class="chosen-provider-input">
                     <button type="submit" class="block w-full text-center py-3 rounded-xl bg-brand text-white font-semibold hover:bg-brand-600 hover:-translate-y-0.5 transition-all duration-200 shadow-lg shadow-brand/20 focus:outline-none focus:ring-2 focus:ring-brand/50">Registrarse ahora</button>
                 </form>
                 {% else %}
@@ -254,7 +289,7 @@
             <div class="reveal p-8 rounded-2xl bg-neutral-900 border border-neutral-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-neutral-700">
                 <h3 class="font-heading font-bold text-xl text-white mb-2">Cadenas Multi-sucursal</h3>
                 <p class="text-sm text-neutral-400 mb-6">Para cadenas que necesitan visi&oacute;n centralizada y anal&iacute;tica global.</p>
-                <div class="mb-6"><span class="font-heading font-black text-4xl text-white">$129</span><span class="text-neutral-400 text-sm">/mes</span></div>
+                <div class="mb-6"><span class="font-heading font-black text-4xl text-white plan-price-display" data-plan="CADENA">$129</span><span class="text-neutral-400 text-sm">/mes</span></div>
                 <ul class="space-y-3 mb-8">
                     <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Sucursales ilimitadas (Multi-tenant)</li>
                     <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Barberos ilimitados</li>
@@ -266,6 +301,7 @@
                 <form method="POST" action="{% url 'billing:checkout' %}">
                     {% csrf_token %}
                     <input type="hidden" name="plan_code" value="CADENA">
+                    <input type="hidden" name="chosen_provider" value="{{ billing_default_provider }}" class="chosen-provider-input">
                     <button type="submit" class="block w-full text-center py-3 rounded-xl border border-neutral-700 text-white font-medium hover:bg-neutral-800 hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand/50">Elegir plan</button>
                 </form>
                 {% else %}
@@ -515,6 +551,72 @@
 </footer>
 
 <script>
+    (function() {
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('expired') === 'true') {
+            var toast = document.createElement('div');
+            toast.className = 'fixed bottom-6 right-6 z-[9999] max-w-sm p-5 rounded-2xl bg-neutral-900 border border-amber-500/40 shadow-2xl shadow-amber-500/10';
+            toast.style.animation = 'slideUp 0.4s ease-out';
+            toast.innerHTML = '<div class="flex items-start gap-3">' +
+                '<div class="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center flex-shrink-0">' +
+                    '<svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
+                        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/>' +
+                    '</svg>' +
+                '</div>' +
+                '<div class="flex-1">' +
+                    '<p class="text-sm font-semibold text-amber-300 mb-1">Suscripci&oacute;n requerida</p>' +
+                    '<p class="text-xs text-neutral-400 leading-relaxed">Tu suscripci&oacute;n ha expirado o necesitas activar un plan para acceder a esta secci&oacute;n. Selecciona una opci&oacute;n a continuaci&oacute;n.</p>' +
+                '</div>' +
+                '<button onclick="var t=this.parentElement.parentElement;t.style.animation=\'fadeOut 0.2s ease-out\';setTimeout(function(){t.remove()},180)" class="text-neutral-500 hover:text-white transition-colors flex-shrink-0">' +
+                    '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>' +
+                '</button>' +
+            '</div>';
+            document.body.appendChild(toast);
+            setTimeout(function() { if (toast.parentElement) toast.remove(); }, 14000);
+        }
+    })();
+
+    const PLAN_PRICES = {{ plan_prices|safe }};
+    const BILLING_DEFAULT_PROVIDER = '{{ billing_default_provider }}';
+
+    function selectProvider(provider) {
+        document.querySelectorAll('.provider-toggle').forEach(btn => {
+            btn.classList.remove('bg-brand', 'text-white', 'shadow-sm');
+            btn.classList.add('text-neutral-400');
+        });
+        const activeBtn = document.getElementById('provider-btn-' + provider);
+        if (activeBtn) {
+            activeBtn.classList.add('bg-brand', 'text-white', 'shadow-sm');
+            activeBtn.classList.remove('text-neutral-400');
+        }
+        document.querySelectorAll('.chosen-provider-input').forEach(input => {
+            input.value = provider;
+        });
+        const hiddenInput = document.getElementById('chosen_provider_input');
+        if (hiddenInput) hiddenInput.value = provider;
+
+        document.querySelectorAll('.plan-price-display').forEach(el => {
+            const planCode = el.getAttribute('data-plan');
+            const planData = PLAN_PRICES[planCode];
+            if (planData && planData[provider]) {
+                const price = planData[provider];
+                const amountMinor = price.amount_minor;
+                const currency = price.currency;
+                let displayPrice;
+                if (currency === 'COP') {
+                    displayPrice = '$' + (amountMinor / 100).toLocaleString('es-CO');
+                } else {
+                    const major = amountMinor / 100;
+                    displayPrice = '$' + major.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 2});
+                }
+                el.textContent = displayPrice;
+            }
+        });
+    }
+
+    // Set dynamic prices on page load for the default provider
+    selectProvider(BILLING_DEFAULT_PROVIDER);
+
     const revealElements = document.querySelectorAll('.reveal');
     const revealObserver = new IntersectionObserver((entries) => {
         entries.forEach(entry => {

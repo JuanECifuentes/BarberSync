@@ -47,9 +47,9 @@ class CalendarView(LoginRequiredMixin, TemplateView):
 
         # Barbers for filter dropdown
         barbers = BarberProfile.objects.filter(
-            membership__barbershop=barbershop,
+            Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
             is_active=True,
-        ).select_related("membership__user")
+        ).select_related("membership__user").distinct()
 
         ctx["barbers"] = barbers
         print("membership", membership, "role", membership.role)
@@ -142,7 +142,7 @@ class AvailableSlotsAPI(LoginRequiredMixin, View):
         if target_date is None:
             return JsonResponse({"error": "Fecha inválida"}, status=400)
 
-        slots = svc.get_available_slots(barber, target_date, duration)
+        slots = svc.get_available_slots(barber, target_date, duration, barbershop=barbershop)
         data = [
             {"start": s["start"].isoformat(), "end": s["end"].isoformat()}
             for s in slots

@@ -68,3 +68,51 @@ Stripe te dará un whsec_... que va en tu .env como STRIPE_WEBHOOK_SECRET=whsec_
 Para desarrollo local, usá el CLI de Stripe:
 stripe listen --forward-to localhost:8000/billing/webhook/stripe/
 Eso te genera un whsec_ de prueba y reenvía los eventos a tu servidor local.
+
+
+Configuración paso a paso de Wompi en BarberSync
+1. Crear cuenta en Wompi
+1. Ir a https://wompi.co (https://wompi.co) y registrarse como comercio.
+2. Completar el proceso de verificación KYC (documentos de la empresa, cuenta bancaria para recaudo).
+3. Una vez aprobado, Wompi te da acceso al Dashboard donde están todas las credenciales.
+2. Extraer credenciales del Dashboard de Wompi
+En el Dashboard, ir a Configuración > Llaves de integración. Necesitas 4 valores:
+Variable .env	Nombre en Wompi	Dónde encontrarlo
+
+WOMPI_PUBLIC_KEY	Llave pública	Empieza por pub_test_ (sandbox) o pub_prod_ (producción)
+WOMPI_PRIVATE_KEY	Llave privada	Empieza por prv_test_ (sandbox) o prv_prod_ (producción)
+WOMPI_EVENT_SECRET	Secreto de eventos	Se genera en Configuración > Eventos. Empieza por test_events_ o prod_events_
+WOMPI_SANDBOX	N/A	True para sandbox, False para producción
+
+Para producción, cambias estas 4 variables a las llaves productivas y pones WOMPI_SANDBOX=False.
+3. Configurar webhook en Wompi
+En el Dashboard de Wompi, ir a Configuración > Eventos y registrar la URL del webhook:
+https://tudominio.com/billing/webhook/wompi/
+Para desarrollo local, puedes usar ngrok o similar:
+https://xyz.ngrok.io/billing/webhook/wompi/
+Marca el evento transaction.updated (es el único que BarberSync procesa).
+4. "Productos" en Wompi — No se crean en Wompi
+Diferencia clave con Stripe: Wompi no tiene un concepto de "Products" o "Prices" en su API. Cada transacción se crea dinámicamente en el checkout con reference, amount_in_cents, currency y la firma de integridad.
+El campo provider_price_id en la tabla billing_plan_price para Wompi es solo un identificador interno (no es un ID de Wompi). Actualmente tiene estos valores:
+Plan	provider_price_id	Uso
+INDEPENDIENTE (COP)	wompi_cop_independiente_month	Solo referencia lógica
+LOCAL (COP)	wompi_cop_local_month	Solo referencia lógica
+CADENA (COP)	wompi_cop_cadena_month	Solo referencia lógica
+No necesitas configurar nada en Wompi para crear estos "productos". El checkout se genera dinámicamente por el WompiProvider.create_checkout_session().
+5. Base de datos — Campos relevantes
+Tabla billing_plan
+Campo	Qué hacer
+code	No cambiar — INDEPENDIENTE, LOCAL, CADENA son referenciados en la landing y el checkout
+name	Nombre en español visible en admin
+is_active	True para que aparezca en la landing. Poner False para desactivar sin borrar
+Tabla billing_plan_price (la más importante)
+Campo	Valor para Wompi	Notas
+plan_id	FK al Plan correspondiente	—
+amount_minor	En centavos	$29.900 COP → 2990000 (pesos × 100)
+currency	COP	Código ISO 4217, 3 letras
+interval	month o year	Por ahora solo usamos month
+provider	wompi	—
+provider_price_id	Cualquier string descriptivo	No es un ID de Wompi. Es para referencia interna
+is_current	True	Solo un price True por (plan, provider, currency, interval)
+valid_from	Fecha de inicio de vigencia	Auto-set a now()
+valid_to	None hasta que se reemplace	—

@@ -371,7 +371,7 @@
     <!-- ═══════ Header ═══════ -->
     <div class="flex items-center justify-between flex-wrap gap-3 mb-3 flex-shrink-0">
         <h2 class="font-heading font-bold text-xl text-white">Intervenciones</h2>
-        {% if is_admin %}
+        {% if is_admin or is_barber %}
         <button @click="openCreateModal()"
                 class="btn-action-primary border border-neutral-700 px-4 py-2 rounded-lg text-sm text-neutral-300 font-medium transition-all">
             <span>+ Nueva Intervención</span>
@@ -537,7 +537,7 @@
                     <div>
                         <label class="block text-sm font-medium text-neutral-300 mb-1">Barbero</label>
                         <select x-model="form.barber_id" @change="onBarberChange()"
-                                class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                                {% if is_barber %}disabled class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-400 text-sm cursor-not-allowed"{% else %}class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors"{% endif %}>
                             <option value="">Seleccionar barbero...</option>
                             {% for barber in barbers %}
                             <option value="{{ barber.pk }}">{{ barber }}</option>
@@ -739,6 +739,8 @@ const API_CREATE_URL = '{% url "intervenciones:api_create" %}';
 const API_BASE_URL = '/app/intervenciones/api/';
 const CLIENT_SEARCH_URL = '/app/clients/api/search/';
 const IS_ADMIN = {{ is_admin|yesno:"true,false" }};
+const IS_BARBER = {{ is_barber|yesno:"true,false" }};
+const LOGGED_BARBER_ID = {{ selected_barber_id|default:"null" }};
 
 /* ══════════════════════════════════════════
    Flatpickr: confirmDate plugin helper
@@ -869,7 +871,10 @@ function estadoCellRenderer(params) {
 }
 
 function accionesCellRenderer(params) {
-    if (!IS_ADMIN || !params.data) return '';
+    if (!params.data) return '';
+    const canEdit = IS_ADMIN || (IS_BARBER && params.data.barbero_id === LOGGED_BARBER_ID);
+    if (!canEdit) return '';
+
     const container = document.createElement('div');
     container.style.cssText = 'display:flex;gap:6px;align-items:center;height:100%';
     const editBtn = document.createElement('button');
@@ -1180,6 +1185,12 @@ function intervencionesApp() {
         openCreateModal() {
             this.resetForm();
             this.totalEstimado = '$0';
+            
+            {% if is_barber %}
+            this.form.barber_id = "{{ selected_barber_id }}";
+            this.onBarberChange();
+            {% endif %}
+
             this.showModal = true;
             this.$nextTick(() => {
                 this.clearProductRows();

@@ -17,6 +17,10 @@ def tenant_context(request):
         ctx["is_owner"] = membership.role == "owner"
         ctx["is_admin"] = membership.role in ("owner", "admin")
         ctx["is_barber"] = membership.role == "barber"
+        if membership.role == "barber":
+            profile = getattr(membership, "barber_profile", None)
+            if profile:
+                ctx["selected_barber_id"] = profile.pk
 
         # All active barbershops for booking link popover
         org = getattr(request, "organization", None)

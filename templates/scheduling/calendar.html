@@ -296,6 +296,20 @@
                 {% endfor %}
             </select>
         </div>
+        {% else %}
+            <div class="flex items-center gap-3">
+            <label for="barber-filter" class="text-sm text-neutral-400">Barbero:</label>
+            <select id="barber-filter" disabled
+                    class="bg-neutral-900 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2
+                           focus:ring-brand focus:border-brand transition-colors cursor-not-allowed">
+                {% for barber in barbers %}
+                <option value="{{ barber.pk }}"
+                    {% if selected_barber_id == barber.pk %}selected{% endif %}>
+                    {{ barber }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
         {% endif %}
 
         <button onclick="openNewAppointment()"
@@ -369,11 +383,12 @@
                 <div>
                     <label class="block text-xs text-neutral-400 mb-1 font-medium">Barbero</label>
                     <select id="new-apt-barber"
-                            class="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2.5 focus:ring-brand focus:border-brand transition-colors"
-                            onchange="loadBarberServices()">
+                            class="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2.5 focus:ring-brand focus:border-brand transition-colors {% if is_barber %}cursor-not-allowed{% endif %}"
+                            onchange="loadBarberServices()"
+                            {% if is_barber %}disabled{% endif %}>
                         <option value="">Selecciona un barbero</option>
                         {% for barber in barbers %}
-                        <option value="{{ barber.pk }}">{{ barber }}</option>
+                        <option value="{{ barber.pk }}" {% if is_barber and selected_barber_id == barber.pk %}selected{% endif %}>{{ barber }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -1062,6 +1077,14 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('new-apt-services-summary').classList.add('hidden');
         document.getElementById('new-apt-error').classList.add('hidden');
         newAptSelectedServices = [];
+
+        {% if is_barber %}
+        const barberSelect = document.getElementById('new-apt-barber');
+        if (barberSelect) {
+            barberSelect.value = "{{ selected_barber_id }}";
+            loadBarberServices();
+        }
+        {% endif %}
 
         document.getElementById('new-apt-modal').classList.remove('hidden');
     };

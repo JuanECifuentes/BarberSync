@@ -119,6 +119,24 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
             ),
         )
 
+        # Annotate with is_own_barber to support ordering own interventions first
+        from django.db.models import Case, When, Value, IntegerField
+        barber_profile = None
+        membership = getattr(request.user, "membership", None)
+        if membership:
+            barber_profile = getattr(membership, "barber_profile", None)
+
+        if barber_profile:
+            qs = qs.annotate(
+                is_own_barber=Case(
+                    When(barber=barber_profile, then=Value(1)),
+                    default=Value(0),
+                    output_field=IntegerField(),
+                )
+            )
+        else:
+            qs = qs.annotate(is_own_barber=Value(0, output_field=IntegerField()))
+
         if barbershop:
             qs = qs.filter(barbershop=barbershop)
 
@@ -209,9 +227,15 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
             "sucursal": "barbershop__name",
         }
         db_field = sort_map.get(sort_field, "fecha")
-        if sort_order == "desc":
-            db_field = f"-{db_field}"
-        qs = qs.order_by(db_field)
+        if db_field in ["fecha", "-fecha"]:
+            is_desc = db_field.startswith("-") or sort_order == "desc"
+            date_order = "-fecha__date" if is_desc else "fecha__date"
+            time_order = "-fecha" if is_desc else "fecha"
+            qs = qs.order_by(date_order, "-is_own_barber", time_order)
+        else:
+            if sort_order == "desc":
+                db_field = f"-{db_field}"
+            qs = qs.order_by(db_field, "-is_own_barber", "-fecha")
 
         # ── Paginación ──
         total_count = qs.count()
@@ -347,7 +371,9 @@ class IntervencionCreateView(LoginRequiredMixin, View):
             ).first() or barbershop
 
         barber = BarberProfile.objects.filter(
-            pk=barber_id, membership__barbershop=barbershop,
+            Q(pk=barber_id) & (
+                Q(membership__barbershop=barbershop) | Q(sucursales=barbershop)
+            )
         ).first()
         if not barber:
             return JsonResponse({"error": "Barbero no encontrado"}, status=404)
@@ -460,6 +486,12 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
         intervencion = get_object_or_404(
             Intervencion, pk=pk, barbershop__organization=org,
         )
+        # Permisos: si es barbero, solo puede editar sus propias intervenciones
+        membership = request.user.membership
+        if membership.role == "barber":
+            barber_profile = getattr(membership, "barber_profile", None)
+            if not barber_profile or intervencion.barber != barber_profile:
+                return JsonResponse({"error": "No tienes permiso para editar esta intervención."}, status=403)
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
@@ -598,6 +630,12 @@ class IntervencionDeleteView(LoginRequiredMixin, View):
         intervencion = get_object_or_404(
             Intervencion, pk=pk, barbershop__organization=org,
         )
+        # Permisos: si es barbero, solo puede eliminar sus propias intervenciones
+        membership = request.user.membership
+        if membership.role == "barber":
+            barber_profile = getattr(membership, "barber_profile", None)
+            if not barber_profile or intervencion.barber != barber_profile:
+                return JsonResponse({"error": "No tienes permiso para eliminar esta intervención."}, status=403)
         with transaction.atomic():
             _restore_stock(intervencion, request.user)
             intervencion.delete()
@@ -647,8 +685,9 @@ class IntervencionDataAPI(LoginRequiredMixin, View):
             return JsonResponse({"error": "Sin barbería"}, status=403)
 
         barbers = BarberProfile.objects.filter(
-            membership__barbershop=barbershop, is_active=True,
-        ).select_related("membership__user")
+            Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
+            is_active=True,
+        ).select_related("membership__user").distinct()
 
         services = Service.objects.filter(
             barbershop=barbershop, is_active=True,
