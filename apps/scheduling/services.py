@@ -43,6 +43,7 @@ def get_available_slots(
     barber: BarberProfile,
     target_date: date,
     requested_duration: int,
+    barbershop: Barbershop | None = None,
 ) -> list[dict]:
     """
     Returns a list of available time slots for the given barber on target_date.
@@ -55,11 +56,12 @@ def get_available_slots(
     3. Calculate free windows
     4. Filter windows that can fit the requested_duration + buffer
     """
-    barbershop = barber.barbershop
+    if barbershop is None:
+        barbershop = barber.barbershop
     day_of_week = target_date.weekday()
 
     # 1. Is the barbershop open this day?
-    if day_of_week in (barbershop.closed_days or []):
+    if barbershop and day_of_week in (barbershop.closed_days or []):
         return []
 
     # 2. Barber's working hours for this day
@@ -160,15 +162,20 @@ def get_available_slots(
     return available
 
 
-def get_available_dates(barber: BarberProfile, days_ahead: int = 7) -> list[date]:
+def get_available_dates(
+    barber: BarberProfile,
+    days_ahead: int = 7,
+    barbershop: Barbershop | None = None,
+) -> list[date]:
     """Returns dates in the next `days_ahead` days where the barber has working hours."""
-    barbershop = barber.barbershop
+    if barbershop is None:
+        barbershop = barber.barbershop
     today = timezone.localdate()
     dates = []
     for i in range(days_ahead + 1):
         d = today + timedelta(days=i)
         dow = d.weekday()
-        if dow in (barbershop.closed_days or []):
+        if barbershop and dow in (barbershop.closed_days or []):
             continue
         if WorkSchedule.objects.filter(barber=barber, day_of_week=dow).exists():
             dates.append(d)

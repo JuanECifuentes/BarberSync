@@ -142,7 +142,7 @@ class AvailableSlotsAPI(LoginRequiredMixin, View):
         if target_date is None:
             return JsonResponse({"error": "Fecha inválida"}, status=400)
 
-        slots = svc.get_available_slots(barber, target_date, duration)
+        slots = svc.get_available_slots(barber, target_date, duration, barbershop=barbershop)
         data = [
             {"start": s["start"].isoformat(), "end": s["end"].isoformat()}
             for s in slots

@@ -296,6 +296,20 @@
                 {% endfor %}
             </select>
         </div>
+        {% else %}
+            <div class="flex items-center gap-3">
+            <label for="barber-filter" class="text-sm text-neutral-400">Barbero:</label>
+            <select id="barber-filter"
+                    class="bg-neutral-900 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2
+                           focus:ring-brand focus:border-brand transition-colors">
+                {% for barber in barbers %}
+                <option value="{{ barber.pk }}"
+                    {% if selected_barber_id == barber.pk %}selected{% endif %}>
+                    {{ barber }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
         {% endif %}
 
         <button onclick="openNewAppointment()"

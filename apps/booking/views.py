@@ -131,9 +131,9 @@ class BookingSlotsAPI(View):
             return JsonResponse({"error": "Fecha inválida"}, status=400)
 
         # Available dates
-        available_dates = [d.isoformat() for d in svc.get_available_dates(barber)]
+        available_dates = [d.isoformat() for d in svc.get_available_dates(barber, barbershop=barbershop)]
 
-        slots = svc.get_available_slots(barber, target_date, duration)
+        slots = svc.get_available_slots(barber, target_date, duration, barbershop=barbershop)
         slot_data = [
             {"start": s["start"].isoformat(), "end": s["end"].isoformat()}
             for s in slots
