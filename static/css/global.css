@@ -1,0 +1,32 @@
+ /* ── Animated button (from inventory module) ── */
+    .btn-action-primary {
+        position: relative;
+        overflow: hidden;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .btn-action-primary::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: #ff2301;
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 0;
+        border-radius: inherit;
+    }
+    .btn-action-primary:not(:disabled):hover::before {
+        transform: scaleX(1);
+    }
+    .btn-action-primary:not(:disabled):hover {
+        color: #fff !important;
+        border-color: #ff2301 !important;
+        transform: scale(1.03);
+        box-shadow: 0 4px 16px rgba(255, 35, 1, 0.3);
+    }
+    .btn-action-primary > *,
+    .btn-action-primary span,
+    .btn-action-primary svg {
+        position: relative;
+        z-index: 1;
+    }
