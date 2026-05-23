@@ -6,19 +6,23 @@ from django.conf import settings
 from apps.billing.models import Plan, PlanPrice
 
 
+from apps.core.utils import resolve_country_code
+
+
 class LandingPageView(TemplateView):
     template_name = "landing.html"
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        org = None
         if self.request.user.is_authenticated:
-            org = None
             membership = self.request.user.memberships.filter(is_active=True).first()
             if membership:
                 org = membership.organization
-            country_code = getattr(org, "country_code", "") if org else ""
-        else:
-            country_code = ""
+        
+        country_code = resolve_country_code(self.request)
+        print(f"country_code resolved: {country_code}")
+
 
         country_config = settings.BILLING_COUNTRY_PROVIDER_MAP.get(
             country_code.upper(), {}
@@ -32,6 +36,11 @@ class LandingPageView(TemplateView):
         ctx["billing_allowed_providers"] = allowed_providers
         ctx["billing_default_provider"] = default_provider
         ctx["billing_country_code"] = country_code.upper()
+
+        has_sub = False
+        if self.request.user.is_authenticated and org:
+            has_sub = org.has_active_subscription
+        ctx["has_active_subscription"] = has_sub
 
         plan_prices = {}
         for plan in Plan.objects.filter(is_active=True):

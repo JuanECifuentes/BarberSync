@@ -89,6 +89,14 @@ class Organization(models.Model):
     def __str__(self):
         return self.name
 
+    @property
+    def has_active_subscription(self):
+        if not hasattr(self, "_has_active_sub_cache"):
+            self._has_active_sub_cache = self.subscriptions.filter(
+                status__in=["trialing", "active", "past_due"]
+            ).exists()
+        return self._has_active_sub_cache
+
 
 # ─────────────────────────────────────────────
 # Barbershop (branch / sucursal)

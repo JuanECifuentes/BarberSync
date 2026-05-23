@@ -83,6 +83,14 @@
         ::-webkit-scrollbar-track { background: #1a1a1c; }
         ::-webkit-scrollbar-thumb { background: #59595D; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #ff2301; }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
     </style>
 </head>
 <body class="h-full bg-neutral-950 text-white font-body antialiased">
@@ -104,12 +112,18 @@
             </div>
             <div class="flex items-center gap-3">
                 {% if user.is_authenticated %}
+                    {% if has_active_subscription %}
                     <a href="{% url 'scheduling:calendar' %}" class="group hidden sm:inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-neutral-300 bg-neutral-900/60 hover:bg-neutral-800/80 hover:text-white border border-neutral-800 hover:border-neutral-700/80 rounded-xl hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 shadow-sm">
                         <svg class="w-4 h-4 text-neutral-400 group-hover:text-neutral-200 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                         </svg>
                         Ir a la aplicaci&oacute;n
                     </a>
+                    {% else %}
+                    <a href="#planes" class="nav-link inline-flex items-center gap-2 bg-brand text-white font-semibold px-5 py-2.5 rounded-lg hover:bg-brand-600 hover:-translate-y-0.5 transition-all duration-200 shadow-sm text-sm">Activar mi Plan</a>
+                    {% endif %}
+
+
                     <div class="relative" id="user-menu-wrapper">
                         <button id="user-menu-btn" onclick="toggleUserDropdown(event)"
                             class="group flex items-center gap-2.5 p-1.5 pr-3 rounded-xl bg-neutral-900/60 hover:bg-neutral-800/80 border border-neutral-800 hover:border-neutral-700/80 transition-all duration-200 shadow-sm">
@@ -537,6 +551,31 @@
 </footer>
 
 <script>
+    (function() {
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('expired') === 'true') {
+            var toast = document.createElement('div');
+            toast.className = 'fixed bottom-6 right-6 z-[9999] max-w-sm p-5 rounded-2xl bg-neutral-900 border border-amber-500/40 shadow-2xl shadow-amber-500/10';
+            toast.style.animation = 'slideUp 0.4s ease-out';
+            toast.innerHTML = '<div class="flex items-start gap-3">' +
+                '<div class="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center flex-shrink-0">' +
+                    '<svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
+                        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/>' +
+                    '</svg>' +
+                '</div>' +
+                '<div class="flex-1">' +
+                    '<p class="text-sm font-semibold text-amber-300 mb-1">Suscripci&oacute;n requerida</p>' +
+                    '<p class="text-xs text-neutral-400 leading-relaxed">Tu suscripci&oacute;n ha expirado o necesitas activar un plan para acceder a esta secci&oacute;n. Selecciona una opci&oacute;n a continuaci&oacute;n.</p>' +
+                '</div>' +
+                '<button onclick="var t=this.parentElement.parentElement;t.style.animation=\'fadeOut 0.2s ease-out\';setTimeout(function(){t.remove()},180)" class="text-neutral-500 hover:text-white transition-colors flex-shrink-0">' +
+                    '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>' +
+                '</button>' +
+            '</div>';
+            document.body.appendChild(toast);
+            setTimeout(function() { if (toast.parentElement) toast.remove(); }, 14000);
+        }
+    })();
+
     const PLAN_PRICES = {{ plan_prices|safe }};
     const BILLING_DEFAULT_PROVIDER = '{{ billing_default_provider }}';
 

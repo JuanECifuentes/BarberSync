@@ -133,7 +133,9 @@ class Subscription(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.organization.name} – {self.plan.code} ({self.status})"
+        org_name = self.organization.name if self.organization else (self.user.email if self.user else "Sin asignar")
+        return f"{org_name} – {self.plan.code} ({self.status})"
+
 
 
 class Invoice(models.Model):

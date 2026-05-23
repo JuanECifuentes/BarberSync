@@ -17,6 +17,8 @@ from .providers import BillingProviderFactory
 
 logger = logging.getLogger(__name__)
 
+from apps.core.utils import resolve_country_code
+
 ALLOWED_PROVIDERS = ["stripe", "wompi"]
 
 
@@ -26,11 +28,12 @@ def _resolve_provider_and_price(request, plan_code):
 
     membership = user.memberships.filter(is_active=True).first()
     organization = membership.organization if membership else None
-    country_code = getattr(organization, "country_code", "") if organization else ""
+    country_code = resolve_country_code(request)
 
     country_config = settings.BILLING_COUNTRY_PROVIDER_MAP.get(country_code.upper(), {})
     default_provider = country_config.get("default", settings.BILLING_DEFAULT_PROVIDER)
     allowed = country_config.get("allowed", [settings.BILLING_DEFAULT_PROVIDER])
+
 
     if chosen_provider and chosen_provider in allowed:
         provider_name = chosen_provider
@@ -355,14 +358,25 @@ class WompiWebhookView(View):
         if status not in ("APPROVED", "PAYED"):
             return
 
+        plan_code = ""
+        organization_id = None
+        user_id = None
+
         metadata = data.get("metadata", {})
-        plan_code = (
-            metadata.get("plan_code") or reference.split("_")[1]
-            if "_" in reference
-            else ""
-        )
-        organization_id = metadata.get("organization_id")
-        user_id = metadata.get("user_id")
+        if metadata:
+            plan_code = metadata.get("plan_code", "")
+            organization_id = metadata.get("organization_id")
+            user_id = metadata.get("user_id")
+
+        if reference and reference.startswith("bs_"):
+            parts = reference.split("_")
+            if len(parts) >= 5:
+                if not plan_code:
+                    plan_code = parts[1]
+                if not user_id and parts[2].isdigit():
+                    user_id = int(parts[2])
+                if not organization_id and parts[3].isdigit() and int(parts[3]) > 0:
+                    organization_id = int(parts[3])
 
         if not plan_code:
             logger.warning(

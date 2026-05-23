@@ -64,6 +64,7 @@ MIDDLEWARE = [
     # BarberSync: inject current tenant into request
     "apps.core.middleware.TenantMiddleware",
     "apps.accounts.middleware.OnboardingMiddleware",
+    "apps.billing.middleware.SubscriptionAccessMiddleware",
 ]
 
 ROOT_URLCONF = "barbersync.urls"

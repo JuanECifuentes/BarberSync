@@ -193,8 +193,10 @@ class WompiProvider(BaseBillingProvider):
         membership = user.memberships.filter(is_active=True).first()
         organization = membership.organization if membership else None
 
+        org_id = organization.pk if organization else 0
         reference = (
-            f"bs_{plan_price.plan.code}_{int(time.time())}_{uuid.uuid4().hex[:8]}"
+            f"bs_{plan_price.plan.code}_{user.pk}_{org_id}"
+            f"_{int(time.time())}_{uuid.uuid4().hex[:8]}"
         )
         amount_in_cents = plan_price.amount_minor
         currency = plan_price.currency
