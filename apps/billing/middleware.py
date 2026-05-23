@@ -27,6 +27,15 @@ class SubscriptionAccessMiddleware:
         if not request.user.is_authenticated:
             return self.get_response(request)
 
+        # Check if the user has a personal active subscription
+        user_has_sub = request.user.subscriptions.filter(
+            status__in=["trialing", "active", "past_due"]
+        ).exists()
+
+        if user_has_sub:
+            return self.get_response(request)
+
+        # Check if the organization has an active subscription
         org = getattr(request, "organization", None)
         if not org or not org.has_active_subscription:
             return redirect("/?expired=true#planes")

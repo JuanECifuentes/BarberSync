@@ -38,8 +38,12 @@ class LandingPageView(TemplateView):
         ctx["billing_country_code"] = country_code.upper()
 
         has_sub = False
-        if self.request.user.is_authenticated and org:
-            has_sub = org.has_active_subscription
+        if self.request.user.is_authenticated:
+            has_sub = self.request.user.subscriptions.filter(
+                status__in=["trialing", "active", "past_due"]
+            ).exists()
+            if not has_sub and org:
+                has_sub = org.has_active_subscription
         ctx["has_active_subscription"] = has_sub
 
         plan_prices = {}

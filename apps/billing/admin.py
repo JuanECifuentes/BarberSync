@@ -29,6 +29,7 @@ class PlanPriceAdmin(admin.ModelAdmin):
 @admin.register(Subscription)
 class SubscriptionAdmin(admin.ModelAdmin):
     list_display = (
+        "user",
         "organization",
         "plan",
         "status",
@@ -37,12 +38,13 @@ class SubscriptionAdmin(admin.ModelAdmin):
         "created_at",
     )
     list_filter = ("status", "provider")
-    raw_id_fields = ("organization", "plan", "plan_price")
+    raw_id_fields = ("user", "organization", "plan", "plan_price")
 
 
 @admin.register(Invoice)
 class InvoiceAdmin(admin.ModelAdmin):
     list_display = (
+        "user",
         "organization",
         "provider_invoice_id",
         "amount_paid_minor",
@@ -51,7 +53,7 @@ class InvoiceAdmin(admin.ModelAdmin):
         "paid_at",
     )
     list_filter = ("status", "provider", "currency")
-    raw_id_fields = ("organization", "subscription", "plan_price_snapshot")
+    raw_id_fields = ("user", "organization", "subscription", "plan_price_snapshot")
 
 
 @admin.register(ProcessedWebhookEvent)
