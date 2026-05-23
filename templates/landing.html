@@ -222,7 +222,7 @@
             <p class="text-neutral-400 max-w-2xl mx-auto">Sin contratos de permanencia. Escala tu infraestructura a medida que crecen tus sucursales.</p>
         </div>
 
-        {% if user.is_authenticated and billing_allowed_providers|length > 1 %}
+        {% if billing_allowed_providers|length > 1 %}
         <div class="flex justify-center mb-10 reveal" style="transition-delay: 0.05s;">
             <div class="inline-flex items-center gap-3 rounded-xl bg-neutral-900 border border-neutral-800 p-1.5">
                 {% for prov in billing_allowed_providers %}
@@ -614,9 +614,8 @@
         });
     }
 
-    {% if user.is_authenticated and billing_allowed_providers|length > 1 %}
+    // Set dynamic prices on page load for the default provider
     selectProvider(BILLING_DEFAULT_PROVIDER);
-    {% endif %}
 
     const revealElements = document.querySelectorAll('.reveal');
     const revealObserver = new IntersectionObserver((entries) => {
