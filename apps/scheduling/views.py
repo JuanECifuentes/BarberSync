@@ -47,9 +47,9 @@ class CalendarView(LoginRequiredMixin, TemplateView):
 
         # Barbers for filter dropdown
         barbers = BarberProfile.objects.filter(
-            membership__barbershop=barbershop,
+            Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
             is_active=True,
-        ).select_related("membership__user")
+        ).select_related("membership__user").distinct()
 
         ctx["barbers"] = barbers
         print("membership", membership, "role", membership.role)
