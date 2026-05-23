@@ -176,24 +176,21 @@ class AcceptInvitationView(View):
         User = get_user_model()
         user_exists = User.objects.filter(email__iexact=invitation.email).exists()
 
-        print("user_exists", user_exists)
-        try:
-            print(
-                "email request.user",
-                request.user.is_authenticated,
-                request.user.email.lower(),
-            )
-        except Exception as e:
-            print("email request.user", e)
-        print("email invitation", invitation.email.lower())
+        current_active_org_name = ""
+        if request.user.is_authenticated:
+            active_membership = request.user.memberships.filter(
+                is_active=True
+            ).exclude(organization=invitation.organization).first()
+            if active_membership and active_membership.organization:
+                current_active_org_name = active_membership.organization.name
+
         context = {
             "invitation": invitation,
             "user_exists": user_exists,
             "email_match": request.user.is_authenticated
             and request.user.email.lower() == invitation.email.lower(),
+            "current_active_org_name": current_active_org_name,
         }
-
-        print("context", context)
 
         # Guardar token en sesión para que los signals funcionen si el usuario inicia sesión o se registra vía AllAuth
         request.session["invitation_token"] = str(token)
@@ -274,6 +271,11 @@ class AcceptInvitationView(View):
     def process_invitation(user, invitation):
         if not invitation.is_valid:
             return
+
+        # Deactivate all active memberships in other organizations
+        user.memberships.filter(is_active=True).exclude(
+            organization=invitation.organization
+        ).update(is_active=False)
 
         # Check if membership already exists
         membership, created = Membership.objects.get_or_create(

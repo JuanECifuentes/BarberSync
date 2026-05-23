@@ -141,7 +141,7 @@
                     {% load socialaccount %}
                     {% get_providers as socialaccount_providers %}
                     {% if socialaccount_providers %}
-                    <a href="{% provider_login_url 'google' process='login' %}"
+                    <a href="{% provider_login_url 'google' process='login' next=request.path %}"
                        class="w-full flex items-center justify-center gap-3 border border-neutral-700 px-4 py-3 rounded-lg
                               text-white font-medium hover:bg-[#ff2301] hover:text-white hover:border-[#ff2301]
                               hover:-translate-y-1 hover:shadow-md transition-all duration-300">
@@ -173,6 +173,27 @@ document.addEventListener('alpine:init', () => {
         },
         
         async acceptInvitation() {
+            const currentActiveOrg = '{{ current_active_org_name|escapejs }}';
+            if (currentActiveOrg) {
+                const confirmResult = await Swal.fire({
+                    title: 'Cambio de Organización',
+                    text: `Actualmente estás en la organización "${currentActiveOrg}". Si aceptas esta invitación, saldrás de esa organización y entrarás a "{{ invitation.organization.name|escapejs }}". ¿Deseas continuar?`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    background: '#1a1a1c',
+                    color: '#fff',
+                    confirmButtonColor: '#ff2301',
+                    cancelButtonColor: '#3d3d41',
+                    confirmButtonText: 'Sí, cambiar y aceptar',
+                    cancelButtonText: 'Cancelar',
+                    customClass: { popup: 'border border-neutral-800 rounded-xl' }
+                });
+                
+                if (!confirmResult.isConfirmed) {
+                    return;
+                }
+            }
+
             this.loading = true;
             try {
                 const formData = new FormData();
@@ -192,7 +213,8 @@ document.addEventListener('alpine:init', () => {
                         icon: 'success',
                         background: '#1a1a1c',
                         color: '#fff',
-                        confirmButtonColor: '#ff2301'
+                        confirmButtonColor: '#ff2301',
+                        customClass: { popup: 'border border-neutral-800 rounded-xl' }
                     });
                     window.location.href = "{% url 'scheduling:calendar' %}";
                 } else {
@@ -202,11 +224,20 @@ document.addEventListener('alpine:init', () => {
                         icon: 'error',
                         background: '#1a1a1c',
                         color: '#fff',
-                        confirmButtonColor: '#ff2301'
+                        confirmButtonColor: '#ff2301',
+                        customClass: { popup: 'border border-neutral-800 rounded-xl' }
                     });
                 }
             } catch (err) {
-                Swal.fire('Error', 'Error de conexión', 'error');
+                Swal.fire({
+                    title: 'Error',
+                    text: 'Error de conexión',
+                    icon: 'error',
+                    background: '#1a1a1c',
+                    color: '#fff',
+                    confirmButtonColor: '#ff2301',
+                    customClass: { popup: 'border border-neutral-800 rounded-xl' }
+                });
             }
             this.loading = false;
         },

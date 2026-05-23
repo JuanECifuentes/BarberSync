@@ -6,6 +6,8 @@ EXEMPT_PREFIXES = (
     "/accounts/signup/",
     "/accounts/logout/",
     "/accounts/google/",
+    "/accounts/invite/",
+    #"/accounts/onboarding/",
     "/billing/",
     "/book/",
     "/static/",

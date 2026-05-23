@@ -20,6 +20,7 @@ class OnboardingMiddleware:
                 "/accounts/login/",
                 "/accounts/google/", 
                 "/accounts/signup/",
+                "/accounts/invite/",
                 "/billing/",
                 "/book/",
                 "/static/",

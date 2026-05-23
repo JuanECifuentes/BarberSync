@@ -6,6 +6,8 @@
 {% block extra_head %}
 <!-- Alpine.js -->
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+<!-- SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 {% endblock %}
 
 {% block content %}
@@ -315,7 +317,7 @@
                 </button>
             </div>
             
-            <div class="flex-1 overflow-y-auto mt-4 space-y-3 pr-2" id="users-container">
+            <div class="flex-1 overflow-y-auto overflow-x-hidden mt-4 space-y-3 pr-2" id="users-container">
                 {% for membership in memberships %}
                 <div class="bg-[#1a1a1c] border border-neutral-800 rounded-xl p-4 flex items-center justify-between hover:border-neutral-700 transition-colors">
                     <div class="flex items-center gap-3">
@@ -337,7 +339,7 @@
                     </div>
                     {% if membership.role != 'owner' or is_owner %}
                     <div class="flex items-center gap-2">
-                        <button @click="openEditModal({{ membership.id }}, '{{ membership.user.email }}', '{{ membership.user.get_full_name|escapejs }}', '{{ membership.role }}', [{% for s in membership.sucursales.all %}{{ s.id }}{% if not forloop.last %},{% endif %}{% endfor %}])" 
+                        <button @click="openEditModal({{ membership.id }}, '{{ membership.user.email }}', '{{ membership.user.get_full_name|escapejs }}', '{{ membership.role }}', [{% for s in membership.sucursales.all %}{{ s.id }}{% if not forloop.last %},{% endif %}{% endfor %}], {% if membership.user.id == request.user.id %}true{% else %}false{% endif %})" 
                                 class="border border-neutral-700 text-neutral-400 hover:text-white p-2 rounded-lg hover:bg-neutral-800 transition-colors" data-tooltip="Editar">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                         </button>
@@ -360,7 +362,7 @@
         <section class="card w-full md:w-1/3 flex flex-col min-h-0 bg-[#151516]">
             <h2 class="font-heading font-bold text-lg text-white mb-4 flex-shrink-0">Invitaciones pendientes</h2>
             
-            <div class="flex-1 overflow-y-auto space-y-3 pr-2" id="invitations-container">
+            <div class="flex-1 overflow-y-auto overflow-x-hidden space-y-3 pr-2" id="invitations-container">
                 {% for inv in invitations %}
                 <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-3">
                     <p class="text-sm font-medium text-white mb-1 truncate" title="{{ inv.email }}">{{ inv.email }}</p>
@@ -436,7 +438,7 @@
             
             <div class="flex gap-3 pt-2">
                 <button @click="modals.invite = false" class="flex-1 py-2 rounded-lg text-sm font-medium border border-neutral-700 text-neutral-300 hover:bg-neutral-800 transition-colors">Cancelar</button>
-                <button @click="sendInvitation()" :disabled="loading" class="btn-action-primary flex-1 py-2 rounded-lg text-sm font-medium border border-brand text-white disabled:opacity-50 flex items-center justify-center gap-2">
+                <button @click="sendInvitation()" :disabled="loading || !isEmailValid(inviteForm.email)" class="btn-action-primary flex-1 py-2 rounded-lg text-sm font-medium border border-brand text-white disabled:opacity-50 flex items-center justify-center gap-2">
                     <svg x-show="loading" class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                     <span x-text="loading ? 'Enviando...' : 'Enviar invitación'"></span>
                 </button>
@@ -464,11 +466,13 @@
                 </div>
                 <div>
                     <label class="text-xs text-neutral-400 mb-1 block">Rol</label>
-                    <select x-model="editForm.role" class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors appearance-none">
+                    <select x-model="editForm.role" :disabled="editForm.isSelf" class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors appearance-none disabled:opacity-50 disabled:cursor-not-allowed">
+                        <option value="owner" x-show="editForm.role === 'owner'">Propietario</option>
                         <option value="admin">Administrador</option>
                         <option value="barber">Barbero</option>
                         <option value="staff">Personal Barbería</option>
                     </select>
+                    <p x-show="editForm.isSelf" class="text-[11px] text-amber-500 mt-1 font-medium">No puedes cambiar tu propio rol.</p>
                 </div>
                 <!-- Sucursales selector -->
                 <div class="ms-dropdown" @click.outside="dropdowns.editBranches = false">
@@ -596,21 +600,29 @@ document.addEventListener('alpine:init', () => {
             email: '',
             name: '',
             role: '',
-            sucursales: []
+            sucursales: [],
+            isSelf: false
         },
         
         openInviteModal() {
             this.inviteForm = { email: '', role: 'barber', sucursales: [] };
+            this.loading = false;
             this.modals.invite = true;
         },
         
-        openEditModal(id, email, name, role, sucursales) {
+        isEmailValid(email) {
+            const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return re.test(email);
+        },
+        
+        openEditModal(id, email, name, role, sucursales, isSelf = false) {
             this.editForm = {
                 id: id,
                 email: email,
                 name: name,
                 role: role,
-                sucursales: sucursales || []
+                sucursales: sucursales || [],
+                isSelf: isSelf
             };
             this.modals.editUser = true;
         },
@@ -629,7 +641,14 @@ document.addEventListener('alpine:init', () => {
         },
         
         async sendInvitation() {
-            if(!this.inviteForm.email) return Swal.fire('Atención', 'Ingresa un correo', 'warning');
+            if(!this.inviteForm.email) return Swal.fire({
+                title: 'Atención',
+                text: 'Ingresa un correo',
+                icon: 'warning',
+                background: '#1a1a1c',
+                color: '#fff',
+                confirmButtonColor: '#ff2301'
+            });
             this.loading = true;
             try {
                 const res = await fetch('{% url "configuracion:api_send_invitation" %}', {
@@ -647,9 +666,29 @@ document.addEventListener('alpine:init', () => {
                         showConfirmButton: false
                     });
                 }
-                else Swal.fire('Error', (await res.json()).error || 'Error enviando invitación', 'error');
-            } catch (err) { Swal.fire('Error', 'Error de conexión', 'error'); }
-            this.loading = false;
+                else {
+                    const data = await res.json();
+                    Swal.fire({
+                        title: 'Error',
+                        text: data.error || 'Error enviando invitación',
+                        icon: 'error',
+                        background: '#1a1a1c',
+                        color: '#fff',
+                        confirmButtonColor: '#ff2301'
+                    });
+                }
+            } catch (err) { 
+                Swal.fire({
+                    title: 'Error',
+                    text: 'Error de conexión',
+                    icon: 'error',
+                    background: '#1a1a1c',
+                    color: '#fff',
+                    confirmButtonColor: '#ff2301'
+                });
+            } finally {
+                this.loading = false;
+            }
         },
         
         async updateUser() {
@@ -673,9 +712,29 @@ document.addEventListener('alpine:init', () => {
                         showConfirmButton: false
                     });
                 }
-                else Swal.fire('Error', (await res.json()).error || 'Error actualizando usuario', 'error');
-            } catch (err) { Swal.fire('Error', 'Error de conexión', 'error'); }
-            this.loading = false;
+                else {
+                    const data = await res.json();
+                    Swal.fire({
+                        title: 'Error',
+                        text: data.error || 'Error actualizando usuario',
+                        icon: 'error',
+                        background: '#1a1a1c',
+                        color: '#fff',
+                        confirmButtonColor: '#ff2301'
+                    });
+                }
+            } catch (err) { 
+                Swal.fire({
+                    title: 'Error',
+                    text: 'Error de conexión',
+                    icon: 'error',
+                    background: '#1a1a1c',
+                    color: '#fff',
+                    confirmButtonColor: '#ff2301'
+                }); 
+            } finally {
+                this.loading = false;
+            }
         },
         
         async deleteUser(id) {
@@ -700,8 +759,27 @@ document.addEventListener('alpine:init', () => {
                 if(res.ok) {
                     await this.fetchContainers();
                 }
-                else Swal.fire('Error', (await res.json()).error || 'Error eliminando usuario', 'error');
-            } catch (err) { Swal.fire('Error', 'Error de conexión', 'error'); }
+                else {
+                    const data = await res.json();
+                    Swal.fire({
+                        title: 'Error',
+                        text: data.error || 'Error eliminando usuario',
+                        icon: 'error',
+                        background: '#1a1a1c',
+                        color: '#fff',
+                        confirmButtonColor: '#ff2301'
+                    });
+                }
+            } catch (err) { 
+                Swal.fire({
+                    title: 'Error',
+                    text: 'Error de conexión',
+                    icon: 'error',
+                    background: '#1a1a1c',
+                    color: '#fff',
+                    confirmButtonColor: '#ff2301'
+                }); 
+            }
         },
         
         async cancelInvitation(id) {
@@ -713,7 +791,11 @@ document.addEventListener('alpine:init', () => {
                 color: '#fff',
                 confirmButtonColor: '#ff2301',
                 cancelButtonColor: '#3f3f46',
-                confirmButtonText: 'Sí, cancelar'
+                confirmButtonText: 'Sí, cancelar',
+                cancelButtonText: 'Cancelar',
+                customClass: {
+                    popup: 'border border-neutral-800 rounded-xl'
+                }
             });
             if(!result.isConfirmed) return;
 
@@ -723,20 +805,109 @@ document.addEventListener('alpine:init', () => {
                 });
                 if(res.ok) {
                     await this.fetchContainers();
+                    Swal.fire({
+                        title: '¡Invitación cancelada!',
+                        icon: 'success',
+                        background: '#1a1a1c',
+                        color: '#fff',
+                        timer: 1500,
+                        showConfirmButton: false,
+                        customClass: {
+                            popup: 'border border-neutral-800 rounded-xl'
+                        }
+                    });
                 }
-                else Swal.fire('Error', (await res.json()).error || 'Error cancelando invitación', 'error');
-            } catch (err) { Swal.fire('Error', 'Error de conexión', 'error'); }
+                else {
+                    const data = await res.json();
+                    Swal.fire({
+                        title: 'Error',
+                        text: data.error || 'Error cancelando invitación',
+                        icon: 'error',
+                        background: '#1a1a1c',
+                        color: '#fff',
+                        confirmButtonColor: '#ff2301',
+                        customClass: {
+                            popup: 'border border-neutral-800 rounded-xl'
+                        }
+                    });
+                }
+            } catch (err) { 
+                Swal.fire({
+                    title: 'Error',
+                    text: 'Error de conexión',
+                    icon: 'error',
+                    background: '#1a1a1c',
+                    color: '#fff',
+                    confirmButtonColor: '#ff2301',
+                    customClass: {
+                        popup: 'border border-neutral-800 rounded-xl'
+                    }
+                }); 
+            }
         },
         
         async resendInvitation(id) {
+            const result = await Swal.fire({
+                title: '¿Reenviar invitación?',
+                text: 'Se enviará un nuevo correo de invitación a este destinatario.',
+                icon: 'question',
+                showCancelButton: true,
+                background: '#1a1a1c',
+                color: '#fff',
+                confirmButtonColor: '#ff2301',
+                cancelButtonColor: '#3f3f46',
+                confirmButtonText: 'Sí, reenviar',
+                cancelButtonText: 'Cancelar',
+                customClass: {
+                    popup: 'border border-neutral-800 rounded-xl'
+                }
+            });
+            if(!result.isConfirmed) return;
+
             try {
                 const res = await fetch(`/app/configuracion/api/invitations/${id}/resend/`, {
                     method: 'POST', headers, body: '{}'
                 });
                 if(res.ok) {
                     await this.fetchContainers();
-                } else alert((await res.json()).error || 'Error reenviando invitación');
-            } catch (err) { alert('Error de conexión'); }
+                    Swal.fire({
+                        title: '¡Invitación reenviada!',
+                        icon: 'success',
+                        background: '#1a1a1c',
+                        color: '#fff',
+                        timer: 1500,
+                        showConfirmButton: false,
+                        customClass: {
+                            popup: 'border border-neutral-800 rounded-xl'
+                        }
+                    });
+                } else {
+                    const data = await res.json();
+                    Swal.fire({
+                        title: 'Error',
+                        text: data.error || 'Error reenviando invitación',
+                        icon: 'error',
+                        background: '#1a1a1c',
+                        color: '#fff',
+                        confirmButtonColor: '#ff2301',
+                        customClass: {
+                            popup: 'border border-neutral-800 rounded-xl'
+                        }
+                    });
+                }
+            } catch (err) { 
+                Swal.fire({
+                    title: 'Error',
+                    text: 'Error de conexión',
+                    icon: 'error',
+                    background: '#1a1a1c',
+                    color: '#fff',
+                    confirmButtonColor: '#ff2301',
+                    customClass: {
+                        popup: 'border border-neutral-800 rounded-xl'
+                    }
+                }); 
+            }
         }
     }));
 });

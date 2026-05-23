@@ -13,6 +13,8 @@ from django.views.generic import TemplateView
 from apps.core.mixins import RoleRequiredMixin
 from .models import Barbershop, Organization, Membership, OrganizationInvitation
 from django.utils import timezone
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError
 
 
 class ConfiguracionIndexView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
@@ -198,13 +200,19 @@ class SendInvitationAPI(LoginRequiredMixin, RoleRequiredMixin, View):
         if not email or not role:
             return JsonResponse({"error": "El email y el rol son obligatorios"}, status=400)
 
+        # Validate email format
+        try:
+            validate_email(email)
+        except ValidationError:
+            return JsonResponse({"error": "El correo electrónico no tiene un formato válido"}, status=400)
+
         valid_roles = [r[0] for r in Membership.Role.choices]
         if role not in valid_roles:
             return JsonResponse({"error": "Rol inválido"}, status=400)
 
         # Check if already has an active invitation
         if OrganizationInvitation.objects.filter(
-            email=email, organization=org, is_active=True, is_used=False, expires_at__gt=timezone.now()
+            email__iexact=email, organization=org, is_active=True, is_used=False, expires_at__gt=timezone.now()
         ).exists():
             return JsonResponse({"error": "Ya existe una invitación activa para este correo"}, status=400)
 
@@ -316,6 +324,10 @@ class UpdateMembershipAPI(LoginRequiredMixin, RoleRequiredMixin, View):
 
         if role not in [r[0] for r in Membership.Role.choices]:
             return JsonResponse({"error": "Rol inválido"}, status=400)
+
+        # Don't allow changing one's own role
+        if membership.user == request.user and role != membership.role:
+            return JsonResponse({"error": "No puedes cambiar tu propio rol"}, status=400)
 
         # If they are modifying the role of an owner to something else, protect it if it's the last owner
         if membership.role == Membership.Role.OWNER and role != Membership.Role.OWNER:
