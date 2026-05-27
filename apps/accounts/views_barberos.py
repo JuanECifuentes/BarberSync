@@ -38,11 +38,15 @@ class BarberoListView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
         barberos = BarberProfile.objects.filter(
             membership__organization=org,
             is_active=True,
+            membership__is_active=True,
         ).select_related(
             "membership__user", "membership__barbershop"
         ).prefetch_related("sucursales", "barber_services__service")
 
+        print("barberos", barberos.values())
+
         if barbershop:
+            print("barbershop", barbershop)
             barberos = barberos.filter(
                 sucursales=barbershop
             ) | barberos.filter(membership__barbershop=barbershop)
@@ -58,8 +62,12 @@ class BarberoListView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
             organization=org,
             is_active=True
         ).exclude(
-            role=Membership.Role.BARBER
+            user_id__in=barberos.values_list("membership__user_id", flat=True)
+        ).exclude(
+            barber_profile__is_active=False
         ).select_related("user")
+
+        print("miembros_disponibles", ctx["miembros_disponibles"].values())
         
         ctx["sucursales"] = Barbershop.objects.filter(organization=org, is_active=True)
         # Services grouped by category for accordion display

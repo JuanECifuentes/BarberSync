@@ -48,6 +48,7 @@ class BookingPageView(TemplateView):
         barbers = BarberProfile.objects.filter(
             Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
             is_active=True,
+            membership__is_active=True,
         ).select_related("membership__user").distinct()
 
         # Annotate each barber with availability info

@@ -24,12 +24,12 @@ class Client(OrganizationModel):
     Supports soft delete via is_active flag.
     """
 
-    user = models.OneToOneField(
+    user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name="client_profile",
+        related_name="client_profiles",
         help_text="Vinculado si el cliente se autenticó con Google.",
     )
     name = models.CharField("nombre", max_length=150)
@@ -62,6 +62,11 @@ class Client(OrganizationModel):
                 condition=models.Q(phone__gt="") & models.Q(is_active=True),
                 name="unique_client_phone_per_org",
             ),
+            models.UniqueConstraint(
+                fields=["organization", "user"],
+                condition=models.Q(user__isnull=False) & models.Q(is_active=True),
+                name="unique_client_user_per_org",
+            ),
         ]
 
     def __str__(self):
@@ -74,8 +79,8 @@ class Client(OrganizationModel):
             User = get_user_model()
             try:
                 matching_user = User.objects.get(email__iexact=self.email)
-                # Only link if this user isn't already linked to another client
-                if not Client.objects.filter(user=matching_user).exclude(pk=self.pk).exists():
+                # Only link if this user isn't already linked to another client in this organization
+                if not Client.objects.filter(organization=self.organization, user=matching_user).exclude(pk=self.pk).exists():
                     self.user = matching_user
             except User.DoesNotExist:
                 pass
