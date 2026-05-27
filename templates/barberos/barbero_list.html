@@ -12,6 +12,9 @@
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/confirmDate/confirmDate.js"></script>
+<!-- Toastify JS para notificaciones ligeras y premium -->
+<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 <style>
     /* Custom tooltip styling */
     [data-tooltip] {
@@ -146,6 +149,36 @@
     .accordion-content.open {
         max-height: 200px;
         opacity: 1;
+    }
+
+    /* ── Multi-select dropdown ── */
+    .ms-dropdown { position: relative; }
+    .ms-trigger {
+        display: flex; align-items: center; justify-content: space-between;
+        width: 100%; padding: 8px 12px;
+        background: #2a2a2d; border: 1px solid #4a4a4f; border-radius: 8px;
+        color: #fff; font-size: 13px; cursor: pointer; transition: border-color 0.2s; min-height: 38px;
+    }
+    .ms-trigger:hover, .ms-trigger:focus { border-color: #ff2301; }
+    .ms-trigger .ms-count {
+        background: rgba(255, 35, 1, 0.2); color: #ff6b56;
+        font-size: 11px; font-weight: 600; padding: 2px 8px;
+        border-radius: 9999px; margin-left: 8px;
+    }
+    .ms-panel {
+        position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+        background: #2a2a2d; border: 1px solid #4a4a4f; border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4); z-index: 30;
+        max-height: 220px; overflow-y: auto; padding: 4px 0;
+    }
+    .ms-option {
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 12px; cursor: pointer; font-size: 13px; color: #d9d9dd; transition: background 0.15s;
+    }
+    .ms-option:hover { background: rgba(255, 255, 255, 0.05); }
+    .ms-option input[type="checkbox"] {
+        width: 16px; height: 16px; border-radius: 4px;
+        border: 1px solid #4a4a4f; background: #1a1a1c; accent-color: #ff2301; cursor: pointer;
     }
 </style>
 {% endblock %}
@@ -365,14 +398,20 @@
         <div id="tab-info" class="tab-panel space-y-3">
             <div id="bb-user-select-container">
                 <label class="text-xs text-neutral-400 mb-1 block">Seleccionar Miembro de la Organización *</label>
-                <select id="bb-user-id" class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors" onchange="updateSelectedUserInfo()">
-                    <option value="" disabled selected>Seleccione un usuario...</option>
-                    {% for m in miembros_disponibles %}
-                    <option value="{{ m.user.id }}" data-email="{{ m.user.email }}" data-phone="{{ m.user.phone|default:'' }}">
-                        {{ m.user.get_full_name|default:m.user.username }}
-                    </option>
-                    {% endfor %}
-                </select>
+                <div class="flex items-start gap-2">
+                    <select id="bb-user-id" class="flex-1 w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors" onchange="updateSelectedUserInfo()">
+                        <option value="" disabled selected>Seleccione un usuario...</option>
+                        {% for m in miembros_disponibles %}
+                        <option value="{{ m.user.id }}" data-email="{{ m.user.email }}" data-phone="{{ m.user.phone|default:'' }}">
+                            {{ m.user.get_full_name|default:m.user.username }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" onclick="openBarberInviteModal()" id="btn-invite-barber"
+                            class="btn-action-primary btn-primary border border-neutral-700 px-4 py-3 rounded-lg transition-all shadow-sm text-sm">
+                        <span>Invitar usuario</span>
+                    </button>
+                </div>
                 <div id="bb-user-info" class="mt-3 p-3 bg-neutral-800/50 border border-neutral-700 rounded-lg hidden">
                     <p class="text-sm text-neutral-300 font-medium" id="bb-info-name"></p>
                     <p class="text-xs text-neutral-400 mt-1" id="bb-info-email"></p>
@@ -691,6 +730,68 @@
     </div>
 </div>
 
+<!-- Modal Invitar Usuario -->
+<div id="modal-barber-invite" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+    <div class="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4 relative">
+        <!-- Loader Overlay -->
+        <div id="invite-loader" class="hidden absolute inset-0 bg-neutral-900/80 rounded-xl z-10 flex items-center justify-center backdrop-blur-sm">
+            <svg class="animate-spin h-8 w-8 text-brand" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+        </div>
+        
+        <div class="flex items-center justify-between">
+            <h3 class="font-heading font-bold text-lg text-white">Invitar a la organización</h3>
+            <button type="button" onclick="closeBarberInviteModal()" class="text-neutral-400 hover:text-white transition-colors relative z-20" data-tooltip="Cerrar">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        
+        <div class="space-y-3">
+            <div>
+                <label class="text-xs text-neutral-400 mb-1 block">Correo electrónico</label>
+                <input type="email" id="invite-email" placeholder="correo@ejemplo.com" oninput="validateInviteEmail()"
+                       class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+            </div>
+            <div>
+                <label class="text-xs text-neutral-400 mb-1 block">Rol</label>
+                <select id="invite-role" class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors appearance-none">
+                    <!-- Barber default, admin, staff -->
+                    <option value="barber" selected>Barbero</option>
+                    <option value="admin">Administrador</option>
+                    <option value="staff">Personal Barbería</option>
+                </select>
+            </div>
+            <!-- Sucursales selector -->
+            <div class="ms-dropdown" id="invite-branches-dropdown">
+                <label class="block text-xs text-neutral-400 mb-1">Sucursales asignadas</label>
+                <button type="button" class="ms-trigger" onclick="toggleInviteBranchesDropdown(event)">
+                    <span id="invite-branches-label">Toda la organización</span>
+                    <span id="invite-branches-count" class="ms-count hidden">0</span>
+                    <svg id="invite-branches-icon" class="w-4 h-4 text-neutral-400 ml-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div id="invite-branches-panel" class="ms-panel hidden">
+                    {% for suc in sucursales %}
+                    <label class="ms-option">
+                        <input type="checkbox" value="{{ suc.id }}" class="invite-sucursal-check" onchange="updateInviteBranchesText()">
+                        <span>{{ suc.name }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                <p class="text-[10px] text-neutral-500 mt-1 leading-tight">Selecciona al menos una sucursal. Si no seleccionas ninguna, tendrá acceso a toda la organización.</p>
+            </div>
+        </div>
+        
+        <div class="flex gap-3 pt-2">
+            <button onclick="closeBarberInviteModal()" class="flex-1 py-2 rounded-lg text-sm font-medium border border-neutral-700 text-neutral-300 hover:bg-neutral-800 transition-colors">Cancelar</button>
+            <button onclick="sendBarberInvitation()" id="btn-send-invite" disabled class="btn-action-primary flex-1 py-2 rounded-lg text-sm font-medium border border-brand text-white opacity-50 cursor-not-allowed flex items-center justify-center gap-2">
+                <svg id="btn-send-invite-spinner" class="animate-spin h-4 w-4 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                <span id="btn-send-invite-text">Enviar invitación</span>
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
     function getCookie(name) {
         const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
@@ -879,6 +980,163 @@
         document.getElementById('bb-info-email').textContent = opt.dataset.email || '';
         document.getElementById('bb-info-phone').textContent = opt.dataset.phone || 'Sin teléfono';
         infoDiv.classList.remove('hidden');
+    }
+
+    // ── Invite Modal ──
+    function openBarberInviteModal() {
+        // Reset fields
+        document.getElementById('invite-email').value = '';
+        document.getElementById('invite-role').value = 'barber';
+        document.querySelectorAll('.invite-sucursal-check').forEach(c => c.checked = false);
+        updateInviteBranchesText();
+        validateInviteEmail();
+        document.getElementById('invite-loader').classList.add('hidden');
+        document.getElementById('modal-barber-invite').classList.remove('hidden');
+    }
+
+    function closeBarberInviteModal() {
+        document.getElementById('modal-barber-invite').classList.add('hidden');
+    }
+
+    function validateInviteEmail() {
+        const emailInput = document.getElementById('invite-email');
+        const btn = document.getElementById('btn-send-invite');
+        const email = emailInput.value.trim();
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const isValid = emailRegex.test(email);
+
+        if (isValid) {
+            btn.removeAttribute('disabled');
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+            btn.setAttribute('disabled', 'true');
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+    }
+
+    function toggleInviteBranchesDropdown(event) {
+        event.stopPropagation();
+        const panel = document.getElementById('invite-branches-panel');
+        const icon = document.getElementById('invite-branches-icon');
+        const isHidden = panel.classList.contains('hidden');
+        if (isHidden) {
+            panel.classList.remove('hidden');
+            icon.classList.add('rotate-180');
+        } else {
+            panel.classList.add('hidden');
+            icon.classList.remove('rotate-180');
+        }
+    }
+
+    function updateInviteBranchesText() {
+        const checked = document.querySelectorAll('.invite-sucursal-check:checked');
+        const label = document.getElementById('invite-branches-label');
+        const count = document.getElementById('invite-branches-count');
+        if (checked.length === 0) {
+            label.textContent = 'Toda la organización';
+            label.className = '';
+            count.classList.add('hidden');
+        } else {
+            label.textContent = `${checked.length} seleccionada(s)`;
+            label.className = 'truncate text-neutral-300';
+            count.textContent = checked.length;
+            count.classList.remove('hidden');
+        }
+    }
+
+    document.addEventListener('click', (e) => {
+        const dropdown = document.getElementById('invite-branches-dropdown');
+        if (dropdown && !dropdown.contains(e.target)) {
+            const panel = document.getElementById('invite-branches-panel');
+            const icon = document.getElementById('invite-branches-icon');
+            if (panel && !panel.classList.contains('hidden')) {
+                panel.classList.add('hidden');
+                icon.classList.remove('rotate-180');
+            }
+        }
+    });
+
+    async function sendBarberInvitation() {
+        const email = document.getElementById('invite-email').value.trim();
+        if (!email) {
+            Toastify({
+                text: "Ingresa un correo electrónico",
+                duration: 1600,
+                close: true,
+                gravity: "top",
+                position: "right",
+                style: { background: "#ff2301", borderRadius: "8px", fontFamily: "Poppins, sans-serif", fontSize: "14px", fontWeight: "500", boxShadow: "0 10px 15px -3px rgba(255, 35, 1, 0.2)" }
+            }).showToast();
+            return;
+        }
+
+        const role = document.getElementById('invite-role').value;
+        const sucursales = [...document.querySelectorAll('.invite-sucursal-check:checked')].map(c => parseInt(c.value));
+        
+        const payload = {
+            email: email,
+            role: role,
+            sucursales: sucursales
+        };
+
+        const loader = document.getElementById('invite-loader');
+        const btn = document.getElementById('btn-send-invite');
+        const btnText = document.getElementById('btn-send-invite-text');
+        const spinner = document.getElementById('btn-send-invite-spinner');
+        
+        loader.classList.remove('hidden');
+        btn.disabled = true;
+        btn.classList.add('opacity-50', 'cursor-not-allowed');
+        spinner.classList.remove('hidden');
+        const origText = btnText.textContent;
+        btnText.textContent = 'Enviando...';
+
+        try {
+            const res = await fetch('{% url "configuracion:api_send_invitation" %}', {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                closeBarberInviteModal();
+                Toastify({
+                    text: `Invitación enviada a ${email}. Esperando aceptación.`,
+                    duration: 5000,
+                    close: true,
+                    gravity: "top",
+                    position: "right",
+                    style: { background: "#10b981", borderRadius: "8px", fontFamily: "Poppins, sans-serif", fontSize: "14px", fontWeight: "500", boxShadow: "0 10px 15px -3px rgba(16, 185, 129, 0.2)" }
+                }).showToast();
+            } else {
+                const data = await res.json();
+                Toastify({
+                    text: data.error || "Error al enviar la invitación",
+                    duration: 3000,
+                    close: true,
+                    gravity: "top",
+                    position: "right",
+                    style: { background: "#ff2301", borderRadius: "8px", fontFamily: "Poppins, sans-serif", fontSize: "14px", fontWeight: "500" }
+                }).showToast();
+            }
+        } catch (err) {
+            console.error(err);
+            Toastify({
+                text: "Error de red al enviar la invitación",
+                duration: 3000,
+                close: true,
+                gravity: "top",
+                position: "right",
+                style: { background: "#ff2301", borderRadius: "8px", fontFamily: "Poppins, sans-serif", fontSize: "14px", fontWeight: "500" }
+            }).showToast();
+        } finally {
+            loader.classList.add('hidden');
+            btn.disabled = false;
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            spinner.classList.add('hidden');
+            btnText.textContent = origText;
+            validateInviteEmail();
+        }
     }
 
     // ── Create Modal ──
