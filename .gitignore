@@ -1,5 +1,6 @@
 .vscode
 .claude
+.antigravitycli
 
 *.pyc
 __pycache__/
