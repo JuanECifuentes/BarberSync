@@ -13,11 +13,15 @@ import environ
 # ──────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-env = environ.Env(DEBUG=(bool, False))
+env = environ.Env(
+    DEBUG=(bool, False),
+    LOCAL=(bool, False),
+)
 environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
 
 SECRET_KEY = env("SECRET_KEY", default="insecure-dev-key-change-me")
-DEBUG = env("DEBUG", default=True)
+DEBUG = env("DEBUG", default=False)
+LOCAL = env("LOCAL", default=False)
 ALLOWED_HOSTS = env.get_value("ALLOWED_HOSTS", default="localhost,127.0.0.1").split(",")
 
 # ──────────────────────────────────────────────
@@ -63,6 +67,8 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     # BarberSync: inject current tenant into request
     "apps.core.middleware.TenantMiddleware",
+    "apps.core.middleware.TenantSecurityMiddleware",
+    "apps.core.middleware.GlobalRateLimitMiddleware",
     "apps.accounts.middleware.OnboardingMiddleware",
     "apps.billing.middleware.SubscriptionAccessMiddleware",
 ]
@@ -101,6 +107,29 @@ DATABASES = {
         "PORT": os.getenv("DB_PORT", "5432"),
     }
 }
+
+# ──────────────────────────────────────────────
+# Cache (Redis / LocMem)
+# ──────────────────────────────────────────────
+if LOCAL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "barbersync-local-mem",
+        }
+    }
+else:
+    REDIS_URL = env("REDIS_URL", default="redis://127.0.0.1:6379/1")
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": REDIS_URL,
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            }
+        }
+    }
+
 # ──────────────────────────────────────────────
 # Auth
 # ──────────────────────────────────────────────
@@ -130,8 +159,11 @@ LOGOUT_REDIRECT_URL = "/"
 SITE_ID = 1
 
 ACCOUNT_LOGIN_METHODS = {"email"}
-ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_USERNAME_REQUIRED = False
+# ACCOUNT_EMAIL_REQUIRED = True
+# ACCOUNT_USERNAME_REQUIRED = False
+
+ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
+
 ACCOUNT_EMAIL_VERIFICATION = "optional"
 ACCOUNT_SIGNUP_REDIRECT_URL = LOGIN_REDIRECT_URL
 
@@ -242,5 +274,19 @@ BILLING_COUNTRY_PROVIDER_MAP = {
 BILLING_COUNTRY_CURRENCY_MAP = {
     "CO": "COP",
     "US": "USD",
-    "MX": "MXN",
 }
+
+
+# ──────────────────────────────────────────────
+# Security (production)
+# ──────────────────────────────────────────────
+if not DEBUG:
+    print("DEBUG is False, setting security settings")
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = "DENY"
