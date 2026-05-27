@@ -53,6 +53,14 @@ class BarberoListView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
             membership__organization=org,
             is_active=False,
         ).select_related("membership__user")
+        
+        ctx["miembros_disponibles"] = Membership.objects.filter(
+            organization=org,
+            is_active=True
+        ).exclude(
+            role=Membership.Role.BARBER
+        ).select_related("user")
+        
         ctx["sucursales"] = Barbershop.objects.filter(organization=org, is_active=True)
         # Services grouped by category for accordion display
         servicios_qs = Service.objects.filter(
@@ -129,6 +137,7 @@ class BarberoDetailAPI(LoginRequiredMixin, RoleRequiredMixin, View):
 
         return JsonResponse({
             "id": barber.pk,
+            "user_id": user.pk,
             "email": user.email,
             "first_name": user.first_name,
             "last_name": user.last_name,
@@ -161,36 +170,24 @@ class BarberoCreateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
         except json.JSONDecodeError:
             return JsonResponse({"error": "JSON inválido"}, status=400)
 
-        email = data.get("email", "").strip().lower()
-        first_name = data.get("first_name", "").strip()
-        last_name = data.get("last_name", "").strip()
-        if not email or not first_name:
-            return JsonResponse({"error": "Email y nombre son requeridos"}, status=400)
+        user_id = data.get("user_id")
+        if not user_id:
+            return JsonResponse({"error": "Debe seleccionar un usuario válido"}, status=400)
 
-        # Get or create user
-        user, created = User.objects.get_or_create(
-            email=email,
-            defaults={
-                "username": email,
-                "first_name": first_name,
-                "last_name": last_name,
-            },
-        )
-        if created:
-            user.set_unusable_password()
-            user.save()
-        else:
-            user.first_name = first_name
-            user.last_name = last_name
-            user.save(update_fields=["first_name", "last_name"])
+        # Get the selected membership/user
+        try:
+            membership = Membership.objects.get(
+                user_id=user_id,
+                organization=org,
+                is_active=True
+            )
+        except Membership.DoesNotExist:
+            return JsonResponse({"error": "El usuario seleccionado no es miembro de la organización"}, status=400)
 
-        # Create membership
-        membership, _ = Membership.objects.get_or_create(
-            user=user,
-            organization=org,
-            barbershop=barbershop,
-            defaults={"role": Membership.Role.BARBER, "is_active": True},
-        )
+        # Update role to Barber if not already (or keep their higher role like owner/admin but they now act as barber too)
+        if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
+            membership.role = Membership.Role.BARBER
+            membership.save(update_fields=["role"])
 
         # Create barber profile
         barber, bp_created = BarberProfile.objects.get_or_create(
@@ -254,13 +251,8 @@ class BarberoUpdateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
             return JsonResponse({"error": "JSON inválido"}, status=400)
 
         with transaction.atomic():
-            # Update user info
+            # Update user info (first_name and last_name are no longer updated from this modal)
             user = barber.user
-            if data.get("first_name"):
-                user.first_name = data["first_name"].strip()
-            if data.get("last_name") is not None:
-                user.last_name = data["last_name"].strip()
-            user.save(update_fields=["first_name", "last_name"])
 
             # Update barber profile
             barber.display_name = data.get("display_name", barber.display_name)

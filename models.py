@@ -97,23 +97,26 @@ class Servicios(models.Model):
 
 class Barberos(models.Model):
     idBarber = models.AutoField(db_column='idBarber',primary_key=True)
-    nombre_barbero = models.CharField(max_length=100)
-    telefono =  models.CharField(
-        max_length=15, 
-        validators=[
-            RegexValidator(
-                regex=r'^\+?\d{7,15}$',
-                message='El número de teléfono debe contener entre 7 y 15 dígitos y puede comenzar con "+"'
-            )
-        ],null=False,blank=False)
-    email = models.CharField(max_length=100,null=True,blank=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, db_column='idUsuario')
     redes_sociales = models.TextField(null=True,blank=True)
     fecha_registro = models.DateTimeField(auto_created=True,default=datetime.now())
     is_active = models.BooleanField(auto_created=True,default=True)
 
-    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='barberos_updated')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(blank=False,null=False,auto_now=True)
+
+    @property
+    def nombre_barbero(self):
+        return self.user.get_full_name() if self.user else "Barbero Desconocido"
+
+    @property
+    def telefono(self):
+        return self.user.phone if hasattr(self.user, 'phone') and self.user.phone else ""
+
+    @property
+    def email(self):
+        return self.user.email if self.user else ""
 
     def __str__(self):
         return f'{self.nombre_barbero} ({self.idBarber})'
