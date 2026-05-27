@@ -13,11 +13,15 @@ import environ
 # ──────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-env = environ.Env(DEBUG=(bool, False))
+env = environ.Env(
+    DEBUG=(bool, False),
+    LOCAL=(bool, False),
+)
 environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
 
 SECRET_KEY = env("SECRET_KEY", default="insecure-dev-key-change-me")
 DEBUG = env("DEBUG", default=False)
+LOCAL = env("LOCAL", default=False)
 ALLOWED_HOSTS = env.get_value("ALLOWED_HOSTS", default="localhost,127.0.0.1").split(",")
 
 # ──────────────────────────────────────────────
@@ -63,6 +67,8 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     # BarberSync: inject current tenant into request
     "apps.core.middleware.TenantMiddleware",
+    "apps.core.middleware.TenantSecurityMiddleware",
+    "apps.core.middleware.GlobalRateLimitMiddleware",
     "apps.accounts.middleware.OnboardingMiddleware",
     "apps.billing.middleware.SubscriptionAccessMiddleware",
 ]
@@ -101,6 +107,29 @@ DATABASES = {
         "PORT": os.getenv("DB_PORT", "5432"),
     }
 }
+
+# ──────────────────────────────────────────────
+# Cache (Redis / LocMem)
+# ──────────────────────────────────────────────
+if LOCAL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "barbersync-local-mem",
+        }
+    }
+else:
+    REDIS_URL = env("REDIS_URL", default="redis://127.0.0.1:6379/1")
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": REDIS_URL,
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            }
+        }
+    }
+
 # ──────────────────────────────────────────────
 # Auth
 # ──────────────────────────────────────────────

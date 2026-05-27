@@ -60,3 +60,34 @@ class RoleRequiredMixin:
         if membership is None or membership.role not in self.allowed_roles:
             raise PermissionDenied("No tienes permisos para esta acción.")
         return super().dispatch(request, *args, **kwargs)
+
+
+from django.core.cache import cache
+from django.http import JsonResponse, HttpResponseForbidden
+
+class RateLimitWritesMixin:
+    """
+    Validador de negocio que verifica el límite máximo de escrituras (creación/modificación)
+    por minuto de un usuario, bloqueando ráfagas de .save() masivas en vistas críticas.
+    """
+    max_writes_per_minute = 10
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.method in ['POST', 'PUT', 'PATCH'] and request.user.is_authenticated:
+            view_name = self.__class__.__name__
+            cache_key = f"rate_limit_writes_{request.user.id}_{view_name}"
+            
+            writes = cache.get(cache_key, 0)
+            
+            if writes >= self.max_writes_per_minute:
+                error_msg = "Has excedido el límite de acciones permitidas por minuto. Por favor, espera un momento."
+                if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.content_type == 'application/json':
+                    return JsonResponse({"error": error_msg}, status=429)
+                return HttpResponseForbidden(error_msg)
+            
+            if writes == 0:
+                cache.set(cache_key, 1, timeout=60)
+            else:
+                cache.incr(cache_key)
+                
+        return super().dispatch(request, *args, **kwargs)

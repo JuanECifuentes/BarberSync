@@ -10,6 +10,10 @@
 - **Control Financiero y de Inventario:** Integra la facturación (servicios y productos) y un control estricto de inventario mediante un registro inmutable de movimientos de stock.
 - **Recordatorios Automáticos:** Reduce el ausentismo (no-shows) mediante un sistema de notificaciones asíncronas para clientes y barberos.
 
+## 1.1 Políticas de Seguridad en APIs y Control Multi-Tenant
+
+Absolutamente todos los endpoints actuales y futuros que involucren la creación, extracción, actualización, eliminación o interacción general con datos sensibles deben implementar de manera nativa e inequívoca las capas de Rate Limiting y Verificación de Propiedad de Datos (Aislamiento Tenant) descritas en este estándar. Ningún endpoint de datos puede quedar expuesto sin estas dos directrices vigentes.
+
 ## 2. Arquitectura del Sistema
 El sistema está construido con **Django 5.1+** y utiliza **PostgreSQL** como base de datos principal.
 
