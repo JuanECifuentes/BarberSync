@@ -226,9 +226,9 @@
                     {% endif %}
                 </div>
 
-                <!-- Right: Action buttons (always visible) -->
-                {% if is_admin %}
+                <!-- Right: Action buttons -->
                 <div class="flex items-center gap-1 flex-shrink-0">
+                    {% if is_admin or request.user.id == b.user.id %}
                     <button onclick="openScheduleModal({{ b.pk }})"
                         data-tooltip="Horario Semanal"
                         class="border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-400 hover:text-white">
@@ -245,6 +245,8 @@
                                 d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                         </svg>
                     </button>
+                    {% endif %}
+                    {% if is_admin %}
                     <button onclick="confirmDeactivateBarber({{ b.pk }}, '{{ b.display_name|default:b.user.get_full_name|escapejs }}')"
                         data-tooltip="Eliminar Barbero"
                         class="border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-red-400 hover:text-red-300">
@@ -253,8 +255,8 @@
                                 d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
                     </button>
+                    {% endif %}
                 </div>
-                {% endif %}
             </div>
 
             <!-- Sucursales (1 line max) -->
@@ -367,6 +369,7 @@
     {% endif %}
 </div>
 
+{% if request.user.is_authenticated %}
 <!-- ═══════════════════════════════════════════════════ -->
 <!-- MODAL: Crear / Editar Barbero                      -->
 <!-- ═══════════════════════════════════════════════════ -->
@@ -396,6 +399,7 @@
 
         <!-- Tab: Info -->
         <div id="tab-info" class="tab-panel space-y-3">
+            {% if is_admin %}
             <div id="bb-user-select-container">
                 <label class="text-xs text-neutral-400 mb-1 block">Seleccionar Miembro de la Organización *</label>
                 <div class="flex items-start gap-2">
@@ -418,6 +422,7 @@
                     <p class="text-xs text-neutral-400" id="bb-info-phone"></p>
                 </div>
             </div>
+            {% endif %}
             <input id="bb-display-name" type="text" placeholder="Nombre artístico (opcional)"
                 class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
             <input id="bb-phone" type="text" placeholder="Teléfono"
@@ -701,10 +706,12 @@
         </div>
     </div>
 </div>
+{% endif %}
 
 <!-- ═══════════════════════════════════════════════════ -->
 <!-- MODAL: Confirmación desactivación                  -->
 <!-- ═══════════════════════════════════════════════════ -->
+{% if is_admin %}
 <div id="modal-confirm-deactivate" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity duration-300">
     <div class="bg-[#2a2a2d] border border-[#3d3d41] rounded-xl p-6 max-w-sm w-full text-center shadow-2xl transform transition-all">
         <svg class="w-12 h-12 text-red-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -791,6 +798,7 @@
         </div>
     </div>
 </div>
+{% endif %}
 
 <script>
     function getCookie(name) {
@@ -864,7 +872,10 @@
         // Exception form validation
         initExceptionValidation();
     });
+</script>
 
+{% if request.user.is_authenticated %}
+<script>
     // ═══════════════════════════════════════════════════
     // FLATPICKR INITIALIZATION
     // ═══════════════════════════════════════════════════
@@ -971,6 +982,8 @@
     function updateSelectedUserInfo() {
         const select = document.getElementById('bb-user-id');
         const infoDiv = document.getElementById('bb-user-info');
+        if (!select || !infoDiv) return;
+        
         if (!select.value) {
             infoDiv.classList.add('hidden');
             return;
@@ -982,6 +995,7 @@
         infoDiv.classList.remove('hidden');
     }
 
+    {% if is_admin %}
     // ── Invite Modal ──
     function openBarberInviteModal() {
         // Reset fields
@@ -1168,6 +1182,7 @@
         showTab('tab-info');
         document.getElementById('modal-barbero').classList.remove('hidden');
     }
+    {% endif %}
 
     // ── Edit Modal ──
     let currentBarberServiceConfigs = [];
@@ -1180,19 +1195,21 @@
         document.getElementById('barber-edit-id').value = id;
         
         const select = document.getElementById('bb-user-id');
-        // Add option if it doesn't exist
-        const existingOpt = [...select.options].find(o => o.value == d.user_id);
-        if (!existingOpt && d.user_id) {
-            const opt = document.createElement('option');
-            opt.value = d.user_id;
-            opt.text = (d.first_name || d.last_name) ? `${d.first_name} ${d.last_name}` : d.email;
-            opt.dataset.email = d.email;
-            opt.dataset.phone = d.phone;
-            opt.classList.add('edit-temp-opt');
-            select.appendChild(opt);
+        if (select) {
+            // Add option if it doesn't exist
+            const existingOpt = [...select.options].find(o => o.value == d.user_id);
+            if (!existingOpt && d.user_id) {
+                const opt = document.createElement('option');
+                opt.value = d.user_id;
+                opt.text = (d.first_name || d.last_name) ? `${d.first_name} ${d.last_name}` : d.email;
+                opt.dataset.email = d.email;
+                opt.dataset.phone = d.phone;
+                opt.classList.add('edit-temp-opt');
+                select.appendChild(opt);
+            }
+            select.value = d.user_id;
+            select.disabled = true;
         }
-        select.value = d.user_id;
-        select.disabled = true;
         updateSelectedUserInfo();
 
         document.getElementById('bb-display-name').value = d.display_name;
@@ -1237,7 +1254,7 @@
         }
 
         const payload = {
-            user_id: document.getElementById('bb-user-id').value,
+            user_id: document.getElementById('bb-user-id') ? document.getElementById('bb-user-id').value : null,
             display_name: document.getElementById('bb-display-name').value.trim(),
             phone: document.getElementById('bb-phone').value.trim(),
             bio: document.getElementById('bb-bio').value.trim(),
@@ -1261,6 +1278,7 @@
         }
     }
 
+    {% if is_admin %}
     // ── Deactivate / Reactivate ──
     function confirmDeactivateBarber(id, name) {
         document.getElementById('deactivate-barber-id').value = id;
@@ -1278,6 +1296,7 @@
         const res = await fetch(`/app/barberos/api/${id}/reactivate/`, { method: 'POST', headers, body: '{}' });
         if (res.ok) location.reload();
     }
+    {% endif %}
 
     // ═══════════════════════════════════════════════════
     // SCHEDULE MODAL
@@ -1897,4 +1916,5 @@
         input.value = parseInt(raw).toLocaleString('de-DE');
     }
 </script>
+{% endif %}
 {% endblock %}
