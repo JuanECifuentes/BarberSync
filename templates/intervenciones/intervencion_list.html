@@ -907,6 +907,46 @@ function precioTotalCellRenderer(params) {
     return el;
 }
 
+function formatCommissionMoney(value) {
+    const num = parseFloat(value);
+    if (isNaN(num)) return '$0';
+    const rounded = Math.round(num * 100) / 100;
+    const parts = rounded.toString().split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    const intFormatted = parts[0];
+    const dec = parts.length > 1 ? parts[1].padEnd(2, '0').slice(0, 2) : '00';
+    if (dec === '00') return '$' + intFormatted;
+    return '$' + intFormatted + ',' + dec;
+}
+
+function gananciaBarberiaCellRenderer(params) {
+    if (!params.data) return '';
+    const el = document.createElement('span');
+    el.className = 'font-heading font-semibold';
+    el.style.color = '#ff2301';
+    el.textContent = params.data.ganancia_barberia_fmt || '$0';
+    return el;
+}
+
+function comisionBarberoCellRenderer(params) {
+    if (!params.data) return '';
+    const el = document.createElement('span');
+    el.className = 'font-heading font-semibold';
+    el.style.color = '#10b981';
+    el.textContent = params.data.ganancia_barbero_fmt || '$0';
+    return el;
+}
+
+function repartoCellRenderer(params) {
+    if (!params.data) return '';
+    const pctBarberia = params.data.pct_barberia;
+    const pctBarbero = params.data.pct_barbero;
+    const el = document.createElement('span');
+    el.className = 'text-neutral-400 text-xs';
+    el.textContent = `${pctBarberia}% / ${pctBarbero}%`;
+    return el;
+}
+
 function productosCellRenderer(params) {
     if (!params.value || !params.value.length) {
         return '<div class="flex items-center w-full h-full"><span class="text-neutral-400 text-xs">—</span></div>';
@@ -957,6 +997,9 @@ const columnDefs = [
     { headerName: 'Productos', field: 'productos', sortable: false, minWidth: 160, flex: 1.2, cellRenderer: productosCellRenderer },
     { headerName: 'Sucursal',  field: 'sucursal',  sortable: true,  minWidth: 120, flex: 0.8 },
     { headerName: 'Total',     field: 'precio_total', sortable: false, minWidth: 100, maxWidth: 120, cellRenderer: precioTotalCellRenderer },
+    { headerName: 'Ingreso Barbería', field: 'ganancia_barberia', sortable: false, minWidth: 110, maxWidth: 140, cellRenderer: gananciaBarberiaCellRenderer },
+    { headerName: 'Comisión Barbero', field: 'ganancia_barbero', sortable: false, minWidth: 110, maxWidth: 140, cellRenderer: comisionBarberoCellRenderer },
+    { headerName: 'Reparto (%)', field: 'pct_barberia', sortable: false, minWidth: 100, maxWidth: 130, cellRenderer: repartoCellRenderer },
     { headerName: 'Estado',    field: 'estado',    sortable: true,  minWidth: 120, maxWidth: 150, cellRenderer: estadoCellRenderer },
     { headerName: 'Acciones',  field: 'acciones',  sortable: false, minWidth: 90,  maxWidth: 90,  cellRenderer: accionesCellRenderer, suppressSizeToFit: true },
 ];
