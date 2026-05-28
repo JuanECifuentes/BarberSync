@@ -40,28 +40,13 @@ window.cancelBulkReassign = closeBulkReassignModal;
 function isBarberAvailable(barber, startTimeIso, durationMins) {
     const start = new Date(startTimeIso);
     const end = new Date(start.getTime() + durationMins * 60000);
-    // Python day_of_week: 0=Monday, 6=Sunday. JS getDay(): 0=Sunday, 1=Monday... 6=Saturday.
-    const pyDayOfWeek = start.getDay() === 0 ? 6 : start.getDay() - 1;
-
-    // 1. Check if within work schedule
-    let hasSchedule = false;
-    for (let sch of barber.schedules) {
-        if (sch.day_of_week === pyDayOfWeek) {
-            const schStart = new Date(start);
-            const [sh, sm] = sch.start_time.split(':');
-            schStart.setHours(sh, sm, 0, 0);
-            
-            const schEnd = new Date(start);
-            const [eh, em] = sch.end_time.split(':');
-            schEnd.setHours(eh, em, 0, 0);
-            
-            if (start >= schStart && end <= schEnd) {
-                hasSchedule = true;
-                break;
-            }
-        }
+    
+    // 1. Check existing future appointments (overlaps)
+    for (let app of barber.future_appointments) {
+        const appStart = new Date(app.start_time);
+        const appEnd = new Date(app.end_time);
+        if (start < appEnd && end > appStart) return false;
     }
-    if (!hasSchedule) return false;
 
     // 2. Check exceptions (overlaps)
     for (let exc of barber.exceptions) {
@@ -70,11 +55,34 @@ function isBarberAvailable(barber, startTimeIso, durationMins) {
         if (start < exEnd && end > exStart) return false;
     }
 
-    // 3. Check existing future appointments (overlaps)
-    for (let app of barber.future_appointments) {
-        const appStart = new Date(app.start_time);
-        const appEnd = new Date(app.end_time);
-        if (start < appEnd && end > appStart) return false;
+    // 3. Check if within work schedule
+    // Python day_of_week: 0=Monday, 6=Sunday. JS getDay(): 0=Sunday, 1=Monday... 6=Saturday.
+    const pyDayOfWeek = start.getDay() === 0 ? 6 : start.getDay() - 1;
+    let hasSchedule = false;
+    
+    // Convert to minutes from midnight in local time for easy comparison
+    const startMins = start.getHours() * 60 + start.getMinutes();
+    const endMins = startMins + durationMins;
+
+    for (let sch of barber.schedules) {
+        if (sch.day_of_week === pyDayOfWeek) {
+            const [sh, sm] = sch.start_time.split(':');
+            const schStartMins = parseInt(sh, 10) * 60 + parseInt(sm, 10);
+            
+            const [eh, em] = sch.end_time.split(':');
+            const schEndMins = parseInt(eh, 10) * 60 + parseInt(em, 10);
+            
+            if (startMins >= schStartMins && endMins <= schEndMins) {
+                hasSchedule = true;
+                break;
+            }
+        }
+    }
+    
+    // If the barber has no schedules defined at all, we assume they are available 
+    // to avoid completely hiding them, but if they do have schedules, enforce them.
+    if (!hasSchedule && barber.schedules.length > 0) {
+        return false;
     }
 
     return true;
@@ -96,7 +104,7 @@ function updateRowActionState(appId, action) {
         btnCancel.classList.add('text-red-500', 'bg-red-500/10');
         btnCancel.dataset.state = 'cancelled';
         if (row) {
-            row.classList.remove('bg-neutral-800/30', 'border-neutral-700/50');
+            row.classList.remove('bg-neutral-800/30', 'border-neutral-700/50', 'bg-green-500/5', 'border-green-500/30');
             row.classList.add('bg-red-500/5', 'border-red-500/30');
         }
     } else {
@@ -107,7 +115,13 @@ function updateRowActionState(appId, action) {
         btnCancel.dataset.state = 'active';
         if (row) {
             row.classList.remove('bg-red-500/5', 'border-red-500/30');
-            row.classList.add('bg-neutral-800/30', 'border-neutral-700/50');
+            if (select && select.value) {
+                row.classList.remove('bg-neutral-800/30', 'border-neutral-700/50');
+                row.classList.add('bg-green-500/5', 'border-green-500/30');
+            } else {
+                row.classList.remove('bg-green-500/5', 'border-green-500/30');
+                row.classList.add('bg-neutral-800/30', 'border-neutral-700/50');
+            }
         }
     }
     checkValidation();
@@ -123,6 +137,7 @@ function toggleCancelAppointment(appId) {
 }
 
 window.toggleCancelAppointment = toggleCancelAppointment;
+window.updateRowActionState = updateRowActionState;
 
 /**
  * Validates if the confirm button should be enabled.
@@ -185,7 +200,7 @@ function renderBulkReassignList() {
         let selectHtml = '';
         if (availableCount > 0) {
             selectHtml = `
-                <select id="bulk-reassign-select-${app.id}" onchange="checkValidation()" class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors outline-none">
+                <select id="bulk-reassign-select-${app.id}" onchange="updateRowActionState(${app.id}, 'reassign')" class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors outline-none">
                     <option value="" disabled selected>Reasignar a...</option>
                     ${availableOptions}
                 </select>
