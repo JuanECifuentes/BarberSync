@@ -66,6 +66,7 @@ class BarberoListView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
         ctx["barberos_inactivos"] = BarberProfile.objects.filter(
             membership__organization=org,
             is_active=False,
+            membership__is_active=True,
         ).select_related("membership__user")
 
         ctx["miembros_disponibles"] = (
