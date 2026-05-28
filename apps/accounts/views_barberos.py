@@ -14,8 +14,12 @@ from django.http import JsonResponse
 from django.views import View
 from django.views.generic import TemplateView
 
+from django.utils import timezone
+
 from apps.core.mixins import RoleRequiredMixin
 from apps.scheduling.models import (
+    Appointment,
+    Intervencion,
     BarberService,
     CategoriaServicio,
     HistorialCambiosConfiguracionBarbero,
@@ -302,8 +306,40 @@ class BarberoUpdateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
         return JsonResponse({"ok": True})
 
 
+def _get_available_barbers_data(org):
+    barbers = BarberProfile.objects.filter(membership__organization=org, is_active=True).select_related("membership__user")
+    data = []
+    now = timezone.now()
+    for b in barbers:
+        schedules = list(WorkSchedule.objects.filter(barber=b).values("day_of_week", "start_time", "end_time"))
+        for s in schedules:
+            s["start_time"] = s["start_time"].strftime("%H:%M")
+            s["end_time"] = s["end_time"].strftime("%H:%M")
+            
+        exceptions = list(ScheduleException.objects.filter(barber=b, end__gte=now).values("start", "end", "is_recurring"))
+        for e in exceptions:
+            e["start"] = e["start"].isoformat()
+            e["end"] = e["end"].isoformat()
+            
+        future_appointments = list(Appointment.objects.filter(
+            barber=b, start_time__gte=now
+        ).exclude(status__in=["cancelled", "no_show"]).values("start_time", "end_time"))
+        for app in future_appointments:
+            app["start_time"] = app["start_time"].isoformat()
+            app["end_time"] = app["end_time"].isoformat()
+
+        data.append({
+            "id": b.id,
+            "name": b.display_name or (f"{b.user.first_name} {b.user.last_name}".strip() if b.user.first_name else b.user.email),
+            "schedules": schedules,
+            "exceptions": exceptions,
+            "future_appointments": future_appointments
+        })
+    return data
+
+
 class BarberoDeactivateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
-    """Soft delete: sets is_active=False."""
+    """Soft delete with future appointments bulk reassignment check."""
     allowed_roles = ["owner", "admin"]
 
     def post(self, request, pk):
@@ -313,8 +349,73 @@ class BarberoDeactivateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
         except BarberProfile.DoesNotExist:
             return JsonResponse({"error": "Barbero no encontrado"}, status=404)
 
-        barber.is_active = False
-        barber.save(update_fields=["is_active"])
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            data = {}
+
+        now = timezone.now()
+        future_appointments_qs = Appointment.objects.filter(
+            barber=barber, start_time__gte=now
+        ).exclude(status__in=["cancelled", "no_show"]).order_by("start_time")
+
+        if "reassignments" not in data:
+            if future_appointments_qs.exists():
+                appointments_data = []
+                for app in future_appointments_qs:
+                    services_str = ", ".join([s.service.name for s in app.services.all()])
+                    appointments_data.append({
+                        "id": app.pk,
+                        "date": app.start_time.strftime("%d/%m/%Y"),
+                        "time": app.start_time.strftime("%I:%M %p"),
+                        "start_time_iso": app.start_time.isoformat(),
+                        "client_name": app.client.name.strip(),
+                        "services": services_str,
+                        "total_duration": app.total_duration,
+                    })
+                
+                return JsonResponse({
+                    "requires_reassignment": True,
+                    "appointments": appointments_data,
+                    "available_barbers": _get_available_barbers_data(org)
+                })
+
+            # No future appointments, safe to deactivate directly
+            barber.is_active = False
+            barber.save(update_fields=["is_active"])
+            return JsonResponse({"ok": True})
+
+        # Process reassignments
+        reassignments = data.get("reassignments", [])
+        reassign_map = {int(r["cita_id"]): r for r in reassignments}
+
+        with transaction.atomic():
+            for app in future_appointments_qs:
+                action_data = reassign_map.get(app.pk)
+                if not action_data:
+                    return JsonResponse({"error": f"Falta resolver la cita #{app.pk}"}, status=400)
+                
+                action = action_data.get("accion")
+                if action == "cancelar":
+                    app.status = "cancelled"
+                    app.cancelled_reason = "Cancelada por el sistema debido a desactivación del barbero"
+                    app.save(update_fields=["status", "cancelled_reason"])
+                    Intervencion.objects.filter(appointment=app).update(estado="cancelada")
+                elif action == "reasignar":
+                    new_barber_id = action_data.get("nuevo_barbero_id")
+                    if not new_barber_id:
+                        raise ValueError(f"Falta ID del nuevo barbero para la cita #{app.pk}")
+                    new_barber = BarberProfile.objects.get(pk=new_barber_id, is_active=True, membership__organization=org)
+                    app.barber = new_barber
+                    app.save(update_fields=["barber"])
+                    Intervencion.objects.filter(appointment=app).update(barber=new_barber)
+                else:
+                    raise ValueError(f"Acción inválida para cita #{app.pk}: {action}")
+
+            # Finally, deactivate the barber
+            barber.is_active = False
+            barber.save(update_fields=["is_active"])
+
         return JsonResponse({"ok": True})
 
 

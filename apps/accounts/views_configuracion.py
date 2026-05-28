@@ -11,7 +11,10 @@ from django.views import View
 from django.views.generic import TemplateView
 
 from apps.core.mixins import RoleRequiredMixin
-from .models import Barbershop, Organization, Membership, OrganizationInvitation
+from .models import Barbershop, Organization, Membership, OrganizationInvitation, BarberProfile
+from apps.scheduling.models import Appointment, Intervencion
+from apps.accounts.views_barberos import _get_available_barbers_data
+from django.db import transaction
 from django.utils import timezone
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
@@ -365,6 +368,78 @@ class DeactivateMembershipAPI(LoginRequiredMixin, RoleRequiredMixin, View):
             owner_count = Membership.objects.filter(organization=org, role=Membership.Role.OWNER, is_active=True).count()
             if owner_count <= 1:
                 return JsonResponse({"error": "No puedes eliminar al único propietario de la organización"}, status=400)
+
+        # Check if membership acts as a Barber and has future appointments
+        try:
+            barber = BarberProfile.objects.get(membership=membership, is_active=True)
+        except BarberProfile.DoesNotExist:
+            barber = None
+
+        if barber:
+            try:
+                data = json.loads(request.body)
+            except json.JSONDecodeError:
+                data = {}
+
+            now = timezone.now()
+            future_appointments_qs = Appointment.objects.filter(
+                barber=barber, start_time__gte=now
+            ).exclude(status__in=["cancelled", "no_show"]).order_by("start_time")
+
+            if "reassignments" not in data:
+                if future_appointments_qs.exists():
+                    appointments_data = []
+                    for app in future_appointments_qs:
+                        services_str = ", ".join([s.service.name for s in app.services.all()])
+                        appointments_data.append({
+                            "id": app.pk,
+                            "date": app.start_time.strftime("%d/%m/%Y"),
+                            "time": app.start_time.strftime("%I:%M %p"),
+                            "start_time_iso": app.start_time.isoformat(),
+                            "client_name": app.client.name.strip(),
+                            "services": services_str,
+                            "total_duration": app.total_duration,
+                        })
+                    
+                    return JsonResponse({
+                        "requires_reassignment": True,
+                        "appointments": appointments_data,
+                        "available_barbers": _get_available_barbers_data(org)
+                    })
+                
+                # If no future appointments, we can proceed to deactivate
+
+            else:
+                # Process reassignments
+                reassignments = data.get("reassignments", [])
+                reassign_map = {int(r["cita_id"]): r for r in reassignments}
+
+                with transaction.atomic():
+                    for app in future_appointments_qs:
+                        action_data = reassign_map.get(app.pk)
+                        if not action_data:
+                            return JsonResponse({"error": f"Falta resolver la cita #{app.pk}"}, status=400)
+                        
+                        action = action_data.get("accion")
+                        if action == "cancelar":
+                            app.status = "cancelled"
+                            app.cancelled_reason = "Cancelada por el sistema debido a desactivación del barbero"
+                            app.save(update_fields=["status", "cancelled_reason"])
+                            Intervencion.objects.filter(appointment=app).update(estado="cancelada")
+                        elif action == "reasignar":
+                            new_barber_id = action_data.get("nuevo_barbero_id")
+                            if not new_barber_id:
+                                raise ValueError(f"Falta ID del nuevo barbero para la cita #{app.pk}")
+                            new_barber = BarberProfile.objects.get(pk=new_barber_id, is_active=True, membership__organization=org)
+                            app.barber = new_barber
+                            app.save(update_fields=["barber"])
+                            Intervencion.objects.filter(appointment=app).update(barber=new_barber)
+                        else:
+                            raise ValueError(f"Acción inválida para cita #{app.pk}: {action}")
+
+                    # Deactivate the barber profile along with membership
+                    barber.is_active = False
+                    barber.save(update_fields=["is_active"])
 
         membership.is_active = False
         membership.save(update_fields=["is_active"])

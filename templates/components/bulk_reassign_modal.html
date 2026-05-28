@@ -1,0 +1,48 @@
+<!-- Modal Bulk Reassign -->
+<div id="modal-bulk-reassign" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+    <div class="w-full max-w-4xl bg-neutral-900 border border-brand/50 rounded-xl shadow-2xl flex flex-col max-h-[95vh] relative">
+        <!-- Loader Overlay -->
+        <div id="bulk-loader" class="hidden absolute inset-0 bg-neutral-900/80 rounded-xl z-10 flex items-center justify-center backdrop-blur-sm">
+            <svg class="animate-spin h-8 w-8 text-brand" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+        </div>
+        
+        <!-- Header -->
+        <div class="p-6 border-b border-neutral-800 flex items-center justify-between shrink-0">
+            <div>
+                <h3 class="font-heading font-bold text-xl text-white flex items-center gap-2">
+                    <svg class="w-6 h-6 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                    Citas Futuras Detectadas
+                </h3>
+                <p class="text-sm text-neutral-400 mt-1">Este usuario tiene citas agendadas a futuro. Resuélvelas antes de continuar con la desactivación.</p>
+            </div>
+            <button type="button" onclick="cancelBulkReassign()" class="text-neutral-500 hover:text-white transition-colors">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="px-6 py-3 bg-neutral-800/50 border-b border-neutral-800 shrink-0 flex justify-end">
+            <button type="button" onclick="cancelAllFutureAppointments()" class="text-sm text-red-400 bg-red-500/10 hover:bg-red-500/20 px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-all border border-red-500/20 hover:border-red-500/40 shadow-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                Cancelar todas las citas
+            </button>
+        </div>
+
+        <!-- Table Container (Scrollable) -->
+        <div class="p-6 overflow-y-auto grow custom-scrollbar">
+            <div class="space-y-3" id="bulk-reassign-list">
+                <!-- Rows injected via JS -->
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="p-6 border-t border-neutral-800 shrink-0 flex gap-3 justify-end bg-neutral-900 rounded-b-xl">
+            <button onclick="cancelBulkReassign()" class="px-5 py-2.5 rounded-lg border border-neutral-700 text-neutral-300 text-sm font-medium hover:bg-neutral-800 hover:text-white transition-colors">
+                Abortar desactivación
+            </button>
+            <button onclick="confirmBulkReassign()" id="btn-confirm-reassign" disabled class="btn-action-primary btn-primary text-sm border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                <span>Confirmar y Desactivar</span>
+            </button>
+        </div>
+    </div>
+</div>
