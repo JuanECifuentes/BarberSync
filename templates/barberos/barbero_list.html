@@ -190,9 +190,20 @@
     <!-- Header -->
     <div class="flex items-center justify-between flex-wrap gap-3">
         <h2 class="font-heading font-bold text-xl text-white">Equipo de Barberos</h2>
-        {% if is_admin %}
-        <button onclick="openCreateModal()" class="btn-action-primary btn-primary text-sm border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm"><span>+ Nuevo Barbero</span></button>
-        {% endif %}
+        <div class="flex items-center gap-2">
+            {% if is_admin %}
+            <button onclick="openHistorialModal()"
+                class="btn-action-primary btn-secondary text-sm flex items-center gap-2 border border-neutral-700 px-3 py-2 rounded-lg transition-all whitespace-nowrap flex-shrink-0">
+                <svg class="w-4 h-4 text-neutral-400 transition-colors" fill="none" stroke="currentColor"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Historial</span>
+            </button>
+            <button onclick="openCreateModal()" class="btn-action-primary btn-primary text-sm border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm"><span>+ Nuevo Barbero</span></button>
+            {% endif %}
+        </div>
     </div>
 
     <!-- Barbers grid -->
@@ -230,9 +241,17 @@
                 <!-- Right: Action buttons -->
                 <div class="flex items-center gap-1 flex-shrink-0">
                     {% if is_admin or request.user.id == b.user.id %}
+                    <button onclick="openComisionesModal({{ b.pk }}, '{{ b.display_name|default:b.user.get_full_name|escapejs }}')"
+                        data-tooltip="Comisiones"
+                        class="border border-neutral-700 px-2.5 py-1.5 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-400 hover:text-white">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="10" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m15 9-6 6M9 9h.01M15 15h.01" />
+                        </svg>
+                    </button>
                     <button onclick="openScheduleModal({{ b.pk }})"
                         data-tooltip="Horario Semanal"
-                        class="border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-400 hover:text-white">
+                        class="border border-neutral-700 px-2.5 py-1.5 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-400 hover:text-white">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                                 d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -240,7 +259,7 @@
                     </button>
                     <button onclick="openEditModal({{ b.pk }})"
                         data-tooltip="Editar Barbero"
-                        class="border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-400 hover:text-white">
+                        class="border border-neutral-700 px-2.5 py-1.5 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-400 hover:text-white">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                                 d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -250,7 +269,7 @@
                     {% if is_admin %}
                     <button onclick="confirmDeactivateBarber({{ b.pk }}, '{{ b.display_name|default:b.user.get_full_name|escapejs }}')"
                         data-tooltip="Eliminar Barbero"
-                        class="border border-neutral-700 px-4 py-2 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-red-400 hover:text-red-300">
+                        class="border border-neutral-700 px-2.5 py-1.5 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-red-400 hover:text-red-300">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                                 d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -803,6 +822,84 @@
 
 <!-- Modal Bulk Reassign -->
 {% include "components/bulk_reassign_modal.html" %}
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- MODAL: Comisiones de Barbero                       -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div id="modal-comisiones" class="hidden fixed inset-0 z-[110] flex items-start justify-center py-4 px-4 bg-black/60 overflow-y-auto">
+    <div class="w-full max-w-2xl bg-neutral-900 border border-neutral-800 rounded-xl my-auto flex flex-col" style="max-height: 95vh; min-height: 450px;">
+        <div class="p-6 pb-4 border-b border-neutral-800 flex-shrink-0">
+            <div class="flex items-center justify-between">
+                <h3 class="font-heading font-bold text-lg text-white">Comisiones de <span id="comisiones-barber-name" class="font-heading font-bold text-lg text-white"></span></h3>
+                <button onclick="closeComisionesModal()" class="text-neutral-400 hover:text-white transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <input type="hidden" id="comisiones-barber-id" value="">
+
+            <!-- Tabs -->
+            <div class="flex border-b border-neutral-800 mt-3 -mb-4">
+                <button onclick="showComisionesTab('tab-servicios')"
+                    class="com-tab-btn active px-4 py-2 text-sm font-medium border-b-2 border-brand text-brand"
+                    data-tab="tab-servicios">Servicios</button>
+                <button onclick="showComisionesTab('tab-productos')"
+                    class="com-tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-white"
+                    data-tab="tab-productos">Productos</button>
+            </div>
+        </div>
+
+        <!-- Modal body with internal scroll -->
+        <div class="flex-1 overflow-y-auto p-6 pt-4" id="comisiones-body" style="min-height:0;">
+            <!-- Tab: Servicios -->
+            <div id="tab-servicios" class="com-tab-panel">
+                <div id="comisiones-servicios-content">
+                    <p class="text-neutral-400 text-center py-8">Cargando...</p>
+                </div>
+            </div>
+            <!-- Tab: Productos -->
+            <div id="tab-productos" class="com-tab-panel hidden">
+                <div id="comisiones-productos-content">
+                    <p class="text-neutral-400 text-center py-8">Cargando...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="p-4 border-t border-neutral-800 flex-shrink-0">
+            <div class="flex gap-3">
+                <button onclick="closeComisionesModal()" class="flex-1 py-2 rounded-lg text-sm font-medium border border-neutral-700 text-neutral-300 hover:bg-neutral-800 transition-colors">Cancelar</button>
+                <button onclick="saveComisiones()" id="btn-save-comisiones" class="btn-action-primary flex-1 py-2 rounded-lg text-sm font-medium border border-neutral-700 text-neutral-300"><span>Guardar cambios</span></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- MODAL: Historial de Comisiones                     -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div id="modal-historial-comisiones" class="hidden fixed inset-0 z-[110] flex items-start justify-center py-4 px-4 bg-black/60 overflow-y-auto">
+    <div class="w-full max-w-2xl bg-neutral-900 border border-neutral-800 rounded-xl my-auto flex flex-col" style="max-height:95vh;">
+        <div class="p-6 pb-4 border-b border-neutral-800 flex-shrink-0">
+            <div class="flex items-center justify-between">
+                <h3 class="font-heading font-bold text-lg text-white">Historial de Comisiones</h3>
+                <button onclick="closeHistorialModal()" class="text-neutral-400 hover:text-white transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <p class="text-xs text-neutral-400 mt-1">Registro de modificaciones en las comisiones de los barberos.</p>
+        </div>
+        <div class="flex-1 overflow-y-auto p-6 pt-4" id="historial-comisiones-body" style="min-height:0;">
+            <div id="historial-comisiones-list" class="space-y-3">
+                <p class="text-neutral-400 text-center py-8">Cargando...</p>
+            </div>
+            <div id="historial-comisiones-sentinel" class="h-4"></div>
+        </div>
+    </div>
+</div>
 
 <script src="{% static 'js/bulk_reassign.js' %}"></script>
 <script>
@@ -1939,6 +2036,342 @@
         let raw = input.value.replace(/[^\d]/g, '');
         if (!raw) { input.value = ''; return; }
         input.value = parseInt(raw).toLocaleString('de-DE');
+    }
+
+    // ═══════════════════════════════════════════════════
+    // COMISIONES MODAL
+    // ═══════════════════════════════════════════════════
+    let comisionesData = { servicios: [], productos: [] };
+    let comisionesOriginal = {};  // { "servicio_5": 60, "producto_3": 10 }
+    let comisionesBarberId = null;
+
+    function formatMoney(val) {
+        const num = parseFloat(val);
+        if (isNaN(num)) return '0';
+        return num.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    }
+
+    function showComisionesTab(tabId) {
+        document.querySelectorAll('.com-tab-panel').forEach(p => p.classList.add('hidden'));
+        document.querySelectorAll('.com-tab-btn').forEach(b => {
+            b.classList.remove('border-brand', 'text-brand');
+            b.classList.add('border-transparent', 'text-neutral-400');
+        });
+        document.getElementById(tabId).classList.remove('hidden');
+        const btn = document.querySelector(`.com-tab-btn[data-tab="${tabId}"]`);
+        btn.classList.add('border-brand', 'text-brand');
+        btn.classList.remove('border-transparent', 'text-neutral-400');
+    }
+
+    function toggleComisionAccordion(btn) {
+        const content = btn.nextElementSibling;
+        const icon = btn.querySelector('.com-acc-icon');
+        const isHidden = content.style.display === 'none';
+        content.style.display = isHidden ? '' : 'none';
+        icon.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+    }
+
+    function buildComisionAccordion(items, tipo) {
+        const grouped = {};
+        items.forEach(item => {
+            const cat = item.categoria || 'Sin Categoría';
+            if (!grouped[cat]) grouped[cat] = [];
+            grouped[cat].push(item);
+        });
+
+        const keys = Object.keys(grouped);
+        return keys.map((catName, idx) => {
+            const isFirst = idx === 0;
+            const catItems = grouped[catName];
+            const rows = catItems.map(item => {
+                const key = `${tipo}_${item.id}`;
+                const porcentaje = comisionesOriginal[key] !== undefined ? comisionesOriginal[key] : item.porcentaje;
+                const precioBase = parseFloat(item.precio_base);
+                const mtoBarbero = Math.round(precioBase * porcentaje / 100 * 100) / 100;
+                const mtoBarberia = Math.round((precioBase - mtoBarbero) * 100) / 100;
+                return `
+                <div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-750 transition-colors">
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm text-white truncate">${item.nombre}</p>
+                        <p class="text-[11px] text-neutral-400">$${formatMoney(item.precio_base)}</p>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs flex-shrink-0">
+                        <span class="inline-flex text-brand font-bold bg-brand/10 px-2 py-0.5 rounded text-[11px]">Barbería: $${formatMoney(mtoBarberia)}</span>
+                        <span class="inline-flex text-green-400 bg-green-900/30 border border-green-800/40 px-1.5 py-0.5 rounded font-bold text-[11px]">Barbero: $${formatMoney(mtoBarbero)}</span>
+                    </div>
+                    <div class="flex-shrink-0 w-16">
+                        <div class="relative">
+                            <input type="number" min="0" max="100" value="${porcentaje}"
+                                data-key="${key}" data-tipo="${tipo}" data-item-id="${item.id}" data-precio-base="${item.precio_base}"
+                                class="com-input-porcentaje w-full px-2 py-1 bg-neutral-700 border border-neutral-600 rounded-lg text-white text-center text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors"
+                                oninput="onComisionInputChange(this)">
+                            <span class="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-neutral-400">%</span>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+
+            return `
+            <div class="com-accordion-group">
+                <button type="button" onclick="toggleComisionAccordion(this)"
+                    class="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-neutral-800/50 hover:bg-neutral-750 transition-colors mt-2 first:mt-0">
+                    <span class="text-xs font-medium text-neutral-300 uppercase tracking-wider">${catName}</span>
+                    <svg class="com-acc-icon w-3.5 h-3.5 text-neutral-400 transition-transform duration-200 ${isFirst ? '' : ''}" style="${isFirst ? 'transform:rotate(180deg)' : 'transform:rotate(0deg)'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
+                <div class="space-y-1 mt-1 ml-1 com-acc-content" style="${isFirst ? '' : 'display:none'}">
+                    ${rows}
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function onComisionInputChange(input) {
+        let val = parseInt(input.value);
+        if (isNaN(val)) val = 0;
+        if (val < 0) { val = 0; input.value = 0; }
+        if (val > 100) { val = 100; input.value = 100; }
+
+        const precioBase = parseFloat(input.dataset.precioBase);
+        const montoBarbero = Math.round(precioBase * val / 100 * 100) / 100;
+        const montoBarberia = Math.round((precioBase - montoBarbero) * 100) / 100;
+
+        const row = input.closest('.flex.items-center');
+        const barberoSpan = row.querySelectorAll('span.inline-flex')[1];
+        const barberiaSpan = row.querySelectorAll('span.inline-flex')[0];
+        if (barberoSpan) barberoSpan.innerHTML = `Barbero: $${formatMoney(montoBarbero)}`;
+        if (barberiaSpan) barberiaSpan.innerHTML = `Barbería: $${formatMoney(montoBarberia)}`;
+    }
+
+    async function openComisionesModal(barberId, barberName) {
+        comisionesBarberId = barberId;
+        comisionesOriginal = {};
+        document.getElementById('comisiones-barber-name').textContent = barberName;
+        document.getElementById('comisiones-barber-id').value = barberId;
+        showComisionesTab('tab-servicios');
+
+        try {
+            const res = await fetch(`/app/barberos/api/${barberId}/comisiones/`, { headers });
+            const data = await res.json();
+            comisionesData = data;
+
+            data.servicios.forEach(s => { comisionesOriginal[`servicio_${s.id}`] = s.porcentaje; });
+            data.productos.forEach(p => { comisionesOriginal[`producto_${p.id}`] = p.porcentaje; });
+
+            document.getElementById('comisiones-servicios-content').innerHTML = buildComisionAccordion(data.servicios, 'servicio') || '<p class="text-neutral-400 text-center py-8">No hay servicios disponibles.</p>';
+            document.getElementById('comisiones-productos-content').innerHTML = buildComisionAccordion(data.productos, 'producto') || '<p class="text-neutral-400 text-center py-8">No hay productos disponibles.</p>';
+        } catch (e) {
+            console.error(e);
+            document.getElementById('comisiones-servicios-content').innerHTML = '<p class="text-red-400 text-center py-8">Error al cargar comisiones.</p>';
+        }
+
+        document.getElementById('modal-comisiones').classList.remove('hidden');
+    }
+
+    function closeComisionesModal() {
+        document.getElementById('modal-comisiones').classList.add('hidden');
+    }
+
+    function collectComisionChanges() {
+        const cambiosServicios = [];
+        const cambiosProductos = [];
+
+        document.querySelectorAll('.com-input-porcentaje').forEach(input => {
+            const key = input.dataset.key;
+            const tipo = input.dataset.tipo;
+            const itemId = parseInt(input.dataset.itemId);
+            const newVal = parseInt(input.value) || 0;
+            const originalVal = key in comisionesOriginal ? comisionesOriginal[key] : (tipo === 'servicio' ? data_por_defecto_servicio : data_por_defecto_producto);
+
+            if (newVal !== originalVal) {
+                if (tipo === 'servicio') {
+                    cambiosServicios.push({ id: itemId, porcentaje: newVal });
+                } else {
+                    cambiosProductos.push({ id: itemId, porcentaje: newVal });
+                }
+            }
+        });
+
+        return { servicios: cambiosServicios, productos: cambiosProductos };
+    }
+
+    {% if is_admin %}
+    async function saveComisiones() {
+        if (!comisionesBarberId) return;
+
+        const cambios = collectComisionChanges();
+        if (cambios.servicios.length === 0 && cambios.productos.length === 0) {
+            const btn = document.getElementById('btn-save-comisiones');
+            const span = btn.querySelector('span');
+            const orig = span.textContent;
+            span.textContent = 'Sin cambios';
+            btn.classList.add('bg-neutral-600');
+            setTimeout(() => { span.textContent = orig; btn.classList.remove('bg-neutral-600'); }, 1500);
+            return;
+        }
+
+        const btn = document.getElementById('btn-save-comisiones');
+        const span = btn.querySelector('span');
+        const orig = span.textContent;
+        span.textContent = 'Guardando...';
+        btn.disabled = true;
+        btn.classList.add('opacity-50', 'cursor-not-allowed');
+
+        try {
+            const res = await fetch(`/app/barberos/api/${comisionesBarberId}/comisiones/save/`, {
+                method: 'POST', headers,
+                body: JSON.stringify(cambios),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                // Update original values from saved data
+                cambios.servicios.forEach(c => { comisionesOriginal[`servicio_${c.id}`] = c.porcentaje; });
+                cambios.productos.forEach(c => { comisionesOriginal[`producto_${c.id}`] = c.porcentaje; });
+                
+                closeComisionesModal();
+
+                if (typeof Toastify !== 'undefined') {
+                    Toastify({
+                        text: "Comisiones guardadas con éxito",
+                        duration: 3000,
+                        close: true,
+                        gravity: "top",
+                        position: "right",
+                        style: { background: "#10b981", borderRadius: "8px", fontFamily: "Poppins, sans-serif", fontSize: "14px", fontWeight: "500", boxShadow: "0 10px 15px -3px rgba(16, 185, 129, 0.2)" }
+                    }).showToast();
+                }
+
+                // Reset button state
+                span.textContent = orig;
+                btn.classList.remove('bg-green-600');
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                const err = await res.json();
+                span.textContent = err.error || 'Error';
+                btn.classList.add('bg-red-600');
+                setTimeout(() => { span.textContent = orig; btn.classList.remove('bg-red-600'); btn.disabled = false; btn.classList.remove('opacity-50', 'cursor-not-allowed'); }, 2000);
+            }
+        } catch (e) {
+            console.error(e);
+            span.textContent = 'Error de red';
+            btn.classList.add('bg-red-600');
+            setTimeout(() => { span.textContent = orig; btn.classList.remove('bg-red-600'); btn.disabled = false; btn.classList.remove('opacity-50', 'cursor-not-allowed'); }, 2000);
+        }
+    }
+    {% else %}
+    function saveComisiones() { /* No permissions */ }
+    {% endif %}
+
+    const data_por_defecto_servicio = {{ por_defecto_servicio|default:50 }};
+    const data_por_defecto_producto = {{ por_defecto_producto|default:0 }};
+
+    // ═══════════════════════════════════════════════════
+    // HISTORIAL COMISIONES (Infinite Scroll 30/page)
+    // ═══════════════════════════════════════════════════
+    let historialPage = 1;
+    let historialHasNext = false;
+    let historialLoading = false;
+    let historialObserver = null;
+
+    function openHistorialModal() {
+        historialPage = 1;
+        historialHasNext = false;
+        historialLoading = false;
+        document.getElementById('historial-comisiones-list').innerHTML = '<p class="text-neutral-400 text-center py-8">Cargando...</p>';
+        document.getElementById('modal-historial-comisiones').classList.remove('hidden');
+        loadHistorialComisiones(true);
+        setupHistorialObserver();
+    }
+
+    function closeHistorialModal() {
+        if (historialObserver) { historialObserver.disconnect(); historialObserver = null; }
+        document.getElementById('modal-historial-comisiones').classList.add('hidden');
+    }
+
+    async function loadHistorialComisiones(reset = false) {
+        if (historialLoading) return;
+        historialLoading = true;
+
+        const container = document.getElementById('historial-comisiones-list');
+        if (reset) {
+            container.innerHTML = '';
+            historialPage = 1;
+        }
+
+        try {
+            const res = await fetch(`/app/barberos/api/historial-comisiones/?page=${historialPage}`, { headers });
+            if (!res.ok) { historialLoading = false; return; }
+            const data = await res.json();
+
+            historialHasNext = data.has_next;
+
+            if (data.results.length === 0 && reset) {
+                container.innerHTML = `
+                    <div class="flex flex-col items-center justify-center py-12 text-center">
+                        <svg class="w-16 h-16 text-neutral-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                        <p class="text-neutral-400 text-sm font-medium">No hay modificaciones registradas en el historial</p>
+                        <p class="text-neutral-500 text-xs mt-1">Los cambios en comisiones aparecerán aquí.</p>
+                    </div>`;
+            } else {
+                data.results.forEach(r => {
+                    const dt = new Date(r.created_at);
+                    const dateStr = dt.toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+                    const tipoBadge = r.tipo === 'servicio'
+                        ? '<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border text-blue-400 bg-blue-900/20 border-blue-800/40">Servicio</span>'
+                        : '<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border text-purple-400 bg-purple-900/20 border-purple-800/40">Producto</span>';
+
+                    const div = document.createElement('div');
+                    div.className = 'p-3 rounded-lg bg-neutral-800 border border-neutral-700/50';
+                    //<span class="text-sm text-white font-medium truncate">${r.item_nombre}</span>
+                    div.innerHTML = `
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2 mb-1">
+                                    ${tipoBadge}
+                                    
+                                </div>
+                                <p class="text-xs text-neutral-400">
+                                    Comisión de <span class="text-white font-medium">${r.item_nombre}</span> modificada de
+                                    <span class="text-white font-semibold">${r.valor_anterior}%</span> a
+                                    <span class="text-brand font-semibold">${r.valor_nuevo}%</span>
+                                </p>
+                                <p class="text-[10px] text-neutral-300 mt-1">Barbero: ${r.barber_nombre}</p>
+                            </div>
+                            <div class="text-right flex-shrink-0">
+                                <p class="text-[10px] text-neutral-300">${dateStr}</p>
+                                <p class="text-[10px] text-neutral-300">${r.changed_by}</p>
+                            </div>
+                        </div>`;
+                    container.appendChild(div);
+                });
+            }
+        } catch (e) {
+            console.error(e);
+        }
+
+        historialLoading = false;
+    }
+
+    function setupHistorialObserver() {
+        const sentinel = document.getElementById('historial-comisiones-sentinel');
+        if (!sentinel) return;
+
+        if (historialObserver) historialObserver.disconnect();
+
+        historialObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting && historialHasNext && !historialLoading) {
+                    historialPage++;
+                    loadHistorialComisiones();
+                }
+            });
+        }, { root: document.getElementById('historial-comisiones-body'), threshold: 0.1 });
+
+        historialObserver.observe(sentinel);
     }
 </script>
 {% endif %}
