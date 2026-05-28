@@ -63,10 +63,10 @@ class ScheduleQueryApi(View):
 
         client_ip = request.META.get('REMOTE_ADDR')
         if client_ip != self.ALLOWED_IP:
-            logger.warning(f"Acceso denegado desde la IP {client_ip} en GET")
+            logging.warning(f"Acceso denegado desde la IP {client_ip} en GET")
             return JsonResponse({'error': 'Forbidden'}, status=403)
         
-        barberos_list = list(Barberos.objects.filter(is_active=True).values_list('idBarber', 'nombre_barbero'))
+        barberos_list = [{'idBarber': b.idBarber, 'nombre_barbero': b.nombre_barbero} for b in Barberos.objects.filter(is_active=True).select_related('user')]
         servicios_barber_list = list(ServiciosBarber.objects.all())
         Services = list(Servicios.objects.values())
 
