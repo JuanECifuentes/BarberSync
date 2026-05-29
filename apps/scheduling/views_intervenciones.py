@@ -155,8 +155,10 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
 
         barber_profile = None
         membership = getattr(request.user, "membership", None)
+        is_admin = False
         if membership:
             barber_profile = getattr(membership, "barber_profile", None)
+            is_admin = membership.role in ["owner", "admin"]
 
         if barber_profile:
             qs = qs.annotate(
@@ -373,9 +375,11 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
                 pct_barbero = 0
 
             fecha_local = timezone.localtime(inv.fecha) if inv.fecha else None
+            can_edit = is_admin or (barber_profile and inv.barber_id == barber_profile.id)
 
             rows.append(
                 {
+                    "can_edit": bool(can_edit),
                     "id": inv.pk,
                     "fecha": fecha_local.strftime("%d/%m/%Y %H:%M")
                     if fecha_local
@@ -385,12 +389,19 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
                     "cliente_id": inv.client_id,
                     "barbero": str(inv.barber) if inv.barber else "",
                     "barbero_id": inv.barber_id,
+                    "sucursal_id": inv.barbershop_id,
+                    "service_ids": [s.servicio_id for s in servicios],
                     "servicios": [
-                        {"nombre": s.servicio.name, "precio": str(s.precio_cobrado)}
+                        {
+                            "id": s.servicio.id,
+                            "nombre": s.servicio.name,
+                            "precio": str(s.precio_cobrado)
+                        }
                         for s in servicios
                     ],
                     "productos": [
                         {
+                            "producto_id": p.producto_id,
                             "nombre": p.producto.name,
                             "cantidad": p.cantidad,
                             "precio": str(p.precio_unitario),
@@ -718,15 +729,15 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
             pk=pk,
             barbershop__organization=org,
         )
-        # Permisos: si es barbero, solo puede editar sus propias intervenciones
+        # Permisos: solo Admin/Owner o el Barbero asignado
         membership = request.user.membership
-        if membership.role == "barber":
-            barber_profile = getattr(membership, "barber_profile", None)
-            if not barber_profile or intervencion.barber != barber_profile:
-                return JsonResponse(
-                    {"error": "No tienes permiso para editar esta intervención."},
-                    status=403,
-                )
+        is_admin = membership.role in ["owner", "admin"]
+        barber_profile = getattr(membership, "barber_profile", None)
+        if not is_admin and (not barber_profile or intervencion.barber != barber_profile):
+            return JsonResponse(
+                {"error": "No tienes permiso para modificar esta intervención."},
+                status=403,
+            )
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
@@ -894,15 +905,15 @@ class IntervencionDeleteView(LoginRequiredMixin, View):
             pk=pk,
             barbershop__organization=org,
         )
-        # Permisos: si es barbero, solo puede eliminar sus propias intervenciones
+        # Permisos: solo Admin/Owner o el Barbero asignado
         membership = request.user.membership
-        if membership.role == "barber":
-            barber_profile = getattr(membership, "barber_profile", None)
-            if not barber_profile or intervencion.barber != barber_profile:
-                return JsonResponse(
-                    {"error": "No tienes permiso para eliminar esta intervención."},
-                    status=403,
-                )
+        is_admin = membership.role in ["owner", "admin"]
+        barber_profile = getattr(membership, "barber_profile", None)
+        if not is_admin and (not barber_profile or intervencion.barber != barber_profile):
+            return JsonResponse(
+                {"error": "No tienes permiso para modificar esta intervención."},
+                status=403,
+            )
         with transaction.atomic():
             _restore_stock(intervencion, request.user)
             intervencion.delete()
@@ -921,6 +932,15 @@ class IntervencionChangeStatusAPI(LoginRequiredMixin, View):
             pk=pk,
             barbershop__organization=org,
         )
+        # Permisos: solo Admin/Owner o el Barbero asignado
+        membership = request.user.membership
+        is_admin = membership.role in ["owner", "admin"]
+        barber_profile = getattr(membership, "barber_profile", None)
+        if not is_admin and (not barber_profile or intervencion.barber != barber_profile):
+            return JsonResponse(
+                {"error": "No tienes permiso para modificar esta intervención."},
+                status=403,
+            )
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
