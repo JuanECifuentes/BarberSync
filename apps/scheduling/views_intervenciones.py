@@ -395,6 +395,8 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
                             "cantidad": p.cantidad,
                             "precio": str(p.precio_unitario),
                             "incluido": p.incluido_en_precio,
+                            "auto": p.intervencion_servicio_id is not None,
+                            "is_deleted": not p.producto.is_active,
                         }
                         for p in productos
                     ],

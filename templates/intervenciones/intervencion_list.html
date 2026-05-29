@@ -364,7 +364,7 @@
 
 {% block extra_css %}
 <style>
-    .flex-1.overflow-y-auto { overflow: hidden !important; }
+    /* .flex-1.overflow-y-auto { overflow: hidden !important; } */
 </style>
 {% endblock %}
 
@@ -384,11 +384,22 @@
 
     <!-- ═══════ Filtros Externos ═══════ -->
     <div class="card mb-3 flex-shrink-0">
+        <!-- Mobile toggle button -->
         <div class="flex items-center justify-between mb-3">
             <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Filtros</p>
+            <button type="button"
+                    @click="showFiltersMobile = !showFiltersMobile"
+                    class="md:hidden flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white transition-colors border border-neutral-700 px-3 py-1.5 rounded-lg">
+                <span x-text="showFiltersMobile ? 'Ocultar filtros' : 'Mostrar filtros'"></span>
+                <svg class="w-3.5 h-3.5 transition-transform duration-200" :class="showFiltersMobile ? 'rotate-180' : ''"
+                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div class="hidden md:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3"
+             :class="showFiltersMobile ? '!grid' : ''">
 
             <!-- 1. Fecha rango -->
             <div>
@@ -577,6 +588,34 @@
                     <h4 class="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Productos</h4>
                     <div id="drawer-productos" class="space-y-1.5"></div>
                 </div>
+                <style>
+                    .drawer-prod-badge {
+                        display: inline-flex;
+                        align-items: center;
+                        padding: 2px 6px;
+                        border-radius: 4px;
+                        font-size: 10px;
+                        font-weight: 600;
+                        line-height: 1;
+                        white-space: nowrap;
+                        flex-shrink: 0;
+                    }
+                    .drawer-prod-badge.incluido {
+                        background: rgba(145, 145, 154, 0.15);
+                        color: rgb(145, 145, 154);
+                        border: 1px solid rgba(145, 145, 154, 0.3);
+                    }
+                    .drawer-prod-badge.auto {
+                        background: rgba(59, 130, 246, 0.15);
+                        color: #60a5fa;
+                        border: 1px solid rgba(59, 130, 246, 0.3);
+                    }
+                    .drawer-prod-badge.eliminado {
+                        background: rgba(239, 68, 68, 0.15);
+                        color: #f87171;
+                        border: 1px solid rgba(239, 68, 68, 0.3);
+                    }
+                </style>
 
                 <!-- Financial summary card -->
                 <div class="bg-neutral-800/50 border border-neutral-700 rounded-xl p-4 space-y-3">
@@ -1181,16 +1220,33 @@ function openDrawer(data) {
 
     // Products
     const prodContainer = document.getElementById('drawer-productos');
-    const prods = (data.productos || []).filter(p => !p.incluido);
+    const prods = data.productos || [];
     if (prods.length) {
-        prodContainer.innerHTML = prods.map(p => `
+        prodContainer.innerHTML = prods.map(p => {
+            const badges = [];
+            if (p.auto) {
+                badges.push('<span class="relative group/tipauto flex-shrink-0 cursor-help"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900/60 text-blue-300 border border-blue-700/50">Auto</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipauto:opacity-100 group-hover/tipauto:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">Agregado automáticamente por el servicio</span></span>');
+            }
+            if (p.incluido) {
+                badges.push('<span class="relative group/tipincl flex-shrink-0 cursor-help"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-700/60 text-neutral-400 border border-neutral-600">Incluido</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipincl:opacity-100 group-hover/tipincl:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">El costo del producto se consideró dentro del precio del servicio.</span></span>');
+            }
+            if (p.is_deleted) {
+                badges.push('<span class="relative group/tipdel flex-shrink-0 cursor-help"><span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/60 text-red-300 border border-red-700/50">Eliminado</span><span class="absolute bottom-full left-0 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipdel:opacity-100 group-hover/tipdel:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">Este producto fue eliminado del catálogo. Se conserva como registro histórico.</span></span>');
+            }
+            const badgeHtml = badges.length ? `<div class="flex items-center gap-1.5 mr-2">${badges.join('')}</div>` : '';
+            const priceClass = p.incluido ? 'text-neutral-500 opacity-50 line-through' : '';
+            return `
             <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-neutral-800 border border-neutral-700">
-                <span class="text-sm text-white">${p.nombre} x${p.cantidad}</span>
-                <span class="text-sm font-medium" style="color:#ff2301;">$${formatMoneyGrid(p.precio)}</span>
+                <div class="flex items-center min-w-0">
+                    ${badgeHtml}
+                    <span class="text-sm text-white truncate">${p.nombre} x${p.cantidad}</span>
+                </div>
+                <span class="text-sm font-medium flex-shrink-0 ml-2 ${priceClass}" style="color:#ff2301;">$${formatMoneyGrid(p.precio)}</span>
             </div>
-        `).join('');
+            `;
+        }).join('');
     } else {
-        prodContainer.innerHTML = '<p class="text-xs text-neutral-500">Sin productos adicionales</p>';
+        prodContainer.innerHTML = '<p class="text-xs text-neutral-500">Sin productos</p>';
     }
 
     // Financial summary
@@ -1425,6 +1481,9 @@ function intervencionesApp() {
 
         // Dropdown open states
         dropdowns: { servicios: false, barberos: false, sucursales: false, estados: false },
+
+        // Mobile filters visibility
+        showFiltersMobile: false,
 
         // External filter state
         filters: {
@@ -1954,7 +2013,7 @@ function intervencionesApp() {
                 row.innerHTML = `
                     <span class="relative group/tipdel flex-shrink-0 cursor-help">
                         <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/60 text-red-300 border border-red-700/50">Eliminado</span>
-                        <span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipdel:opacity-100 group-hover/tipdel:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">
+                        <span class="absolute bottom-full left-0 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipdel:opacity-100 group-hover/tipdel:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">
                             Este producto fue eliminado del catálogo. Se conserva como registro histórico.
                         </span>
                     </span>
