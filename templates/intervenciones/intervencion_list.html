@@ -359,6 +359,11 @@
         background: rgba(255, 35, 1, 0.15) !important;
         box-shadow: -5px 0 0 rgba(255, 35, 1, 0.15), 5px 0 0 rgba(255, 35, 1, 0.15) !important;
     }
+
+
+    .interv-producto-row {
+        flex-wrap: wrap;
+    }
 </style>
 {% endblock %}
 
@@ -649,10 +654,10 @@
                 <div class="space-y-4">
                   <fieldset class="space-y-4" :disabled="!form.can_edit" :class="!form.can_edit ? 'opacity-80' : ''">
                     <!-- Barbero -->
-                    <div>
-                        <label class="block text-sm font-medium text-neutral-300 mb-1">Barbero</label>
+                    <div class="w-full max-w-full overflow-hidden">
+                        <label class="block text-sm font-medium text-neutral-300 mb-1 truncate">Barbero</label>
                         <select x-model="form.barber_id" @change="onBarberChange()"
-                                {% if is_barber %}disabled class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-400 text-sm cursor-not-allowed"{% else %}class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors"{% endif %}>
+                                {% if is_barber %}disabled class="w-full max-w-full truncate px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-400 text-sm cursor-not-allowed"{% else %}class="w-full max-w-full truncate px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors"{% endif %}>
                             <option value="">Seleccionar barbero...</option>
                             {% for barber in barbers %}
                             <option value="{{ barber.pk }}">{{ barber }}</option>
@@ -661,13 +666,13 @@
                     </div>
 
                     <!-- Cliente (autocomplete) -->
-                    <div>
-                        <label class="block text-sm font-medium text-neutral-300 mb-1">Cliente</label>
-                        <div class="relative">
+                    <div class="w-full max-w-full overflow-hidden">
+                        <label class="block text-sm font-medium text-neutral-300 mb-1 truncate">Cliente</label>
+                        <div class="relative w-full max-w-full">
                             <input type="text" x-model="clientSearch" @input.debounce.300ms="searchClients()"
                                    placeholder="Buscar por nombre o email..."
                                    x-show="!form.selectedClient"
-                                   class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                                   class="w-full max-w-full truncate px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                             <div x-show="clientResults.length > 0 && !form.selectedClient"
                                  class="absolute z-10 w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl max-h-48 overflow-y-auto">
                                 <template x-for="c in clientResults" :key="c.id">
@@ -679,9 +684,9 @@
                                 </template>
                             </div>
                         </div>
-                        <div x-show="form.selectedClient" class="mt-1 px-3 py-2 bg-brand/10 border border-brand/20 rounded-lg flex items-center justify-between">
-                            <span class="text-sm text-white" x-text="form.selectedClient?.name"></span>
-                            <button @click="form.selectedClient = null; form.client_id = ''; clientSearch = ''" type="button" class="text-neutral-400 hover:text-white text-xs ml-2">✕</button>
+                        <div x-show="form.selectedClient" class="mt-1 px-3 py-2 bg-brand/10 border border-brand/20 rounded-lg flex items-center justify-between min-w-0">
+                            <span class="text-sm text-white truncate flex-1" x-text="form.selectedClient?.name"></span>
+                            <button @click="form.selectedClient = null; form.client_id = ''; clientSearch = ''" type="button" class="text-neutral-400 hover:text-white text-xs ml-2 shrink-0">✕</button>
                         </div>
                     </div>
 
@@ -711,20 +716,20 @@
                                 <div class="modal-accordion-body" style="max-height:500px;opacity:1;">
                                     <div class="space-y-1 pt-1">
                                         {% for service in group.services %}
-                                        <label class="flex items-center justify-between p-3 bg-neutral-800 border border-neutral-700 rounded-lg cursor-pointer hover:border-neutral-600 transition-colors"
+                                        <label class="flex items-center justify-between p-3 bg-neutral-800 border border-neutral-700 rounded-lg cursor-pointer hover:border-neutral-600 transition-colors w-full gap-2 overflow-hidden"
                                                x-show="barberServiceIds.includes({{ service.pk }})"
                                                :class="form.service_ids.includes({{ service.pk }}) ? 'border-brand ring-1 ring-brand' : ''">
-                                            <div class="flex items-center gap-3">
+                                            <div class="flex items-center gap-3 min-w-0 flex-1">
                                                 <input type="checkbox"
                                                        :checked="form.service_ids.includes({{ service.pk }})"
                                                        @change="toggleService({{ service.pk }})"
-                                                       class="w-4 h-4 rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-700">
-                                                <div>
-                                                    <span class="text-sm text-white">{{ service.name }}</span>
-                                                    <span class="text-xs text-neutral-400 ml-2" x-text="getBarberServiceDuration({{ service.pk }}, {{ service.duration_minutes }}) + ' min'"></span>
+                                                       class="w-4 h-4 rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-700 shrink-0">
+                                                <div class="min-w-0 flex-1">
+                                                    <span class="text-sm text-white truncate block">{{ service.name }}</span>
+                                                    <span class="text-xs text-neutral-400 block truncate" x-text="getBarberServiceDuration({{ service.pk }}, {{ service.duration_minutes }}) + ' min'"></span>
                                                 </div>
                                             </div>
-                                            <span class="text-sm font-heading font-bold text-brand"
+                                            <span class="text-sm font-heading font-bold text-brand shrink-0"
                                                   data-service-id="{{ service.pk }}"
                                                   data-raw-price="{{ service.price }}"
                                                   x-text="'$' + fmtMoney(getBarberServicePrice({{ service.pk }}, '{{ service.price }}'))"></span>
@@ -786,10 +791,10 @@
 
                   <fieldset class="space-y-4" :disabled="!form.can_edit" :class="!form.can_edit ? 'opacity-80' : ''">
                     <!-- Sucursal -->
-                    <div>
-                        <label class="block text-sm font-medium text-neutral-300 mb-1">Sucursal</label>
+                    <div class="w-full max-w-full overflow-hidden">
+                        <label class="block text-sm font-medium text-neutral-300 mb-1 truncate">Sucursal</label>
                         <select x-model="form.sucursal_id"
-                                class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                                class="w-full max-w-full truncate px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                             {% for suc in sucursales %}
                             <option value="{{ suc.pk }}">{{ suc.name }}</option>
                             {% endfor %}
@@ -797,10 +802,10 @@
                     </div>
 
                     <!-- Estado -->
-                    <div>
-                        <label class="block text-sm font-medium text-neutral-300 mb-1">Estado</label>
+                    <div class="w-full max-w-full overflow-hidden">
+                        <label class="block text-sm font-medium text-neutral-300 mb-1 truncate">Estado</label>
                         <select x-model="form.estado"
-                                class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                                class="w-full max-w-full truncate px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                             {% for value, label in estados %}
                             <option value="{{ value }}">{{ label }}</option>
                             {% endfor %}
@@ -1164,6 +1169,7 @@ function buildDataSource() {
 }
 
 // Initialize grid
+//window.BARBER_SERVICES_MAP = {{ barber_services_json|safe }};
 document.addEventListener('DOMContentLoaded', () => {
     const gridDiv = document.getElementById('intervencionesGrid');
     gridApi = agGrid.createGrid(gridDiv, {
@@ -1545,9 +1551,10 @@ function intervencionesApp() {
         flatpickrInstance: null,
         flatpickrRangeInstance: null,
         barberServiceIds: [],
-        barberServicesData: {},
-        barberServicesLoading: false,
+        barberServicesCache: {},
         serviceProductsData: {},
+        serviceProductsCache: {},
+        barberServicesLoading: false,
         totalEstimado: '$0',
         showResumen: false,
         resumenBarberia: '$0',
@@ -1637,8 +1644,6 @@ function intervencionesApp() {
 
             // Sync filter state to window for the datasource to read
             window.__intervencionFilters = this.filters;
-
-            // Price formatting now runs when modal opens (formatModalPrices)
         },
 
         /* ── Filter logic ── */
@@ -1698,7 +1703,6 @@ function intervencionesApp() {
             this.editingId = null;
             this.barberServiceIds = [];
             this.barberServicesData = {};
-            this.barberServicesLoading = false;
             this.serviceProductsData = {};
             this._rawProductRows = [];
         },
@@ -1740,22 +1744,11 @@ function intervencionesApp() {
 
                 // Load barber services before setting service_ids so they're visible
                 if (this.form.barber_id) {
-                    this.barberServicesLoading = true;
-                    try {
-                        const bsRes = await fetch(`/app/intervenciones/api/barber-services/${this.form.barber_id}/`);
-                        if (bsRes.ok) {
-                            const bsData = await bsRes.json();
-                            this.barberServiceIds = bsData.services.map(s => s.id);
-                            bsData.services.forEach(s => { this.barberServicesData[s.id] = s; });
-                        }
-                    } catch (e) { console.error(e); }
-                    this.barberServicesLoading = false;
+                    await this.loadBarberServices();
                 }
 
                 this.form.service_ids = data.service_ids;
-                // Immediately show modal with intervention data while service products load
                 this.showModal = true;
-                // Seed _rawProductRows from existing productos (for edit mode)
                 this._rawProductRows = [];
                 if (data.productos && data.productos.length > 0) {
                     data.productos.forEach(p => {
@@ -1767,6 +1760,7 @@ function intervencionesApp() {
                             unit_price: parseFloat(p.precio) || 0,
                             auto: !!p.auto,
                             is_deleted: !!p.is_deleted,
+                            servicio_id: p.servicio_id
                         });
                     });
                 }
@@ -1776,72 +1770,8 @@ function intervencionesApp() {
                     this.initFlatpickr();
                     this.formatModalPrices();
                     initModalAccordions();
+                    this.updateTotalEstimado();
                 });
-
-                // Build serviceProductsData from existing intervention so unchecking a service
-                // in edit mode removes its auto-products
-                this.serviceProductsData = {};
-                if (data.service_ids && data.service_ids.length) {
-                    Promise.all(data.service_ids.map(async (svcId) => {
-                        try {
-                            const r = await fetch(`/app/schedule/api/service/${svcId}/products/`);
-                            if (r.ok) {
-                                const d = await r.json();
-                                this.serviceProductsData[svcId] = d.productos || [];
-                            }
-                        } catch(e) {}
-                    })).then(() => {
-                        this.$nextTick(() => {
-                            // Calculate expected auto products
-                            const expectedAuto = {};
-                            for (const svcId of data.service_ids) {
-                                const svcProds = this.serviceProductsData[svcId] || [];
-                                svcProds.forEach(p => {
-                                    const key = p.producto_id + '_' + !!p.incluido_en_precio;
-                                    if (!expectedAuto[key]) expectedAuto[key] = 0;
-                                    expectedAuto[key] += (p.cantidad_consumida || 1);
-                                    
-                                    this._rawProductRows.push({
-                                        producto_id: p.producto_id,
-                                        nombre: p.nombre || '',
-                                        cantidad: p.cantidad_consumida || 1,
-                                        incluido: !!p.incluido_en_precio,
-                                        unit_price: parseFloat(p.precio_unitario) || 0,
-                                        auto: true,
-                                        is_deleted: false,
-                                        servicio_id: svcId,
-                                    });
-                                });
-                            }
-                            
-                            // Adjust the DB loaded products to prevent duplication of auto-products
-                            const newRaw = [];
-                            this._rawProductRows.forEach(r => {
-                                if (r.servicio_id !== undefined) {
-                                    newRaw.push(r); // Newly added auto products
-                                } else {
-                                    // DB loaded product
-                                    const key = r.producto_id + '_' + r.incluido;
-                                    if (expectedAuto[key]) {
-                                        const remaining = r.cantidad - expectedAuto[key];
-                                        if (remaining > 0) {
-                                            newRaw.push({ ...r, cantidad: remaining, auto: false });
-                                        }
-                                        expectedAuto[key] -= r.cantidad;
-                                    } else {
-                                        newRaw.push(r);
-                                    }
-                                }
-                            });
-                            this._rawProductRows = newRaw;
-                            
-                            const aggregated = this.aggregateProducts(this._rawProductRows);
-                            this.renderProductRows(aggregated);
-                        });
-                    });
-                } else {
-                    this.$nextTick(() => this.updateTotalEstimado());
-                }
             } catch (e) {
                 console.error(e);
             }
@@ -1877,41 +1807,38 @@ function intervencionesApp() {
         async toggleService(id) {
             const idx = this.form.service_ids.indexOf(id);
             if (idx >= 0) {
-                // Uncheck: remove this service's products and rebuild with aggregation
                 this.form.service_ids.splice(idx, 1);
-                delete this.serviceProductsData[id];
-                // Remove from _rawProductRows entries for this service
                 this._rawProductRows = (this._rawProductRows || []).filter(r => r.servicio_id !== id);
-                // Re-render all remaining products via aggregation
+                this.renderProductRows(this.aggregateProducts(this._rawProductRows));
+            } else {
+                if (!this.serviceProductsCache[id]) {
+                    try {
+                        const res = await fetch(`/app/schedule/api/service/${id}/products/`);
+                        if (res.ok) {
+                            const data = await res.json();
+                            this.serviceProductsCache[id] = data.productos || [];
+                        }
+                    } catch (e) { console.error(e); }
+                }
+                this.serviceProductsData[id] = this.serviceProductsCache[id] || [];
+                this.form.service_ids.push(id);
+                const svcProds = this.serviceProductsData[id];
+                svcProds.forEach(p => {
+                    this._rawProductRows.push({
+                        producto_id: p.producto_id,
+                        nombre: p.nombre || '',
+                        cantidad: p.cantidad_consumida || 1,
+                        incluido: !!p.incluido_en_precio,
+                        unit_price: parseFloat(p.precio_unitario) || 0,
+                        auto: true,
+                        is_deleted: false,
+                        servicio_id: id,
+                    });
+                });
                 const aggregated = this.aggregateProducts(this._rawProductRows);
                 this.renderProductRows(aggregated);
-            } else {
-                // Check: fetch products THEN push id — avoids double-fire race
-                try {
-                    const res = await fetch(`/app/schedule/api/service/${id}/products/`);
-                    if (res.ok) {
-                        const data = await res.json();
-                        this.serviceProductsData[id] = data.productos || [];
-                        this.form.service_ids.push(id);
-                        
-                        const svcProds = this.serviceProductsData[id] || [];
-                        svcProds.forEach(p => {
-                            this._rawProductRows.push({
-                                producto_id: p.producto_id,
-                                nombre: p.nombre || '',
-                                cantidad: p.cantidad_consumida || 1,
-                                incluido: !!p.incluido_en_precio,
-                                unit_price: parseFloat(p.precio_unitario) || 0,
-                                auto: true,
-                                is_deleted: false,
-                                servicio_id: id,
-                            });
-                        });
-                        const aggregated = this.aggregateProducts(this._rawProductRows);
-                        this.renderProductRows(aggregated);
-                    }
-                } catch (e) { console.error(e); }
             }
+            this.updateTotalEstimado();
         },
 
         addProductRowFromService(servicioId, prod) {
@@ -1937,6 +1864,33 @@ function intervencionesApp() {
         // Wrapper so Alpine x-text can call formatMoney (global fn)
         fmtMoney(val) { return formatMoney(val); },
 
+        async loadBarberServices() {
+            if (!this.form.barber_id) return;
+            this.barberServicesLoading = true;
+            if (this.barberServicesCache[this.form.barber_id]) {
+                const data = this.barberServicesCache[this.form.barber_id];
+                this.barberServiceIds = (data.services || []).map(s => s.id);
+                (data.services || []).forEach(s => {
+                    this.barberServicesData[s.id] = s;
+                });
+            } else {
+                try {
+                    const res = await fetch(`/app/intervenciones/api/barber-services/${this.form.barber_id}/`);
+                    if (!res.ok) throw new Error('Error ' + res.status);
+                    const data = await res.json();
+                    this.barberServicesCache[this.form.barber_id] = data;
+                    this.barberServiceIds = (data.services || []).map(s => s.id);
+                    (data.services || []).forEach(s => {
+                        this.barberServicesData[s.id] = s;
+                    });
+                } catch (e) {
+                    console.error('Error loading barber services:', e);
+                    this.barberServiceIds = [];
+                }
+            }
+            this.barberServicesLoading = false;
+        },
+
         async onBarberChange() {
             // Clear selected services when barber changes
             this.form.service_ids = [];
@@ -1945,22 +1899,9 @@ function intervencionesApp() {
             this.serviceProductsData = {};
             this.clearProductRows();
             this.updateTotalEstimado();
-            if (!this.form.barber_id) return;
-
-            this.barberServicesLoading = true;
-            try {
-                const res = await fetch(`/app/intervenciones/api/barber-services/${this.form.barber_id}/`);
-                if (!res.ok) throw new Error('Error ' + res.status);
-                const data = await res.json();
-                this.barberServiceIds = (data.services || []).map(s => s.id);
-                (data.services || []).forEach(s => {
-                    this.barberServicesData[s.id] = s;
-                });
-            } catch (e) {
-                console.error('Error loading barber services:', e);
-                this.barberServiceIds = [];
-            }
-            this.barberServicesLoading = false;
+            
+            await this.loadBarberServices();
+            
             // Wait for Alpine to render the x-show elements, then init accordions
             this.$nextTick(() => {
                 setTimeout(() => initModalAccordions(), 50);
@@ -2118,20 +2059,22 @@ function intervencionesApp() {
                         </span>
                     </span>
                     <input type="hidden" class="iprod-select" value="${item.producto_id}">
-                    <span class="flex-1 px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-500 text-sm line-through">${item.nombre || 'Producto eliminado'}</span>
+                    <span class="flex-1 min-w-0 truncate px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-500 text-sm line-through">${item.nombre || 'Producto eliminado'}</span>
                     <input type="number" min="1" value="${qty}" readonly
-                           class="iprod-qty w-20 px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-500 text-sm text-center cursor-not-allowed">
+                           class="iprod-qty w-14 sm:w-20 px-1 sm:px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-500 text-sm text-center cursor-not-allowed">
                     <span class="iprod-line-price text-xs font-semibold w-24 text-right flex-shrink-0 ${priceClass}">${formattedPrice || '—'}</span>
                     <span class="w-6"></span>
                 `;
             } else if (item.auto) {
                 row.setAttribute('data-unit-price', parseFloat(item.unit_price) || 0);
                 row.innerHTML = `
-                    ${autoBadge}
-                    ${inclBadge}
-                    <span class="flex-1 px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-400 text-sm">${item.nombre || ''}</span>
+                    <div class="flex flex-col sm:flex-row gap-1 flex-shrink-0">
+                        ${autoBadge}
+                        ${inclBadge}
+                    </div>
+                    <span class="flex-1 min-w-0 truncate px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-400 text-sm">${item.nombre || ''}</span>
                     <input type="number" min="1" value="${item.cantidad || 1}" readonly
-                           class="iprod-qty w-20 px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-400 text-sm text-center cursor-not-allowed">
+                           class="iprod-qty w-14 sm:w-20 px-1 sm:px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-400 text-sm text-center cursor-not-allowed">
                     <span class="iprod-line-price text-xs font-semibold w-24 text-right flex-shrink-0 ${priceClass}">${formattedPrice}</span>
                     <button type="button" class="text-red-400 hover:text-red-300 p-1 transition-colors flex-shrink-0 iprod-remove-btn">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -2146,11 +2089,13 @@ function intervencionesApp() {
             } else {
                 row.innerHTML = `
                     ${inclBadge}
-                    <select class="iprod-select flex-1 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-                        ${this.getProductOptionsHTML()}
-                    </select>
+                    <div class="flex-1 min-w-0 w-full overflow-hidden">
+                        <select class="iprod-select w-full max-w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors truncate">
+                            ${this.getProductOptionsHTML()}
+                        </select>
+                    </div>
                     <input type="number" min="1" value="${item.cantidad || 1}" placeholder="Cant."
-                           class="iprod-qty w-20 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm text-center focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                           class="iprod-qty w-14 sm:w-20 px-1 sm:px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm text-center focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                     <span class="iprod-line-price text-xs font-semibold w-24 text-right flex-shrink-0 ${priceClass}"></span>
                     <button type="button" class="text-red-400 hover:text-red-300 p-1 transition-colors flex-shrink-0 iprod-remove-btn">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>

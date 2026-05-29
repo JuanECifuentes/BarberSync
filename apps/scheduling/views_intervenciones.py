@@ -408,6 +408,7 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
                             "incluido": p.incluido_en_precio,
                             "auto": p.intervencion_servicio_id is not None,
                             "is_deleted": not p.producto.is_active,
+                            "servicio_id": p.intervencion_servicio.servicio_id if p.intervencion_servicio else None
                         }
                         for p in productos
                     ],
