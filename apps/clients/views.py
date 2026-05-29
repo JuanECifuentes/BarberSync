@@ -626,18 +626,27 @@ class ClientSearchAPI(View):
             return JsonResponse([], safe=False)
 
         q = request.GET.get("q", "").strip()
-        if len(q) < 2:
-            return JsonResponse([], safe=False)
+        
+        try:
+            page = int(request.GET.get("page", 1))
+            limit = int(request.GET.get("limit", 30))
+        except (ValueError, TypeError):
+            page = 1
+            limit = 30
+            
+        offset = (page - 1) * limit
 
-        clients = Client.objects.filter(
-            organization=org,
-            is_active=True,
-        ).filter(
-            Q(name__icontains=q) | Q(email__icontains=q) | Q(phone__icontains=q)
-        )[:10]
+        clients = Client.objects.filter(organization=org, is_active=True).order_by("name")
+        
+        if q:
+            clients = clients.filter(
+                Q(name__icontains=q) | Q(email__icontains=q) | Q(phone__icontains=q)
+            )
+
+        clients_page = clients[offset:offset + limit]
 
         data = [
             {"id": c.pk, "name": c.name, "email": c.email, "phone": c.phone}
-            for c in clients
+            for c in clients_page
         ]
         return JsonResponse(data, safe=False)

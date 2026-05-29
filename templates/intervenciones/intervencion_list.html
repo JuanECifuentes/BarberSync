@@ -654,7 +654,7 @@
                 <div class="space-y-4">
                   <fieldset class="space-y-4" :disabled="!form.can_edit" :class="!form.can_edit ? 'opacity-80' : ''">
                     <!-- Barbero -->
-                    <div class="w-full max-w-full overflow-hidden">
+                    <div class="w-full max-w-full">
                         <label class="block text-sm font-medium text-neutral-300 mb-1 truncate">Barbero</label>
                         <select x-model="form.barber_id" @change="onBarberChange()"
                                 {% if is_barber %}disabled class="w-full max-w-full truncate px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-400 text-sm cursor-not-allowed"{% else %}class="w-full max-w-full truncate px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors"{% endif %}>
@@ -666,27 +666,48 @@
                     </div>
 
                     <!-- Cliente (autocomplete) -->
-                    <div class="w-full max-w-full overflow-hidden">
+                    <!-- Cliente (autocomplete estilo select) -->
+                    <div class="w-full max-w-full">
                         <label class="block text-sm font-medium text-neutral-300 mb-1 truncate">Cliente</label>
-                        <div class="relative w-full max-w-full">
-                            <input type="text" x-model="clientSearch" @input.debounce.300ms="searchClients()"
-                                   placeholder="Buscar por nombre o email..."
-                                   x-show="!form.selectedClient"
-                                   class="w-full max-w-full truncate px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-                            <div x-show="clientResults.length > 0 && !form.selectedClient"
-                                 class="absolute z-10 w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl max-h-48 overflow-y-auto">
-                                <template x-for="c in clientResults" :key="c.id">
-                                    <button @click="selectClient(c)" type="button"
-                                            class="w-full text-left px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors">
-                                        <span x-text="c.name" class="font-medium"></span>
-                                        <span class="text-neutral-400 text-xs ml-2" x-text="c.email"></span>
-                                    </button>
-                                </template>
+                        
+                        <div class="relative w-full max-w-full" @click.outside="clientDropdownOpen = false">
+                            <!-- Trigger button -->
+                            <button type="button" @click="toggleClientDropdown()"
+                                    class="w-full flex items-center justify-between px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-brand focus:border-brand"
+                                    :class="!form.selectedClient ? 'text-neutral-400' : 'text-white'">
+                                <span class="truncate flex-1 text-left" x-text="form.selectedClient ? form.selectedClient.name : 'Seleccionar cliente...'"></span>
+                                <svg class="w-4 h-4 text-neutral-400 shrink-0 ml-2" :class="clientDropdownOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="transition: transform 0.2s"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+
+                            <!-- Dropdown panel -->
+                            <div x-show="clientDropdownOpen" x-transition
+                                 class="absolute z-[110] w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-2xl flex flex-col"
+                                 style="max-height: 320px;">
+                                
+                                <!-- Search inside dropdown -->
+                                <div class="p-2 border-b border-neutral-700 shrink-0 bg-neutral-800">
+                                    <input type="text" x-model="clientSearch" @input.debounce.300ms="searchClients()" x-ref="clientSearchInput"
+                                           placeholder="Buscar por nombre, correo o teléfono..."
+                                           class="w-full px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-md text-white text-sm placeholder-neutral-500 focus:ring-1 focus:ring-brand focus:border-brand transition-colors">
+                                </div>
+                                
+                                <!-- Options list with infinite scroll -->
+                                <div class="flex-1 overflow-y-auto p-1 custom-scrollbar bg-neutral-800" @scroll="onClientScroll($event)">
+                                    <template x-for="c in clientResults" :key="c.id">
+                                        <button @click="selectClient(c)" type="button"
+                                                class="w-full text-left px-3 py-2 rounded-md text-sm text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors flex flex-col gap-0.5">
+                                            <span x-text="c.name" class="font-medium text-white"></span>
+                                            <div class="flex items-center gap-2 text-xs text-neutral-400">
+                                                <span x-show="c.email" x-text="c.email" class="truncate"></span>
+                                                <span x-show="c.email && c.phone" class="text-neutral-600">•</span>
+                                                <span x-show="c.phone" x-text="c.phone" class="truncate"></span>
+                                            </div>
+                                        </button>
+                                    </template>
+                                    <div x-show="clientLoading" class="py-3 text-center text-xs text-neutral-500">Cargando...</div>
+                                    <div x-show="!clientLoading && clientResults.length === 0" class="py-3 text-center text-xs text-neutral-500">No se encontraron clientes</div>
+                                </div>
                             </div>
-                        </div>
-                        <div x-show="form.selectedClient" class="mt-1 px-3 py-2 bg-brand/10 border border-brand/20 rounded-lg flex items-center justify-between min-w-0">
-                            <span class="text-sm text-white truncate flex-1" x-text="form.selectedClient?.name"></span>
-                            <button @click="form.selectedClient = null; form.client_id = ''; clientSearch = ''" type="button" class="text-neutral-400 hover:text-white text-xs ml-2 shrink-0">✕</button>
                         </div>
                     </div>
 
@@ -791,7 +812,7 @@
 
                   <fieldset class="space-y-4" :disabled="!form.can_edit" :class="!form.can_edit ? 'opacity-80' : ''">
                     <!-- Sucursal -->
-                    <div class="w-full max-w-full overflow-hidden">
+                    <div class="w-full max-w-full">
                         <label class="block text-sm font-medium text-neutral-300 mb-1 truncate">Sucursal</label>
                         <select x-model="form.sucursal_id"
                                 class="w-full max-w-full truncate px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
@@ -802,7 +823,7 @@
                     </div>
 
                     <!-- Estado -->
-                    <div class="w-full max-w-full overflow-hidden">
+                    <div class="w-full max-w-full">
                         <label class="block text-sm font-medium text-neutral-300 mb-1 truncate">Estado</label>
                         <select x-model="form.estado"
                                 class="w-full max-w-full truncate px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
@@ -1546,6 +1567,10 @@ function intervencionesApp() {
         editingId: null,
         submitting: false,
         formError: '',
+        clientDropdownOpen: false,
+        clientPage: 1,
+        clientHasMore: true,
+        clientLoading: false,
         clientSearch: '',
         clientResults: [],
         flatpickrInstance: null,
@@ -1700,6 +1725,10 @@ function intervencionesApp() {
             this.formError = '';
             this.clientSearch = '';
             this.clientResults = [];
+            this.clientDropdownOpen = false;
+            this.clientPage = 1;
+            this.clientHasMore = true;
+            this.clientLoading = false;
             this.editingId = null;
             this.barberServiceIds = [];
             this.barberServicesData = {};
@@ -2038,10 +2067,10 @@ function intervencionesApp() {
             if (item.auto) row.setAttribute('data-auto', '1');
 
             const inclBadge = item.incluido
-                ? '<span class="relative group/tipincl flex-shrink-0 cursor-help"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-700/60 text-neutral-400 border border-neutral-600">Incluido</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipincl:opacity-100 group-hover/tipincl:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">El costo del producto se consideró dentro del precio del servicio.</span></span>'
+                ? '<span class="flex-shrink-0 cursor-help" onmouseenter="showGlobalTooltip(this, \'El costo del producto se consideró dentro del precio del servicio.\')" onmouseleave="hideGlobalTooltip()"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-700/60 text-neutral-400 border border-neutral-600">Incluido</span></span>'
                 : '';
             const autoBadge = item.auto
-                ? '<span class="relative group/tipauto flex-shrink-0 cursor-help"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900/60 text-blue-300 border border-blue-700/50">Auto</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipauto:opacity-100 group-hover/tipauto:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">Agregado automáticamente por el servicio</span></span>'
+                ? '<span class="flex-shrink-0 cursor-help" onmouseenter="showGlobalTooltip(this, \'Agregado automáticamente por el servicio\')" onmouseleave="hideGlobalTooltip()"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900/60 text-blue-300 border border-blue-700/50">Auto</span></span>'
                 : '';
 
             const lineTotal = (parseFloat(item.unit_price) || 0) * (parseInt(item.cantidad) || 1);
@@ -2234,19 +2263,69 @@ function intervencionesApp() {
             if (container) container.innerHTML = '';
         },
 
-        async searchClients() {
-            if (this.clientSearch.length < 2) { this.clientResults = []; return; }
+        async toggleClientDropdown() {
+            this.clientDropdownOpen = !this.clientDropdownOpen;
+            if (this.clientDropdownOpen) {
+                if (this.clientResults.length === 0) {
+                    this.clientSearch = '';
+                    await this.loadClients(false);
+                }
+                this.$nextTick(() => {
+                    const input = this.$refs.clientSearchInput;
+                    if (input) input.focus();
+                });
+            }
+        },
+
+        async loadClients(isLoadMore = false) {
+            if (this.clientLoading) return;
+            if (!isLoadMore) {
+                this.clientPage = 1;
+                this.clientResults = [];
+                this.clientHasMore = true;
+            }
+            if (!this.clientHasMore) return;
+            
+            this.clientLoading = true;
             try {
-                const res = await fetch(`${CLIENT_SEARCH_URL}?q=${encodeURIComponent(this.clientSearch)}`);
-                this.clientResults = await res.json();
-            } catch (e) { this.clientResults = []; }
+                const q = encodeURIComponent(this.clientSearch);
+                const limit = 30;
+                const res = await fetch(`${CLIENT_SEARCH_URL}?q=${q}&page=${this.clientPage}&limit=${limit}`);
+                const data = await res.json();
+                
+                const newResults = Array.isArray(data) ? data : (data.results || []);
+                
+                if (newResults.length < limit) {
+                    this.clientHasMore = false;
+                }
+                
+                if (isLoadMore) {
+                    this.clientResults = [...this.clientResults, ...newResults];
+                } else {
+                    this.clientResults = newResults;
+                }
+                this.clientPage++;
+            } catch (e) {
+                console.error(e);
+            }
+            this.clientLoading = false;
+        },
+
+        onClientScroll(e) {
+            const el = e.target;
+            if (el.scrollHeight - el.scrollTop - el.clientHeight < 50) {
+                this.loadClients(true);
+            }
+        },
+
+        searchClients() {
+            this.loadClients(false);
         },
 
         selectClient(c) {
             this.form.selectedClient = c;
             this.form.client_id = c.id;
-            this.clientSearch = '';
-            this.clientResults = [];
+            this.clientDropdownOpen = false;
         },
 
         async submitForm() {
@@ -2309,6 +2388,47 @@ function intervencionesApp() {
             } catch (e) { console.error(e); }
         },
     };
+}
+
+// Global tooltip logic
+function showGlobalTooltip(el, text) {
+    let tooltip = document.getElementById('global-tooltip');
+    if (!tooltip) {
+        tooltip = document.createElement('div');
+        tooltip.id = 'global-tooltip';
+        tooltip.className = 'fixed px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 pointer-events-none z-[9999] shadow-xl whitespace-normal text-center leading-relaxed transition-opacity duration-200';
+        tooltip.style.maxWidth = '200px';
+        document.body.appendChild(tooltip);
+    }
+    tooltip.textContent = text;
+    const rect = el.getBoundingClientRect();
+    
+    // Position it briefly invisible to get dimensions
+    tooltip.style.display = 'block';
+    
+    requestAnimationFrame(() => {
+        const tooltipWidth = tooltip.offsetWidth;
+        const tooltipHeight = tooltip.offsetHeight;
+        
+        let left = rect.left + (rect.width / 2);
+        let top = rect.top - 8;
+        
+        // Ensure it doesn't go off screen horizontally
+        if (left - (tooltipWidth / 2) < 10) left = (tooltipWidth / 2) + 10;
+        if (left + (tooltipWidth / 2) > window.innerWidth - 10) left = window.innerWidth - (tooltipWidth / 2) - 10;
+        
+        tooltip.style.left = left + 'px';
+        tooltip.style.top = top + 'px';
+        tooltip.style.transform = 'translate(-50%, -100%)';
+        tooltip.style.opacity = '1';
+    });
+}
+
+function hideGlobalTooltip() {
+    const tooltip = document.getElementById('global-tooltip');
+    if (tooltip) {
+        tooltip.style.opacity = '0';
+    }
 }
 </script>
 {% endblock %}
