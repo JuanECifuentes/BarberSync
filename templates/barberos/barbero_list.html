@@ -240,7 +240,7 @@
 
                 <!-- Right: Action buttons -->
                 <div class="flex items-center gap-1 flex-shrink-0">
-                    {% if is_admin or request.user.id == b.user.id %}
+                    {% if is_admin %}
                     <button onclick="openComisionesModal({{ b.pk }}, '{{ b.display_name|default:b.user.get_full_name|escapejs }}')"
                         data-tooltip="Comisiones"
                         class="border border-neutral-700 px-2.5 py-1.5 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-400 hover:text-white">
@@ -249,6 +249,8 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m15 9-6 6M9 9h.01M15 15h.01" />
                         </svg>
                     </button>
+                    {% endif %}
+                    {% if is_admin or request.user.id == b.user.id %}
                     <button onclick="openScheduleModal({{ b.pk }})"
                         data-tooltip="Horario Semanal"
                         class="border border-neutral-700 px-2.5 py-1.5 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-400 hover:text-white">

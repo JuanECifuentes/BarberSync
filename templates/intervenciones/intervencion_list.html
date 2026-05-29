@@ -721,7 +721,7 @@
                             <span class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin inline-block"></span>
                             Cargando servicios...
                         </div>
-                        <div x-show="form.barber_id && !barberServicesLoading && barberServiceIds.length > 0" class="space-y-2 max-h-40 overflow-y-auto pr-1" id="modal-services-accordion">
+                        <div x-show="form.barber_id && !barberServicesLoading && barberServiceIds.length > 0" class="space-y-2 max-h-60 overflow-y-auto pr-1" id="modal-services-accordion">
                             {% for cat_name, group in grouped_services.items %}
                             <div class="modal-svc-group" data-cat-name="{{ cat_name }}"
                                  x-show="categoryHasBarberServices([{% for service in group.services %}{{ service.pk }}{% if not forloop.last %},{% endif %}{% endfor %}])">
