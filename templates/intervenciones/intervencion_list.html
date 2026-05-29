@@ -86,6 +86,9 @@
     .ag-theme-alpine .ag-header-cell-label .ag-sort-indicator-icon {
         color: #ff2301;
     }
+    .ag-theme-alpine .ag-row {
+        cursor: pointer;
+    }
     .ag-theme-alpine .ag-paging-panel {
         background-color: #2a2a2d;
         border-top: 1px solid #3d3d41;
@@ -356,17 +359,22 @@
         background: rgba(255, 35, 1, 0.15) !important;
         box-shadow: -5px 0 0 rgba(255, 35, 1, 0.15), 5px 0 0 rgba(255, 35, 1, 0.15) !important;
     }
+
+
+    .interv-producto-row {
+        flex-wrap: wrap;
+    }
 </style>
 {% endblock %}
 
 {% block extra_css %}
 <style>
-    .flex-1.overflow-y-auto { overflow: hidden !important; }
+    /* .flex-1.overflow-y-auto { overflow: hidden !important; } */
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="flex flex-col h-full" x-data="intervencionesApp()" x-init="init()">
+<div class="flex flex-col h-full overflow-hidden" x-data="intervencionesApp()" x-init="init()">
 
     <!-- ═══════ Header ═══════ -->
     <div class="flex items-center justify-between flex-wrap gap-3 mb-3 flex-shrink-0">
@@ -381,11 +389,22 @@
 
     <!-- ═══════ Filtros Externos ═══════ -->
     <div class="card mb-3 flex-shrink-0">
+        <!-- Mobile toggle button -->
         <div class="flex items-center justify-between mb-3">
             <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Filtros</p>
+            <button type="button"
+                    @click="showFiltersMobile = !showFiltersMobile"
+                    class="md:hidden flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white transition-colors border border-neutral-700 px-3 py-1.5 rounded-lg">
+                <span x-text="showFiltersMobile ? 'Ocultar filtros' : 'Mostrar filtros'"></span>
+                <svg class="w-3.5 h-3.5 transition-transform duration-200" :class="showFiltersMobile ? 'rotate-180' : ''"
+                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div class="hidden md:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3"
+             :class="showFiltersMobile ? '!grid' : ''">
 
             <!-- 1. Fecha rango -->
             <div>
@@ -517,27 +536,128 @@
         </div>
     </div>
 
-    <!-- ═══════ ag-Grid container ═══════ -->
-    <div id="intervencionesGrid" class="ag-theme-alpine flex-1 min-h-0 w-full rounded-xl overflow-hidden border border-neutral-800"></div>
+    <!-- ═══════ ag-Grid container (desktop only) ═══════ -->
+    <div id="intervencionesGrid" class="ag-theme-alpine hidden md:block flex-1 min-h-0 w-full rounded-xl overflow-hidden border border-neutral-800"></div>
+
+    <!-- ═══════ Mobile Cards container (mobile only) ═══════ -->
+    <div id="mobileCardsContainer" class="block md:hidden flex-1 min-h-0 overflow-y-auto space-y-3 pb-4">
+        <p class="text-neutral-400 text-center py-8 text-sm">Cargando...</p>
+    </div>
+
+    <!-- ═══════ Drawer: Detalle de Intervención ═══════ -->
+    <!--
+    <div id="drawer-intervencion" class="hidden fixed inset-0 z-[100]" aria-hidden="true">
+        <div class="absolute inset-0 bg-black/60 transition-opacity" onclick="closeDrawer()"></div>
+        <div class="fixed inset-y-0 right-0 max-w-md w-full flex">
+            <div id="drawer-panel" class="w-full bg-neutral-900 shadow-2xl transform transition-transform duration-300 translate-x-full border-l border-neutral-800 flex flex-col h-full">
+                
+                <div class="flex-shrink-0 px-6 py-4 border-b border-neutral-800 flex items-center justify-between bg-neutral-900/50">
+                    <h3 class="font-heading font-bold text-lg text-white">Detalle de Intervención</h3>
+                    <button type="button" onclick="closeDrawer()" class="text-neutral-400 hover:text-white transition-colors p-2 -mr-2 rounded-lg hover:bg-neutral-800">
+                        <span class="sr-only">Cerrar</span>
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+
+                <div class="flex-1 overflow-y-auto px-6 py-6 space-y-8 custom-scrollbar">
+                    
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-brand/10 text-brand flex items-center justify-center flex-shrink-0">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="text-sm text-neutral-400 mb-0.5">Cliente</p>
+                                <p id="drawer-cliente" class="text-white font-medium truncate"></p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-neutral-800 text-neutral-400 flex items-center justify-center flex-shrink-0">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5"/></svg>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="text-sm text-neutral-400 mb-0.5">Barbero</p>
+                                <p id="drawer-barbero" class="text-white font-medium truncate"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-neutral-800/50 rounded-xl p-4 border border-neutral-800">
+                            <p class="text-xs text-neutral-400 mb-1">Fecha</p>
+                            <p id="drawer-fecha" class="text-sm text-white font-medium"></p>
+                        </div>
+                        <div class="bg-neutral-800/50 rounded-xl p-4 border border-neutral-800">
+                            <p class="text-xs text-neutral-400 mb-1">Estado</p>
+                            <div id="drawer-estado" class="mt-1"></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-neutral-800/50 rounded-xl p-4 border border-neutral-800">
+                        <p class="text-xs text-neutral-400 mb-1">Sucursal</p>
+                        <p id="drawer-sucursal" class="text-sm text-white font-medium"></p>
+                    </div>
+
+                    <div class="space-y-3">
+                        <h4 class="text-sm font-semibold text-neutral-300 uppercase tracking-wider">Servicios</h4>
+                        <div id="drawer-servicios" class="space-y-2"></div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <h4 class="text-sm font-semibold text-neutral-300 uppercase tracking-wider">Productos Usados</h4>
+                        <div id="drawer-productos" class="space-y-2"></div>
+                    </div>
+
+                    <div class="space-y-3 pt-2">
+                        <h4 class="text-sm font-semibold text-neutral-300 uppercase tracking-wider">Notas</h4>
+                        <p id="drawer-notas" class="text-sm text-neutral-400 whitespace-pre-wrap leading-relaxed bg-neutral-800/30 p-3 rounded-lg border border-neutral-800"></p>
+                    </div>
+
+                    <div class="bg-gradient-to-br from-neutral-800 to-neutral-900 rounded-xl p-5 border border-neutral-700 space-y-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-neutral-300">Total Intervención</span>
+                            <span id="drawer-total" class="font-heading font-bold text-lg" style="color:#ff2301;"></span>
+                        </div>
+                        <div class="h-px bg-neutral-700/50"></div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-neutral-400">Ingreso Barbería</span>
+                            <span id="drawer-barberia" class="font-medium text-white"></span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-neutral-400">Comisión Barbero</span>
+                            <span id="drawer-comision-barbero" class="font-medium" style="color:#10b981;"></span>
+                        </div>
+                        <div class="flex items-center justify-between pt-2 border-t border-neutral-700/50">
+                            <span class="text-xs text-neutral-500">Reparto (Barb / Prof)</span>
+                            <span id="drawer-reparto" class="text-xs text-neutral-400"></span>
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+    -->
 
     <!-- ═══════ Modal Crear / Editar ═══════ -->
     <template x-if="showModal">
         <div class="modal-backdrop" @click.self="closeModal()">
             <div class="modal-content" @click.stop>
-                <div class="flex items-center justify-between mb-5">
-                    <h3 class="font-heading font-bold text-lg text-white"
-                        x-text="editingId ? 'Editar Intervención' : 'Nueva Intervención'"></h3>
-                    <button @click="closeModal()" class="text-neutral-400 hover:text-white transition-colors">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="font-heading font-bold text-xl text-white" x-text="editingId ? 'Editar Intervención' : 'Nueva Intervención'"></h3>
+                    <button type="button" @click="closeModal()" class="text-neutral-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-neutral-800">
+                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                 </div>
 
                 <div class="space-y-4">
+                  <fieldset class="space-y-4" :disabled="!form.can_edit" :class="!form.can_edit ? 'opacity-80' : ''">
                     <!-- Barbero -->
-                    <div>
-                        <label class="block text-sm font-medium text-neutral-300 mb-1">Barbero</label>
+                    <div class="w-full max-w-full">
+                        <label class="block text-sm font-medium text-neutral-300 mb-1 truncate">Barbero</label>
                         <select x-model="form.barber_id" @change="onBarberChange()"
-                                {% if is_barber %}disabled class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-400 text-sm cursor-not-allowed"{% else %}class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors"{% endif %}>
+                                {% if is_barber %}disabled class="w-full max-w-full truncate px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-400 text-sm cursor-not-allowed"{% else %}class="w-full max-w-full truncate px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors"{% endif %}>
                             <option value="">Seleccionar barbero...</option>
                             {% for barber in barbers %}
                             <option value="{{ barber.pk }}">{{ barber }}</option>
@@ -546,27 +666,48 @@
                     </div>
 
                     <!-- Cliente (autocomplete) -->
-                    <div>
-                        <label class="block text-sm font-medium text-neutral-300 mb-1">Cliente</label>
-                        <div class="relative">
-                            <input type="text" x-model="clientSearch" @input.debounce.300ms="searchClients()"
-                                   placeholder="Buscar por nombre o email..."
-                                   x-show="!form.selectedClient"
-                                   class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-                            <div x-show="clientResults.length > 0 && !form.selectedClient"
-                                 class="absolute z-10 w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl max-h-48 overflow-y-auto">
-                                <template x-for="c in clientResults" :key="c.id">
-                                    <button @click="selectClient(c)" type="button"
-                                            class="w-full text-left px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors">
-                                        <span x-text="c.name" class="font-medium"></span>
-                                        <span class="text-neutral-400 text-xs ml-2" x-text="c.email"></span>
-                                    </button>
-                                </template>
+                    <!-- Cliente (autocomplete estilo select) -->
+                    <div class="w-full max-w-full">
+                        <label class="block text-sm font-medium text-neutral-300 mb-1 truncate">Cliente</label>
+                        
+                        <div class="relative w-full max-w-full" @click.outside="clientDropdownOpen = false">
+                            <!-- Trigger button -->
+                            <button type="button" @click="toggleClientDropdown()"
+                                    class="w-full flex items-center justify-between px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-brand focus:border-brand"
+                                    :class="!form.selectedClient ? 'text-neutral-400' : 'text-white'">
+                                <span class="truncate flex-1 text-left" x-text="form.selectedClient ? form.selectedClient.name : 'Seleccionar cliente...'"></span>
+                                <svg class="w-4 h-4 text-neutral-400 shrink-0 ml-2" :class="clientDropdownOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="transition: transform 0.2s"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+
+                            <!-- Dropdown panel -->
+                            <div x-show="clientDropdownOpen" x-transition
+                                 class="absolute z-[110] w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-2xl flex flex-col"
+                                 style="max-height: 320px;">
+                                
+                                <!-- Search inside dropdown -->
+                                <div class="p-2 border-b border-neutral-700 shrink-0 bg-neutral-800">
+                                    <input type="text" x-model="clientSearch" @input.debounce.300ms="searchClients()" x-ref="clientSearchInput"
+                                           placeholder="Buscar por nombre, correo o teléfono..."
+                                           class="w-full px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-md text-white text-sm placeholder-neutral-500 focus:ring-1 focus:ring-brand focus:border-brand transition-colors">
+                                </div>
+                                
+                                <!-- Options list with infinite scroll -->
+                                <div class="flex-1 overflow-y-auto p-1 custom-scrollbar bg-neutral-800" @scroll="onClientScroll($event)">
+                                    <template x-for="c in clientResults" :key="c.id">
+                                        <button @click="selectClient(c)" type="button"
+                                                class="w-full text-left px-3 py-2 rounded-md text-sm text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors flex flex-col gap-0.5">
+                                            <span x-text="c.name" class="font-medium text-white"></span>
+                                            <div class="flex items-center gap-2 text-xs text-neutral-400">
+                                                <span x-show="c.email" x-text="c.email" class="truncate"></span>
+                                                <span x-show="c.email && c.phone" class="text-neutral-600">•</span>
+                                                <span x-show="c.phone" x-text="c.phone" class="truncate"></span>
+                                            </div>
+                                        </button>
+                                    </template>
+                                    <div x-show="clientLoading" class="py-3 text-center text-xs text-neutral-500">Cargando...</div>
+                                    <div x-show="!clientLoading && clientResults.length === 0" class="py-3 text-center text-xs text-neutral-500">No se encontraron clientes</div>
+                                </div>
                             </div>
-                        </div>
-                        <div x-show="form.selectedClient" class="mt-1 px-3 py-2 bg-brand/10 border border-brand/20 rounded-lg flex items-center justify-between">
-                            <span class="text-sm text-white" x-text="form.selectedClient?.name"></span>
-                            <button @click="form.selectedClient = null; form.client_id = ''; clientSearch = ''" type="button" class="text-neutral-400 hover:text-white text-xs ml-2">✕</button>
                         </div>
                     </div>
 
@@ -580,7 +721,7 @@
                             <span class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin inline-block"></span>
                             Cargando servicios...
                         </div>
-                        <div x-show="form.barber_id && !barberServicesLoading && barberServiceIds.length > 0" class="space-y-2 max-h-40 overflow-y-auto pr-1" id="modal-services-accordion">
+                        <div x-show="form.barber_id && !barberServicesLoading && barberServiceIds.length > 0" class="space-y-2 max-h-60 overflow-y-auto pr-1" id="modal-services-accordion">
                             {% for cat_name, group in grouped_services.items %}
                             <div class="modal-svc-group" data-cat-name="{{ cat_name }}"
                                  x-show="categoryHasBarberServices([{% for service in group.services %}{{ service.pk }}{% if not forloop.last %},{% endif %}{% endfor %}])">
@@ -596,20 +737,20 @@
                                 <div class="modal-accordion-body" style="max-height:500px;opacity:1;">
                                     <div class="space-y-1 pt-1">
                                         {% for service in group.services %}
-                                        <label class="flex items-center justify-between p-3 bg-neutral-800 border border-neutral-700 rounded-lg cursor-pointer hover:border-neutral-600 transition-colors"
+                                        <label class="flex items-center justify-between p-3 bg-neutral-800 border border-neutral-700 rounded-lg cursor-pointer hover:border-neutral-600 transition-colors w-full gap-2 overflow-hidden"
                                                x-show="barberServiceIds.includes({{ service.pk }})"
                                                :class="form.service_ids.includes({{ service.pk }}) ? 'border-brand ring-1 ring-brand' : ''">
-                                            <div class="flex items-center gap-3">
+                                            <div class="flex items-center gap-3 min-w-0 flex-1">
                                                 <input type="checkbox"
                                                        :checked="form.service_ids.includes({{ service.pk }})"
                                                        @change="toggleService({{ service.pk }})"
-                                                       class="w-4 h-4 rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-700">
-                                                <div>
-                                                    <span class="text-sm text-white">{{ service.name }}</span>
-                                                    <span class="text-xs text-neutral-400 ml-2" x-text="getBarberServiceDuration({{ service.pk }}, {{ service.duration_minutes }}) + ' min'"></span>
+                                                       class="w-4 h-4 rounded border-neutral-600 text-brand focus:ring-brand bg-neutral-700 shrink-0">
+                                                <div class="min-w-0 flex-1">
+                                                    <span class="text-sm text-white truncate block">{{ service.name }}</span>
+                                                    <span class="text-xs text-neutral-400 block truncate" x-text="getBarberServiceDuration({{ service.pk }}, {{ service.duration_minutes }}) + ' min'"></span>
                                                 </div>
                                             </div>
-                                            <span class="text-sm font-heading font-bold text-brand"
+                                            <span class="text-sm font-heading font-bold text-brand shrink-0"
                                                   data-service-id="{{ service.pk }}"
                                                   data-raw-price="{{ service.price }}"
                                                   x-text="'$' + fmtMoney(getBarberServicePrice({{ service.pk }}, '{{ service.price }}'))"></span>
@@ -628,15 +769,17 @@
                     <!-- Productos (dinámico) -->
                     <div>
                         <label class="block text-sm font-medium text-neutral-300 mb-1">Consumo de productos</label>
-                        <div class="space-y-2 pr-1" id="modal-productos-container">
-                            <!-- Dynamic rows -->
-                        </div>
-                        <button type="button" @click="addProductRow()"
+                        <!-- Productos Container -->
+                        <div id="modal-productos-container" class="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1"></div>
+
+                        <button x-show="form.can_edit" type="button" @click="addProductRow()"
                                 class="mt-2 text-xs text-brand hover:text-white border border-neutral-700 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                            Agregar producto
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                            Agregar producto manualmente
                         </button>
                     </div>
+
+                  </fieldset>
 
                     <!-- Total Estimado -->
                     <div class="p-3 bg-neutral-800/70 border border-neutral-700 rounded-lg flex items-center justify-between">
@@ -644,11 +787,35 @@
                         <span class="text-lg font-heading font-bold text-brand" x-text="totalEstimado"></span>
                     </div>
 
+                    <!-- Resumen Económico Acordeón -->
+                    <div class="border border-neutral-700 rounded-lg overflow-hidden bg-neutral-800/50">
+                        <button type="button" @click="showResumen = !showResumen" class="w-full flex items-center justify-between px-4 py-3 hover:bg-neutral-800 transition-colors">
+                            <span class="text-sm font-medium text-neutral-300">Resumen Económico</span>
+                            <svg class="w-4 h-4 text-neutral-400 transition-transform duration-200" :class="showResumen ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <div x-show="showResumen" x-transition class="px-4 pb-4 space-y-3 border-t border-neutral-700/50 pt-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-neutral-300">Ingreso Barbería</span>
+                                <span class="font-heading font-bold" style="color:#ff2301;" x-text="resumenBarberia">$0</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-neutral-300">Comisión Barbero</span>
+                                <span class="font-heading font-bold" style="color:#10b981;" x-text="resumenBarbero">$0</span>
+                            </div>
+                            <div class="h-px bg-neutral-700"></div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs text-neutral-400">Reparto</span>
+                                <span class="text-xs text-neutral-300" x-text="resumenReparto">0% / 0%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                  <fieldset class="space-y-4" :disabled="!form.can_edit" :class="!form.can_edit ? 'opacity-80' : ''">
                     <!-- Sucursal -->
-                    <div>
-                        <label class="block text-sm font-medium text-neutral-300 mb-1">Sucursal</label>
+                    <div class="w-full max-w-full">
+                        <label class="block text-sm font-medium text-neutral-300 mb-1 truncate">Sucursal</label>
                         <select x-model="form.sucursal_id"
-                                class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                                class="w-full max-w-full truncate px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                             {% for suc in sucursales %}
                             <option value="{{ suc.pk }}">{{ suc.name }}</option>
                             {% endfor %}
@@ -656,10 +823,10 @@
                     </div>
 
                     <!-- Estado -->
-                    <div>
-                        <label class="block text-sm font-medium text-neutral-300 mb-1">Estado</label>
+                    <div class="w-full max-w-full">
+                        <label class="block text-sm font-medium text-neutral-300 mb-1 truncate">Estado</label>
                         <select x-model="form.estado"
-                                class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                                class="w-full max-w-full truncate px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                             {% for value, label in estados %}
                             <option value="{{ value }}">{{ label }}</option>
                             {% endfor %}
@@ -680,11 +847,8 @@
                                   class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors resize-none max-h-32 overflow-y-auto"></textarea>
                     </div>
 
-                    <!-- Error -->
-                    <div x-show="formError" class="p-3 bg-red-900/40 border border-red-800 rounded-lg text-sm text-red-300" x-text="formError"></div>
-
                     <!-- Submit -->
-                    <button @click="submitForm()" :disabled="!canSubmit || submitting"
+                    <button x-show="form.can_edit" @click="submitForm()" :disabled="!canSubmit || submitting"
                             class="btn-action-primary w-full border border-neutral-700 px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                             :class="canSubmit && !submitting ? 'text-neutral-300' : 'text-neutral-400'">
                         <span x-show="!submitting" x-text="editingId ? 'Guardar Cambios' : 'Crear Intervención'"></span>
@@ -693,6 +857,10 @@
                             Guardando...
                         </span>
                     </button>
+                    <div x-show="!form.can_edit" class="p-3 bg-neutral-800/50 border border-neutral-700 rounded-lg text-sm text-neutral-400 text-center">
+                        Modo Solo Lectura. No tienes permisos para editar esta intervención.
+                    </div>
+                  </fieldset>
                 </div>
             </div>
         </div>
@@ -817,9 +985,83 @@ const AG_LOCALE_ES = {
    ══════════════════════════════════════════ */
 let gridApi = null;
 
+function estadoCellRenderer(params) {
+    if (!params.value) return '';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'flex items-center w-full h-full';
+    const el = document.createElement('span');
+    el.className = `estado-badge estado-${params.value}`;
+    el.textContent = params.data?.estado_display || params.value;
+    wrapper.appendChild(el);
+    return wrapper;
+}
+
+function accionesCellRenderer(params) {
+    if (!params.data) return '';
+    const canEdit = IS_ADMIN || (IS_BARBER && params.data.barbero_id === LOGGED_BARBER_ID);
+    if (!canEdit) return '';
+
+    const container = document.createElement('div');
+    container.style.cssText = 'display:flex;gap:6px;align-items:center;height:100%';
+    const editBtn = document.createElement('button');
+    editBtn.className = 'grid-action-btn';
+    editBtn.title = 'Editar';
+    editBtn.innerHTML = '<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>';
+    editBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.dispatchEvent(new CustomEvent('edit-intervencion', { detail: params.data }));
+    });
+    const delBtn = document.createElement('button');
+    delBtn.className = 'grid-action-btn delete';
+    delBtn.title = 'Eliminar';
+    delBtn.innerHTML = '<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>';
+    delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.dispatchEvent(new CustomEvent('delete-intervencion', { detail: params.data.id }));
+    });
+    container.appendChild(editBtn);
+    container.appendChild(delBtn);
+    return container;
+}
+
+function precioTotalCellRenderer(params) {
+    if (!params.data) return '';
+    const el = document.createElement('span');
+    el.className = 'font-heading font-bold';
+    el.style.color = '#ff2301';
+    el.textContent = params.data.precio_total_fmt || '$0';
+    return el;
+}
+
+function formatCommissionMoney(value) {
+    const num = parseFloat(value);
+    if (isNaN(num)) return '$0';
+    const rounded = Math.round(num * 100) / 100;
+    const parts = rounded.toString().split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    const intFormatted = parts[0];
+    const dec = parts.length > 1 ? parts[1].padEnd(2, '0').slice(0, 2) : '00';
+    if (dec === '00') return '$' + intFormatted;
+    return '$' + intFormatted + ',' + dec;
+}
+
+function clienteBarberoCellRenderer(params) {
+    if (!params.data) return '';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'flex flex-col justify-center w-full h-full py-1';
+    const cliente = document.createElement('span');
+    cliente.className = 'text-white text-sm font-medium truncate';
+    cliente.textContent = params.data.cliente || '—';
+    const barbero = document.createElement('span');
+    barbero.className = 'text-neutral-400 text-xs truncate';
+    barbero.textContent = params.data.barbero || '';
+    wrapper.appendChild(cliente);
+    wrapper.appendChild(barbero);
+    return wrapper;
+}
+
 function serviciosCellRenderer(params) {
     if (!params.value || !params.value.length) {
-        // Show "Venta" tag if the intervention has products but no services
         if (params.data?.productos?.length) {
             return '<div class="flex items-center w-full h-full"><span class="venta-tag">Venta</span></div>';
         }
@@ -857,54 +1099,6 @@ function serviciosCellRenderer(params) {
     }
     wrapper.appendChild(container);
     return wrapper;
-}
-
-function estadoCellRenderer(params) {
-    if (!params.value) return '';
-    const wrapper = document.createElement('div');
-    wrapper.className = 'flex items-center w-full h-full';
-    const el = document.createElement('span');
-    el.className = `estado-badge estado-${params.value}`;
-    el.textContent = params.data?.estado_display || params.value;
-    wrapper.appendChild(el);
-    return wrapper;
-}
-
-function accionesCellRenderer(params) {
-    if (!params.data) return '';
-    const canEdit = IS_ADMIN || (IS_BARBER && params.data.barbero_id === LOGGED_BARBER_ID);
-    if (!canEdit) return '';
-
-    const container = document.createElement('div');
-    container.style.cssText = 'display:flex;gap:6px;align-items:center;height:100%';
-    const editBtn = document.createElement('button');
-    editBtn.className = 'grid-action-btn';
-    editBtn.title = 'Editar';
-    editBtn.innerHTML = '<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>';
-    editBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        document.dispatchEvent(new CustomEvent('edit-intervencion', { detail: params.data.id }));
-    });
-    const delBtn = document.createElement('button');
-    delBtn.className = 'grid-action-btn delete';
-    delBtn.title = 'Eliminar';
-    delBtn.innerHTML = '<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>';
-    delBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        document.dispatchEvent(new CustomEvent('delete-intervencion', { detail: params.data.id }));
-    });
-    container.appendChild(editBtn);
-    container.appendChild(delBtn);
-    return container;
-}
-
-function precioTotalCellRenderer(params) {
-    if (!params.data) return '';
-    const el = document.createElement('span');
-    el.className = 'font-heading font-bold';
-    el.style.color = '#ff2301';
-    el.textContent = params.data.precio_total_fmt || '$0';
-    return el;
 }
 
 function productosCellRenderer(params) {
@@ -948,17 +1142,16 @@ function productosCellRenderer(params) {
     return wrapper;
 }
 
-// Column definitions — NO internal filters
+// Column definitions — compact 8-column layout
 const columnDefs = [
-    { headerName: 'Fecha',     field: 'fecha',     sortable: true,  minWidth: 150, maxWidth: 180 },
-    { headerName: 'Cliente',   field: 'cliente',   sortable: true,  minWidth: 140, flex: 1 },
-    { headerName: 'Barbero',   field: 'barbero',   sortable: true,  minWidth: 140, flex: 1 },
-    { headerName: 'Servicios', field: 'servicios', sortable: false, minWidth: 160, flex: 1.2, cellRenderer: serviciosCellRenderer },
-    { headerName: 'Productos', field: 'productos', sortable: false, minWidth: 160, flex: 1.2, cellRenderer: productosCellRenderer },
-    { headerName: 'Sucursal',  field: 'sucursal',  sortable: true,  minWidth: 120, flex: 0.8 },
-    { headerName: 'Total',     field: 'precio_total', sortable: false, minWidth: 100, maxWidth: 120, cellRenderer: precioTotalCellRenderer },
-    { headerName: 'Estado',    field: 'estado',    sortable: true,  minWidth: 120, maxWidth: 150, cellRenderer: estadoCellRenderer },
-    { headerName: 'Acciones',  field: 'acciones',  sortable: false, minWidth: 90,  maxWidth: 90,  cellRenderer: accionesCellRenderer, suppressSizeToFit: true },
+    { headerName: 'Fecha', field: 'fecha', sortable: true, minWidth: 140, maxWidth: 160 },
+    { headerName: 'Cliente / Barbero', field: 'cliente_barbero', sortable: true, minWidth: 180, flex: 1.2, cellRenderer: clienteBarberoCellRenderer },
+    { headerName: 'Servicios', field: 'servicios', sortable: false, minWidth: 100, flex: 1, cellRenderer: serviciosCellRenderer },
+    { headerName: 'Productos', field: 'productos', sortable: false, minWidth: 100, flex: 1, cellRenderer: productosCellRenderer },
+    { headerName: 'Sucursal', field: 'sucursal', sortable: true, minWidth: 180, flex: 1.2 },
+    { headerName: 'Total', field: 'precio_total', sortable: true, minWidth: 110, maxWidth: 130, cellRenderer: precioTotalCellRenderer },
+    { headerName: 'Estado', field: 'estado', sortable: true, minWidth: 100, maxWidth: 130, cellRenderer: estadoCellRenderer },
+    { headerName: 'Acciones', field: 'acciones', sortable: false, minWidth: 90, maxWidth: 90, cellRenderer: accionesCellRenderer, suppressSizeToFit: true },
 ];
 
 // Datasource — reads external filter state from Alpine
@@ -997,6 +1190,7 @@ function buildDataSource() {
 }
 
 // Initialize grid
+//window.BARBER_SERVICES_MAP = {{ barber_services_json|safe }};
 document.addEventListener('DOMContentLoaded', () => {
     const gridDiv = document.getElementById('intervencionesGrid');
     gridApi = agGrid.createGrid(gridDiv, {
@@ -1019,12 +1213,352 @@ document.addEventListener('DOMContentLoaded', () => {
         overlayLoadingTemplate: '<div class="flex items-center gap-3"><div class="w-5 h-5 border-2 border-[#ff2301] border-t-transparent rounded-full animate-spin"></div><span>Cargando intervenciones...</span></div>',
         overlayNoRowsTemplate: '<div class="text-neutral-400 py-8"><p class="text-lg mb-1">No se encontraron intervenciones</p><p class="text-sm">Ajusta los filtros o crea una nueva</p></div>',
         getRowId: (params) => params.data?.id?.toString(),
+        onRowClicked: (event) => {
+            if (event.data) document.dispatchEvent(new CustomEvent('edit-intervencion', { detail: event.data }));
+        },
+        onRowDoubleClicked: (event) => {
+            if (event.data) document.dispatchEvent(new CustomEvent('edit-intervencion', { detail: event.data }));
+        },
     });
 });
 
-/* ══════════════════════════════════════════
-   Alpine.js App
-   ══════════════════════════════════════════ */
+// ══════════════════════════════════════════
+// DRAWER: Master-Detail Panel
+// ══════════════════════════════════════════
+/*
+function openDrawer(data) {
+    const drawer = document.getElementById('drawer-intervencion');
+    const panel = document.getElementById('drawer-panel');
+    if (!drawer || !panel) return;
+
+    document.getElementById('drawer-fecha').textContent = data.fecha || '—';
+    document.getElementById('drawer-cliente').textContent = data.cliente || '—';
+    document.getElementById('drawer-barbero').textContent = data.barbero || '—';
+    document.getElementById('drawer-sucursal').textContent = data.sucursal || '—';
+    document.getElementById('drawer-notas').textContent = data.notas || '';
+
+    const estadoEl = document.getElementById('drawer-estado');
+    if (data.estado) {
+        estadoEl.innerHTML = `<span class="estado-badge estado-${data.estado}">${data.estado_display || data.estado}</span>`;
+    } else {
+        estadoEl.textContent = '—';
+    }
+
+    // Services
+    const svcContainer = document.getElementById('drawer-servicios');
+    if (data.servicios && data.servicios.length) {
+        svcContainer.innerHTML = data.servicios.map(s => `
+            <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-neutral-800 border border-neutral-700">
+                <span class="text-sm text-white">${s.nombre}</span>
+                <span class="text-sm font-medium" style="color:#ff2301;">$${formatMoneyGrid(s.precio)}</span>
+            </div>
+        `).join('');
+    } else {
+        svcContainer.innerHTML = '<p class="text-xs text-neutral-500">Sin servicios</p>';
+    }
+
+    // Products
+    const prodContainer = document.getElementById('drawer-productos');
+    const prods = data.productos || [];
+    if (prods.length) {
+        prodContainer.innerHTML = prods.map(p => {
+            const badges = [];
+            if (p.auto) {
+                badges.push('<span class="relative group/tipauto flex-shrink-0 cursor-help"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900/60 text-blue-300 border border-blue-700/50">Auto</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipauto:opacity-100 group-hover/tipauto:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">Agregado automáticamente por el servicio</span></span>');
+            }
+            if (p.incluido) {
+                badges.push('<span class="relative group/tipincl flex-shrink-0 cursor-help"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-700/60 text-neutral-400 border border-neutral-600">Incluido</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipincl:opacity-100 group-hover/tipincl:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">El costo del producto se consideró dentro del precio del servicio.</span></span>');
+            }
+            if (p.is_deleted) {
+                badges.push('<span class="relative group/tipdel flex-shrink-0 cursor-help"><span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/60 text-red-300 border border-red-700/50">Eliminado</span><span class="absolute bottom-full left-0 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipdel:opacity-100 group-hover/tipdel:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">Este producto fue eliminado del catálogo. Se conserva como registro histórico.</span></span>');
+            }
+            const badgeHtml = badges.length ? `<div class="flex items-center gap-1.5 mr-2">${badges.join('')}</div>` : '';
+            const priceClass = p.incluido ? 'text-neutral-500 opacity-50 line-through' : '';
+            return `
+            <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-neutral-800 border border-neutral-700">
+                <div class="flex items-center min-w-0">
+                    ${badgeHtml}
+                    <span class="text-sm text-white truncate">${p.nombre} x${p.cantidad}</span>
+                </div>
+                <span class="text-sm font-medium flex-shrink-0 ml-2 ${priceClass}" style="color:#ff2301;">$${formatMoneyGrid(p.precio)}</span>
+            </div>
+            `;
+        }).join('');
+    } else {
+        prodContainer.innerHTML = '<p class="text-xs text-neutral-500">Sin productos</p>';
+    }
+
+    // Financial summary
+    document.getElementById('drawer-total').textContent = data.precio_total_fmt || '$0';
+    document.getElementById('drawer-barberia').textContent = data.ganancia_barberia_fmt || '$0';
+    document.getElementById('drawer-comision-barbero').textContent = data.ganancia_barbero_fmt || '$0';
+    document.getElementById('drawer-reparto').textContent = `${data.pct_barberia || 0}% / ${data.pct_barbero || 0}%`;
+
+    drawer.classList.remove('hidden');
+    requestAnimationFrame(() => {
+        panel.classList.remove('translate-x-full');
+    });
+    document.body.style.overflow = 'hidden';
+}
+
+function closeDrawer() {
+    const drawer = document.getElementById('drawer-intervencion');
+    const panel = document.getElementById('drawer-panel');
+    if (!drawer || !panel) return;
+    panel.classList.add('translate-x-full');
+    setTimeout(() => {
+        drawer.classList.add('hidden');
+        document.body.style.overflow = '';
+    }, 300);
+}
+*/
+
+function formatMoneyGrid(value) {
+    const num = parseFloat(value);
+    if (isNaN(num)) return '0';
+    const rounded = Math.round(num);
+    return rounded.toLocaleString('de-DE');
+}
+
+// ══════════════════════════════════════════
+// MOBILE CARDS
+// ══════════════════════════════════════════
+let _mobileCardsData = [];
+let _mobileCardsPage = 0;
+let _mobileCardsLoading = false;
+let _mobileCardsHasMore = true;
+
+async function refreshMobileCards() {
+    _mobileCardsPage = 0;
+    _mobileCardsHasMore = true;
+    _mobileCardsData = [];
+    const container = document.getElementById('mobileCardsContainer');
+    if (!container) return;
+    container.innerHTML = '<p class="text-neutral-400 text-center py-8 text-sm">Cargando...</p>';
+    await loadMoreMobileCards();
+}
+
+async function loadMoreMobileCards() {
+    if (_mobileCardsLoading || !_mobileCardsHasMore) return;
+    _mobileCardsLoading = true;
+
+    const f = window.__intervencionFilters || {};
+    const urlParams = new URLSearchParams();
+    urlParams.set('startRow', _mobileCardsPage * 30);
+    urlParams.set('endRow', (_mobileCardsPage + 1) * 30);
+    if (f.barberos?.length)   urlParams.set('filter_barberos', f.barberos.join(','));
+    if (f.servicios?.length)  urlParams.set('filter_servicios', f.servicios.join(','));
+    if (f.sucursales?.length) urlParams.set('filter_sucursales', f.sucursales.join(','));
+    if (f.estados?.length)    urlParams.set('filter_estados', f.estados.join(','));
+    if (f.fechaDesde)         urlParams.set('filter_fecha_desde', f.fechaDesde);
+    if (f.fechaHasta)         urlParams.set('filter_fecha_hasta', f.fechaHasta);
+    if (f.totalMin)           urlParams.set('filter_total_min', f.totalMin);
+    if (f.totalMax)           urlParams.set('filter_total_max', f.totalMax);
+
+    try {
+        const res = await fetch(`${API_GRID_URL}?${urlParams.toString()}`);
+        const data = await res.json();
+        const rows = data.rows || [];
+        _mobileCardsHasMore = data.lastRow === -1 || ((_mobileCardsPage + 1) * 30) < data.lastRow;
+
+        if (_mobileCardsPage === 0) {
+            _mobileCardsData = rows;
+            renderMobileCards(_mobileCardsData);
+        } else {
+            _mobileCardsData.push(...rows);
+            appendMobileCards(rows);
+        }
+        _mobileCardsPage++;
+    } catch (e) {
+        console.error(e);
+        const container = document.getElementById('mobileCardsContainer');
+        if (container && _mobileCardsPage === 0) {
+            container.innerHTML = '<p class="text-red-400 text-center py-8 text-sm">Error al cargar datos.</p>';
+        }
+    }
+    _mobileCardsLoading = false;
+}
+
+function renderMobileCards(rows) {
+    const container = document.getElementById('mobileCardsContainer');
+    if (!container) return;
+    if (!rows.length) {
+        container.innerHTML = '<div class="text-neutral-400 py-8 text-center"><p class="text-lg mb-1">No se encontraron intervenciones</p><p class="text-sm">Ajusta los filtros o crea una nueva</p></div>';
+        return;
+    }
+    container.innerHTML = rows.map(row => buildMobileCardHTML(row)).join('');
+    attachMobileCardEvents();
+}
+
+function appendMobileCards(rows) {
+    const container = document.getElementById('mobileCardsContainer');
+    if (!container) return;
+    const html = rows.map(row => buildMobileCardHTML(row)).join('');
+    container.insertAdjacentHTML('beforeend', html);
+    attachMobileCardEvents();
+}
+
+function buildMobileCardHTML(row) {
+    const svcCount = (row.servicios || []).length;
+    const prodCount = (row.productos || []).filter(p => !p.incluido).length;
+    const estadoClass = `estado-${row.estado}`;
+    const estadoLabel = row.estado_display || row.estado;
+    const totalNum = parseFloat(row.precio_total) || 0;
+    const canEdit = row.can_edit;
+
+    const svcs = row.servicios || [];
+    let svcsHtml = '';
+    if (svcs.length > 0) {
+        let shown = svcs.slice(0, 2);
+        svcsHtml = `<div class="flex items-center flex-wrap gap-1 mt-1">` + 
+            shown.map(s => `<span class="svc-tag" style="padding:2px 6px;font-size:10px;">${s.nombre}</span>`).join('') +
+            (svcs.length > 2 ? `<span class="svc-count-badge" style="padding:2px 6px;font-size:10px;">+${svcs.length - 2} más</span>` : '') +
+            `</div>`;
+    }
+
+    const prods = row.productos || [];
+    let prodsHtml = '';
+    const visibleProds = prods.filter(p => !p.incluido);
+    if (visibleProds.length > 0) {
+        let shown = visibleProds.slice(0, 2);
+        prodsHtml = `<div class="flex items-center flex-wrap gap-1 mt-1">` + 
+            shown.map(p => `<span class="prod-tag" style="padding:2px 6px;font-size:10px;">${p.nombre} x${p.cantidad}</span>`).join('') +
+            (visibleProds.length > 2 ? `<span class="svc-count-badge" style="padding:2px 6px;font-size:10px;">+${visibleProds.length - 2} más</span>` : '') +
+            `</div>`;
+    }
+
+    return `
+    <div class="mobile-card cursor-pointer bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-3"
+         data-id="${row.id}"
+         data-can-edit="${canEdit}"
+         data-barbero-id="${row.barbero_id || ''}"
+         data-cliente-id="${row.cliente_id || ''}"
+         data-estado="${row.estado || ''}"
+         data-sucursal="${escapeHtml(row.sucursal || '')}"
+         data-total="${totalNum}"
+         data-fecha="${row.fecha_iso || ''}">
+        <!-- Header -->
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-neutral-400">${row.fecha || ''}</span>
+                <span class="estado-badge ${estadoClass}" style="padding:3px 8px;font-size:10px;">${estadoLabel}</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="text-xs text-neutral-500">${escapeHtml(row.sucursal || '')}</span>
+                ${canEdit ? `
+                <div class="flex items-center gap-1">
+                    <button type="button" class="grid-action-btn edit-btn" title="Editar" data-id="${row.id}">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    </button>
+                    <button type="button" class="grid-action-btn delete delete-btn" title="Eliminar" data-id="${row.id}">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                </div>
+                ` : ''}
+            </div>
+        </div>
+        <!-- Body -->
+        <div>
+            <p class="text-white font-medium text-sm">${escapeHtml(row.cliente || '—')}</p>
+            <p class="text-neutral-400 text-xs">${escapeHtml(row.barbero || '')}</p>
+        </div>
+        <!-- Summary -->
+        <div class="flex flex-col gap-1.5">
+            ${svcsHtml}
+            ${prodsHtml}
+        </div>
+        <div class="flex items-center justify-end text-xs text-neutral-400 mt-2">
+            <span class="font-heading font-bold text-sm" style="color:#ff2301;">${row.precio_total_fmt || '$0'}</span>
+        </div>
+        <!-- Collapsible commission detail -->
+        <div>
+            <button type="button" class="mobile-comm-toggle w-full flex items-center justify-between py-2 text-xs text-neutral-400 hover:text-white transition-colors border-t border-neutral-800"
+                    onclick="toggleMobileComm(this)">
+                <span>Ver desglose financiero</span>
+                <svg class="w-3.5 h-3.5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div class="mobile-comm-content hidden space-y-2 pt-2">
+                <div class="flex items-center justify-between text-sm">
+                    <span class="text-neutral-300">Ingreso Barbería</span>
+                    <span class="font-semibold" style="color:#ff2301;">${row.ganancia_barberia_fmt || '$0'}</span>
+                </div>
+                <div class="flex items-center justify-between text-sm">
+                    <span class="text-neutral-300">Comisión Barbero</span>
+                    <span class="font-semibold" style="color:#10b981;">${row.ganancia_barbero_fmt || '$0'}</span>
+                </div>
+                <div class="flex items-center justify-between text-xs text-neutral-400 pt-1 border-t border-neutral-800">
+                    <span>Reparto</span>
+                    <span>${row.pct_barberia || 0}% / ${row.pct_barbero || 0}%</span>
+                </div>
+            </div>
+        </div>
+    </div>`;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function toggleMobileComm(btn) {
+    const content = btn.nextElementSibling;
+    const icon = btn.querySelector('svg');
+    if (content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        icon.style.transform = 'rotate(180deg)';
+    } else {
+        content.classList.add('hidden');
+        icon.style.transform = 'rotate(0deg)';
+    }
+}
+
+function attachMobileCardEvents() {
+    document.querySelectorAll('.mobile-card').forEach(card => {
+        if (card.dataset.bound) return;
+        card.dataset.bound = "true";
+
+        const editBtn = card.querySelector('.edit-btn');
+        if (editBtn) {
+            editBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const row = _mobileCardsData.find(r => r.id == card.dataset.id);
+                if (row) document.dispatchEvent(new CustomEvent('edit-intervencion', { detail: row }));
+            });
+        }
+        const delBtn = card.querySelector('.delete-btn');
+        if (delBtn) {
+            delBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.dispatchEvent(new CustomEvent('delete-intervencion', { detail: card.dataset.id }));
+            });
+        }
+
+        card.addEventListener('click', (e) => {
+            if (e.target.closest('.mobile-comm-toggle') || e.target.closest('.mobile-comm-content') || e.target.closest('.grid-action-btn')) return;
+            const id = card.dataset.id;
+            const row = _mobileCardsData.find(r => r.id == id);
+            if (row) {
+                document.dispatchEvent(new CustomEvent('edit-intervencion', { detail: row }));
+            }
+        });
+    });
+}
+
+// Infinite scroll for mobile cards
+function initMobileScroll() {
+    const container = document.getElementById('mobileCardsContainer');
+    if (!container) return;
+    container.addEventListener('scroll', () => {
+        if (container.scrollTop + container.clientHeight >= container.scrollHeight - 100) {
+            loadMoreMobileCards();
+        }
+    });
+}
+
+// ══════════════════════════════════════════
+// Alpine.js App
+// ══════════════════════════════════════════
 function intervencionesApp() {
     return {
         showModal: false,
@@ -1033,18 +1567,30 @@ function intervencionesApp() {
         editingId: null,
         submitting: false,
         formError: '',
+        clientDropdownOpen: false,
+        clientPage: 1,
+        clientHasMore: true,
+        clientLoading: false,
         clientSearch: '',
         clientResults: [],
         flatpickrInstance: null,
         flatpickrRangeInstance: null,
         barberServiceIds: [],
-        barberServicesData: {},
-        barberServicesLoading: false,
+        barberServicesCache: {},
         serviceProductsData: {},
+        serviceProductsCache: {},
+        barberServicesLoading: false,
         totalEstimado: '$0',
+        showResumen: false,
+        resumenBarberia: '$0',
+        resumenBarbero: '$0',
+        resumenReparto: '0% / 0%',
 
         // Dropdown open states
         dropdowns: { servicios: false, barberos: false, sucursales: false, estados: false },
+
+        // Mobile filters visibility
+        showFiltersMobile: false,
 
         // External filter state
         filters: {
@@ -1071,10 +1617,11 @@ function intervencionesApp() {
             estado: 'pendiente',
             sucursal_id: '{{ current_barbershop_id }}',
             productCount: 0,
+            can_edit: true,
         },
 
         get canSubmit() {
-            return this.form.barber_id && this.form.selectedClient && (this.form.service_ids.length > 0 || this.form.productCount > 0);
+            return this.form.can_edit && this.form.barber_id && this.form.selectedClient && (this.form.service_ids.length > 0 || this.form.productCount > 0);
         },
 
         get hasActiveFilters() {
@@ -1089,6 +1636,10 @@ function intervencionesApp() {
 
             document.addEventListener('edit-intervencion', (e) => this.openEditModal(e.detail));
             document.addEventListener('delete-intervencion', (e) => this.openDeleteConfirm(e.detail));
+
+            // Init mobile cards
+            initMobileScroll();
+            refreshMobileCards();
 
             // Init Flatpickr range for date filter
             this.$nextTick(() => {
@@ -1118,8 +1669,6 @@ function intervencionesApp() {
 
             // Sync filter state to window for the datasource to read
             window.__intervencionFilters = this.filters;
-
-            // Price formatting now runs when modal opens (formatModalPrices)
         },
 
         /* ── Filter logic ── */
@@ -1150,6 +1699,7 @@ function intervencionesApp() {
             if (gridApi) {
                 gridApi.purgeInfiniteCache();
             }
+            refreshMobileCards();
         },
 
         clearFilters() {
@@ -1170,14 +1720,18 @@ function intervencionesApp() {
                 notas: '', estado: 'pendiente',
                 sucursal_id: '{{ current_barbershop_id }}',
                 productCount: 0,
+                can_edit: true,
             };
             this.formError = '';
             this.clientSearch = '';
             this.clientResults = [];
+            this.clientDropdownOpen = false;
+            this.clientPage = 1;
+            this.clientHasMore = true;
+            this.clientLoading = false;
             this.editingId = null;
             this.barberServiceIds = [];
             this.barberServicesData = {};
-            this.barberServicesLoading = false;
             this.serviceProductsData = {};
             this._rawProductRows = [];
         },
@@ -1200,39 +1754,30 @@ function intervencionesApp() {
             });
         },
 
-        async openEditModal(id) {
+        async openEditModal(data) {
             this.resetForm();
-            this.editingId = id;
+            this.editingId = data.id;
             try {
-                const res = await fetch(`${API_BASE_URL}${id}/`);
-                if (!res.ok) throw new Error('Error al cargar');
-                const data = await res.json();
-                this.form.barber_id = data.barber_id.toString();
-                this.form.client_id = data.client_id;
-                this.form.selectedClient = { id: data.client_id, name: data.cliente };
-                this.form.fecha = data.fecha;
+                this.form.barber_id = data.barbero_id ? data.barbero_id.toString() : '';
+                this.form.client_id = data.cliente_id;
+                this.form.selectedClient = { id: data.cliente_id, name: data.cliente };
+                this.form.fecha = data.fecha_iso;
                 this.form.notas = data.notas || '';
                 this.form.estado = data.estado || 'pendiente';
                 this.form.sucursal_id = data.sucursal_id ? data.sucursal_id.toString() : '{{ current_barbershop_id }}';
+                
+                // Set can_edit mode
+                const is_admin = IS_ADMIN;
+                const is_own = IS_BARBER && data.barber_id === LOGGED_BARBER_ID;
+                this.form.can_edit = is_admin || is_own;
 
                 // Load barber services before setting service_ids so they're visible
                 if (this.form.barber_id) {
-                    this.barberServicesLoading = true;
-                    try {
-                        const bsRes = await fetch(`/app/intervenciones/api/barber-services/${this.form.barber_id}/`);
-                        if (bsRes.ok) {
-                            const bsData = await bsRes.json();
-                            this.barberServiceIds = bsData.services.map(s => s.id);
-                            bsData.services.forEach(s => { this.barberServicesData[s.id] = s; });
-                        }
-                    } catch (e) { console.error(e); }
-                    this.barberServicesLoading = false;
+                    await this.loadBarberServices();
                 }
 
                 this.form.service_ids = data.service_ids;
-                // Immediately show modal with intervention data while service products load
                 this.showModal = true;
-                // Seed _rawProductRows from existing productos (for edit mode)
                 this._rawProductRows = [];
                 if (data.productos && data.productos.length > 0) {
                     data.productos.forEach(p => {
@@ -1244,6 +1789,7 @@ function intervencionesApp() {
                             unit_price: parseFloat(p.precio) || 0,
                             auto: !!p.auto,
                             is_deleted: !!p.is_deleted,
+                            servicio_id: p.servicio_id
                         });
                     });
                 }
@@ -1253,72 +1799,8 @@ function intervencionesApp() {
                     this.initFlatpickr();
                     this.formatModalPrices();
                     initModalAccordions();
+                    this.updateTotalEstimado();
                 });
-
-                // Build serviceProductsData from existing intervention so unchecking a service
-                // in edit mode removes its auto-products
-                this.serviceProductsData = {};
-                if (data.service_ids && data.service_ids.length) {
-                    Promise.all(data.service_ids.map(async (svcId) => {
-                        try {
-                            const r = await fetch(`/app/schedule/api/service/${svcId}/products/`);
-                            if (r.ok) {
-                                const d = await r.json();
-                                this.serviceProductsData[svcId] = d.productos || [];
-                            }
-                        } catch(e) {}
-                    })).then(() => {
-                        this.$nextTick(() => {
-                            // Calculate expected auto products
-                            const expectedAuto = {};
-                            for (const svcId of data.service_ids) {
-                                const svcProds = this.serviceProductsData[svcId] || [];
-                                svcProds.forEach(p => {
-                                    const key = p.producto_id + '_' + !!p.incluido_en_precio;
-                                    if (!expectedAuto[key]) expectedAuto[key] = 0;
-                                    expectedAuto[key] += (p.cantidad_consumida || 1);
-                                    
-                                    this._rawProductRows.push({
-                                        producto_id: p.producto_id,
-                                        nombre: p.nombre || '',
-                                        cantidad: p.cantidad_consumida || 1,
-                                        incluido: !!p.incluido_en_precio,
-                                        unit_price: parseFloat(p.precio_unitario) || 0,
-                                        auto: true,
-                                        is_deleted: false,
-                                        servicio_id: svcId,
-                                    });
-                                });
-                            }
-                            
-                            // Adjust the DB loaded products to prevent duplication of auto-products
-                            const newRaw = [];
-                            this._rawProductRows.forEach(r => {
-                                if (r.servicio_id !== undefined) {
-                                    newRaw.push(r); // Newly added auto products
-                                } else {
-                                    // DB loaded product
-                                    const key = r.producto_id + '_' + r.incluido;
-                                    if (expectedAuto[key]) {
-                                        const remaining = r.cantidad - expectedAuto[key];
-                                        if (remaining > 0) {
-                                            newRaw.push({ ...r, cantidad: remaining, auto: false });
-                                        }
-                                        expectedAuto[key] -= r.cantidad;
-                                    } else {
-                                        newRaw.push(r);
-                                    }
-                                }
-                            });
-                            this._rawProductRows = newRaw;
-                            
-                            const aggregated = this.aggregateProducts(this._rawProductRows);
-                            this.renderProductRows(aggregated);
-                        });
-                    });
-                } else {
-                    this.$nextTick(() => this.updateTotalEstimado());
-                }
             } catch (e) {
                 console.error(e);
             }
@@ -1354,41 +1836,38 @@ function intervencionesApp() {
         async toggleService(id) {
             const idx = this.form.service_ids.indexOf(id);
             if (idx >= 0) {
-                // Uncheck: remove this service's products and rebuild with aggregation
                 this.form.service_ids.splice(idx, 1);
-                delete this.serviceProductsData[id];
-                // Remove from _rawProductRows entries for this service
                 this._rawProductRows = (this._rawProductRows || []).filter(r => r.servicio_id !== id);
-                // Re-render all remaining products via aggregation
+                this.renderProductRows(this.aggregateProducts(this._rawProductRows));
+            } else {
+                if (!this.serviceProductsCache[id]) {
+                    try {
+                        const res = await fetch(`/app/schedule/api/service/${id}/products/`);
+                        if (res.ok) {
+                            const data = await res.json();
+                            this.serviceProductsCache[id] = data.productos || [];
+                        }
+                    } catch (e) { console.error(e); }
+                }
+                this.serviceProductsData[id] = this.serviceProductsCache[id] || [];
+                this.form.service_ids.push(id);
+                const svcProds = this.serviceProductsData[id];
+                svcProds.forEach(p => {
+                    this._rawProductRows.push({
+                        producto_id: p.producto_id,
+                        nombre: p.nombre || '',
+                        cantidad: p.cantidad_consumida || 1,
+                        incluido: !!p.incluido_en_precio,
+                        unit_price: parseFloat(p.precio_unitario) || 0,
+                        auto: true,
+                        is_deleted: false,
+                        servicio_id: id,
+                    });
+                });
                 const aggregated = this.aggregateProducts(this._rawProductRows);
                 this.renderProductRows(aggregated);
-            } else {
-                // Check: fetch products THEN push id — avoids double-fire race
-                try {
-                    const res = await fetch(`/app/schedule/api/service/${id}/products/`);
-                    if (res.ok) {
-                        const data = await res.json();
-                        this.serviceProductsData[id] = data.productos || [];
-                        this.form.service_ids.push(id);
-                        
-                        const svcProds = this.serviceProductsData[id] || [];
-                        svcProds.forEach(p => {
-                            this._rawProductRows.push({
-                                producto_id: p.producto_id,
-                                nombre: p.nombre || '',
-                                cantidad: p.cantidad_consumida || 1,
-                                incluido: !!p.incluido_en_precio,
-                                unit_price: parseFloat(p.precio_unitario) || 0,
-                                auto: true,
-                                is_deleted: false,
-                                servicio_id: id,
-                            });
-                        });
-                        const aggregated = this.aggregateProducts(this._rawProductRows);
-                        this.renderProductRows(aggregated);
-                    }
-                } catch (e) { console.error(e); }
             }
+            this.updateTotalEstimado();
         },
 
         addProductRowFromService(servicioId, prod) {
@@ -1414,6 +1893,33 @@ function intervencionesApp() {
         // Wrapper so Alpine x-text can call formatMoney (global fn)
         fmtMoney(val) { return formatMoney(val); },
 
+        async loadBarberServices() {
+            if (!this.form.barber_id) return;
+            this.barberServicesLoading = true;
+            if (this.barberServicesCache[this.form.barber_id]) {
+                const data = this.barberServicesCache[this.form.barber_id];
+                this.barberServiceIds = (data.services || []).map(s => s.id);
+                (data.services || []).forEach(s => {
+                    this.barberServicesData[s.id] = s;
+                });
+            } else {
+                try {
+                    const res = await fetch(`/app/intervenciones/api/barber-services/${this.form.barber_id}/`);
+                    if (!res.ok) throw new Error('Error ' + res.status);
+                    const data = await res.json();
+                    this.barberServicesCache[this.form.barber_id] = data;
+                    this.barberServiceIds = (data.services || []).map(s => s.id);
+                    (data.services || []).forEach(s => {
+                        this.barberServicesData[s.id] = s;
+                    });
+                } catch (e) {
+                    console.error('Error loading barber services:', e);
+                    this.barberServiceIds = [];
+                }
+            }
+            this.barberServicesLoading = false;
+        },
+
         async onBarberChange() {
             // Clear selected services when barber changes
             this.form.service_ids = [];
@@ -1422,22 +1928,9 @@ function intervencionesApp() {
             this.serviceProductsData = {};
             this.clearProductRows();
             this.updateTotalEstimado();
-            if (!this.form.barber_id) return;
-
-            this.barberServicesLoading = true;
-            try {
-                const res = await fetch(`/app/intervenciones/api/barber-services/${this.form.barber_id}/`);
-                if (!res.ok) throw new Error('Error ' + res.status);
-                const data = await res.json();
-                this.barberServiceIds = (data.services || []).map(s => s.id);
-                (data.services || []).forEach(s => {
-                    this.barberServicesData[s.id] = s;
-                });
-            } catch (e) {
-                console.error('Error loading barber services:', e);
-                this.barberServiceIds = [];
-            }
-            this.barberServicesLoading = false;
+            
+            await this.loadBarberServices();
+            
             // Wait for Alpine to render the x-show elements, then init accordions
             this.$nextTick(() => {
                 setTimeout(() => initModalAccordions(), 50);
@@ -1465,16 +1958,21 @@ function intervencionesApp() {
 
         updateTotalEstimado() {
             let total = 0;
+            let mtoBarbero = 0;
             // Services total: use barber-specific prices if available, fallback to data-raw-price
             this.form.service_ids.forEach(id => {
+                let price = 0;
+                let pct = 50; // Approximated default
                 const bs = this.barberServicesData[id];
                 if (bs) {
-                    total += parseFloat(String(bs.price).replace(',', '.')) || 0;
+                    price = parseFloat(String(bs.price).replace(',', '.')) || 0;
                 } else {
                     // Fallback: read from DOM data-raw-price attribute
                     const el = document.querySelector(`[data-service-id="${id}"][data-raw-price]`);
-                    if (el) total += parseFloat(String(el.getAttribute('data-raw-price')).replace(',', '.')) || 0;
+                    if (el) price = parseFloat(String(el.getAttribute('data-raw-price')).replace(',', '.')) || 0;
                 }
+                total += price;
+                mtoBarbero += price * (pct / 100);
             });
             // Products total: sum from active selects AND deleted product rows (skip incluido)
             document.querySelectorAll('#modal-productos-container .interv-producto-row').forEach(row => {
@@ -1483,20 +1981,36 @@ function intervencionesApp() {
                 const qty = parseInt(qtyInput.value) || 0;
                 if (qty <= 0) return;
 
+                let unitPrice = 0;
+                let pct = 0; // default for manual products (if logic is different, can be adapted)
                 const storedPrice = row.getAttribute('data-unit-price');
                 if (storedPrice !== null && storedPrice !== '') {
-                    total += parseFloat(storedPrice) * qty;
+                    unitPrice = parseFloat(storedPrice);
                 } else {
                     // Manual active products: read from select option
                     const sel = row.querySelector('.iprod-select');
                     if (sel && sel.tagName === 'SELECT') {
                         const option = sel.options[sel.selectedIndex];
-                        const unitPrice = option ? parseFloat(option.getAttribute('data-price')) : 0;
-                        if (unitPrice) total += unitPrice * qty;
+                        unitPrice = option ? parseFloat(option.getAttribute('data-price')) : 0;
                     }
                 }
+                const lineTotal = unitPrice * qty;
+                total += lineTotal;
+                mtoBarbero += lineTotal * (pct / 100);
             });
+            
+            let mtoBarberia = total - mtoBarbero;
             this.totalEstimado = '$' + formatMoney(Math.round(total));
+            this.resumenBarbero = '$' + formatMoney(Math.round(mtoBarbero));
+            this.resumenBarberia = '$' + formatMoney(Math.round(mtoBarberia));
+            
+            if (total > 0) {
+                let pctBarbero = Math.round((mtoBarbero / total) * 100);
+                let pctBarberia = Math.round((mtoBarberia / total) * 100);
+                this.resumenReparto = `${pctBarberia}% / ${pctBarbero}%`;
+            } else {
+                this.resumenReparto = `0% / 0%`;
+            }
         },
 
         formatModalPrices() {
@@ -1553,10 +2067,10 @@ function intervencionesApp() {
             if (item.auto) row.setAttribute('data-auto', '1');
 
             const inclBadge = item.incluido
-                ? '<span class="relative group/tipincl flex-shrink-0 cursor-help"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-700/60 text-neutral-400 border border-neutral-600">Incluido</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipincl:opacity-100 group-hover/tipincl:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">El costo del producto se consideró dentro del precio del servicio.</span></span>'
+                ? '<span class="flex-shrink-0 cursor-help" onmouseenter="showGlobalTooltip(this, \'El costo del producto se consideró dentro del precio del servicio.\')" onmouseleave="hideGlobalTooltip()"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-700/60 text-neutral-400 border border-neutral-600">Incluido</span></span>'
                 : '';
             const autoBadge = item.auto
-                ? '<span class="relative group/tipauto flex-shrink-0 cursor-help"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900/60 text-blue-300 border border-blue-700/50">Auto</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipauto:opacity-100 group-hover/tipauto:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">Agregado automáticamente por el servicio</span></span>'
+                ? '<span class="flex-shrink-0 cursor-help" onmouseenter="showGlobalTooltip(this, \'Agregado automáticamente por el servicio\')" onmouseleave="hideGlobalTooltip()"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900/60 text-blue-300 border border-blue-700/50">Auto</span></span>'
                 : '';
 
             const lineTotal = (parseFloat(item.unit_price) || 0) * (parseInt(item.cantidad) || 1);
@@ -1569,25 +2083,27 @@ function intervencionesApp() {
                 row.innerHTML = `
                     <span class="relative group/tipdel flex-shrink-0 cursor-help">
                         <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/60 text-red-300 border border-red-700/50">Eliminado</span>
-                        <span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipdel:opacity-100 group-hover/tipdel:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">
+                        <span class="absolute bottom-full left-0 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipdel:opacity-100 group-hover/tipdel:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">
                             Este producto fue eliminado del catálogo. Se conserva como registro histórico.
                         </span>
                     </span>
                     <input type="hidden" class="iprod-select" value="${item.producto_id}">
-                    <span class="flex-1 px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-500 text-sm line-through">${item.nombre || 'Producto eliminado'}</span>
+                    <span class="flex-1 min-w-0 truncate px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-500 text-sm line-through">${item.nombre || 'Producto eliminado'}</span>
                     <input type="number" min="1" value="${qty}" readonly
-                           class="iprod-qty w-20 px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-500 text-sm text-center cursor-not-allowed">
+                           class="iprod-qty w-14 sm:w-20 px-1 sm:px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-500 text-sm text-center cursor-not-allowed">
                     <span class="iprod-line-price text-xs font-semibold w-24 text-right flex-shrink-0 ${priceClass}">${formattedPrice || '—'}</span>
                     <span class="w-6"></span>
                 `;
             } else if (item.auto) {
                 row.setAttribute('data-unit-price', parseFloat(item.unit_price) || 0);
                 row.innerHTML = `
-                    ${autoBadge}
-                    ${inclBadge}
-                    <span class="flex-1 px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-400 text-sm">${item.nombre || ''}</span>
+                    <div class="flex flex-col sm:flex-row gap-1 flex-shrink-0">
+                        ${autoBadge}
+                        ${inclBadge}
+                    </div>
+                    <span class="flex-1 min-w-0 truncate px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-400 text-sm">${item.nombre || ''}</span>
                     <input type="number" min="1" value="${item.cantidad || 1}" readonly
-                           class="iprod-qty w-20 px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-400 text-sm text-center cursor-not-allowed">
+                           class="iprod-qty w-14 sm:w-20 px-1 sm:px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-400 text-sm text-center cursor-not-allowed">
                     <span class="iprod-line-price text-xs font-semibold w-24 text-right flex-shrink-0 ${priceClass}">${formattedPrice}</span>
                     <button type="button" class="text-red-400 hover:text-red-300 p-1 transition-colors flex-shrink-0 iprod-remove-btn">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -1602,11 +2118,13 @@ function intervencionesApp() {
             } else {
                 row.innerHTML = `
                     ${inclBadge}
-                    <select class="iprod-select flex-1 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-                        ${this.getProductOptionsHTML()}
-                    </select>
+                    <div class="flex-1 min-w-0 w-full overflow-hidden">
+                        <select class="iprod-select w-full max-w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors truncate">
+                            ${this.getProductOptionsHTML()}
+                        </select>
+                    </div>
                     <input type="number" min="1" value="${item.cantidad || 1}" placeholder="Cant."
-                           class="iprod-qty w-20 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm text-center focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                           class="iprod-qty w-14 sm:w-20 px-1 sm:px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm text-center focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                     <span class="iprod-line-price text-xs font-semibold w-24 text-right flex-shrink-0 ${priceClass}"></span>
                     <button type="button" class="text-red-400 hover:text-red-300 p-1 transition-colors flex-shrink-0 iprod-remove-btn">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -1745,19 +2263,69 @@ function intervencionesApp() {
             if (container) container.innerHTML = '';
         },
 
-        async searchClients() {
-            if (this.clientSearch.length < 2) { this.clientResults = []; return; }
+        async toggleClientDropdown() {
+            this.clientDropdownOpen = !this.clientDropdownOpen;
+            if (this.clientDropdownOpen) {
+                if (this.clientResults.length === 0) {
+                    this.clientSearch = '';
+                    await this.loadClients(false);
+                }
+                this.$nextTick(() => {
+                    const input = this.$refs.clientSearchInput;
+                    if (input) input.focus();
+                });
+            }
+        },
+
+        async loadClients(isLoadMore = false) {
+            if (this.clientLoading) return;
+            if (!isLoadMore) {
+                this.clientPage = 1;
+                this.clientResults = [];
+                this.clientHasMore = true;
+            }
+            if (!this.clientHasMore) return;
+            
+            this.clientLoading = true;
             try {
-                const res = await fetch(`${CLIENT_SEARCH_URL}?q=${encodeURIComponent(this.clientSearch)}`);
-                this.clientResults = await res.json();
-            } catch (e) { this.clientResults = []; }
+                const q = encodeURIComponent(this.clientSearch);
+                const limit = 30;
+                const res = await fetch(`${CLIENT_SEARCH_URL}?q=${q}&page=${this.clientPage}&limit=${limit}`);
+                const data = await res.json();
+                
+                const newResults = Array.isArray(data) ? data : (data.results || []);
+                
+                if (newResults.length < limit) {
+                    this.clientHasMore = false;
+                }
+                
+                if (isLoadMore) {
+                    this.clientResults = [...this.clientResults, ...newResults];
+                } else {
+                    this.clientResults = newResults;
+                }
+                this.clientPage++;
+            } catch (e) {
+                console.error(e);
+            }
+            this.clientLoading = false;
+        },
+
+        onClientScroll(e) {
+            const el = e.target;
+            if (el.scrollHeight - el.scrollTop - el.clientHeight < 50) {
+                this.loadClients(true);
+            }
+        },
+
+        searchClients() {
+            this.loadClients(false);
         },
 
         selectClient(c) {
             this.form.selectedClient = c;
             this.form.client_id = c.id;
-            this.clientSearch = '';
-            this.clientResults = [];
+            this.clientDropdownOpen = false;
         },
 
         async submitForm() {
@@ -1820,6 +2388,47 @@ function intervencionesApp() {
             } catch (e) { console.error(e); }
         },
     };
+}
+
+// Global tooltip logic
+function showGlobalTooltip(el, text) {
+    let tooltip = document.getElementById('global-tooltip');
+    if (!tooltip) {
+        tooltip = document.createElement('div');
+        tooltip.id = 'global-tooltip';
+        tooltip.className = 'fixed px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 pointer-events-none z-[9999] shadow-xl whitespace-normal text-center leading-relaxed transition-opacity duration-200';
+        tooltip.style.maxWidth = '200px';
+        document.body.appendChild(tooltip);
+    }
+    tooltip.textContent = text;
+    const rect = el.getBoundingClientRect();
+    
+    // Position it briefly invisible to get dimensions
+    tooltip.style.display = 'block';
+    
+    requestAnimationFrame(() => {
+        const tooltipWidth = tooltip.offsetWidth;
+        const tooltipHeight = tooltip.offsetHeight;
+        
+        let left = rect.left + (rect.width / 2);
+        let top = rect.top - 8;
+        
+        // Ensure it doesn't go off screen horizontally
+        if (left - (tooltipWidth / 2) < 10) left = (tooltipWidth / 2) + 10;
+        if (left + (tooltipWidth / 2) > window.innerWidth - 10) left = window.innerWidth - (tooltipWidth / 2) - 10;
+        
+        tooltip.style.left = left + 'px';
+        tooltip.style.top = top + 'px';
+        tooltip.style.transform = 'translate(-50%, -100%)';
+        tooltip.style.opacity = '1';
+    });
+}
+
+function hideGlobalTooltip() {
+    const tooltip = document.getElementById('global-tooltip');
+    if (tooltip) {
+        tooltip.style.opacity = '0';
+    }
 }
 </script>
 {% endblock %}

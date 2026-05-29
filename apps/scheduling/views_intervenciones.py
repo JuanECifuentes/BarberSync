@@ -21,8 +21,14 @@ from apps.accounts.models import BarberProfile, Barbershop
 from apps.clients.models import Client
 from apps.inventory.models import Product, ProductCategory, StockMovement
 from .models import (
-    CategoriaServicio, Intervencion, IntervencionProducto,
-    IntervencionServicio, Service, ServicioProducto,
+    CategoriaServicio,
+    ComisionProductoBarbero,
+    ComisionServicioBarbero,
+    Intervencion,
+    IntervencionProducto,
+    IntervencionServicio,
+    Service,
+    ServicioProducto,
 )
 
 
@@ -38,31 +44,51 @@ class IntervencionListView(LoginRequiredMixin, TemplateView):
         barbershop = self.request.barbershop
 
         if barbershop:
-            ctx["barbers"] = BarberProfile.objects.filter(
-                Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
-                is_active=True,
-            ).select_related("membership__user").distinct()
+            ctx["barbers"] = (
+                BarberProfile.objects.filter(
+                    Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
+                    is_active=True,
+                )
+                .select_related("membership__user")
+                .distinct()
+            )
             services = Service.objects.filter(
-                barbershop=barbershop, is_active=True,
+                barbershop=barbershop,
+                is_active=True,
             ).select_related("category")
             ctx["sucursal_name"] = str(barbershop)
             ctx["current_barbershop_id"] = barbershop.pk
-            products = Product.objects.filter(
-                barbershop=barbershop, is_active=True,
-            ).select_related("category").order_by("category__name", "name")
+            products = (
+                Product.objects.filter(
+                    barbershop=barbershop,
+                    is_active=True,
+                )
+                .select_related("category")
+                .order_by("category__name", "name")
+            )
         else:
-            ctx["barbers"] = BarberProfile.objects.filter(
-                membership__organization=org,
-                is_active=True,
-            ).select_related("membership__user").distinct()
+            ctx["barbers"] = (
+                BarberProfile.objects.filter(
+                    membership__organization=org,
+                    is_active=True,
+                )
+                .select_related("membership__user")
+                .distinct()
+            )
             services = Service.objects.filter(
-                barbershop__organization=org, is_active=True,
+                barbershop__organization=org,
+                is_active=True,
             ).select_related("category")
             ctx["sucursal_name"] = "Todas las sucursales"
             ctx["current_barbershop_id"] = ""
-            products = Product.objects.filter(
-                barbershop__organization=org, is_active=True,
-            ).select_related("category").order_by("category__name", "name")
+            products = (
+                Product.objects.filter(
+                    barbershop__organization=org,
+                    is_active=True,
+                )
+                .select_related("category")
+                .order_by("category__name", "name")
+            )
 
         ctx["services"] = services
         ctx["estados"] = Intervencion.Estado.choices
@@ -103,28 +129,36 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
     def get(self, request):
         barbershop = request.barbershop
         org = request.organization
-        
-        qs = Intervencion.objects.filter(
-            barbershop__organization=org,
-        ).select_related(
-            "barber__membership__user", "client",
-        ).prefetch_related(
-            Prefetch(
-                "servicios",
-                queryset=IntervencionServicio.objects.select_related("servicio"),
-            ),
-            Prefetch(
-                "productos_usados",
-                queryset=IntervencionProducto.objects.select_related("producto"),
-            ),
+
+        qs = (
+            Intervencion.objects.filter(
+                barbershop__organization=org,
+            )
+            .select_related(
+                "barber__membership__user",
+                "client",
+            )
+            .prefetch_related(
+                Prefetch(
+                    "servicios",
+                    queryset=IntervencionServicio.objects.select_related("servicio"),
+                ),
+                Prefetch(
+                    "productos_usados",
+                    queryset=IntervencionProducto.objects.select_related("producto"),
+                ),
+            )
         )
 
         # Annotate with is_own_barber to support ordering own interventions first
         from django.db.models import Case, When, Value, IntegerField
+
         barber_profile = None
         membership = getattr(request.user, "membership", None)
+        is_admin = False
         if membership:
             barber_profile = getattr(membership, "barber_profile", None)
+            is_admin = membership.role in ["owner", "admin"]
 
         if barber_profile:
             qs = qs.annotate(
@@ -194,10 +228,13 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
         filter_total_max = request.GET.get("filter_total_max", "").strip()
         if filter_total_min or filter_total_max:
             qs = qs.annotate(
-                _total_servicios=Coalesce(Sum("servicios__precio_cobrado"), Value(Decimal("0"))),
+                _total_servicios=Coalesce(
+                    Sum("servicios__precio_cobrado"), Value(Decimal("0"))
+                ),
                 _total_productos=Coalesce(
                     Sum(
-                        F("productos_usados__cantidad") * F("productos_usados__precio_unitario"),
+                        F("productos_usados__cantidad")
+                        * F("productos_usados__precio_unitario"),
                         filter=Q(productos_usados__incluido_en_precio=False),
                     ),
                     Value(Decimal("0")),
@@ -249,38 +286,146 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
         page = qs[start_row:end_row]
 
         # ── Serializar ──
+        # Preload commission maps per barber for efficiency
+        barber_ids_on_page = [inv.barber_id for inv in page if inv.barber_id]
+        all_svc_ids = set()
+        all_prod_ids = set()
+        for inv in page:
+            for s in inv.servicios.all():
+                all_svc_ids.add(s.servicio_id)
+            for p in inv.productos_usados.all():
+                all_prod_ids.add(p.producto_id)
+
+        com_svc_qs = ComisionServicioBarbero.objects.filter(
+            barber_id__in=barber_ids_on_page, servicio_id__in=all_svc_ids
+        )
+        com_svc_map = {}
+        for cs in com_svc_qs:
+            com_svc_map[(cs.barber_id, cs.servicio_id)] = cs.porcentaje
+
+        com_prod_qs = ComisionProductoBarbero.objects.filter(
+            barber_id__in=barber_ids_on_page, producto_id__in=all_prod_ids
+        )
+        com_prod_map = {}
+        for cp in com_prod_qs:
+            com_prod_map[(cp.barber_id, cp.producto_id)] = cp.porcentaje
+
         rows = []
         for inv in page:
             servicios = list(inv.servicios.all())
             productos = list(inv.productos_usados.all())
             total_servicios = sum(s.precio_cobrado for s in servicios)
-            total_productos = sum(p.cantidad * p.precio_unitario for p in productos if not p.incluido_en_precio)
+            total_productos = sum(
+                p.cantidad * p.precio_unitario
+                for p in productos
+                if not p.incluido_en_precio
+            )
             total = total_servicios + total_productos
-            fecha_local = timezone.localtime(inv.fecha) if inv.fecha else None
 
-            rows.append({
-                "id": inv.pk,
-                "fecha": fecha_local.strftime("%d/%m/%Y %H:%M") if fecha_local else "",
-                "fecha_iso": fecha_local.isoformat() if fecha_local else "",
-                "cliente": inv.client.name if inv.client else "",
-                "cliente_id": inv.client_id,
-                "barbero": str(inv.barber) if inv.barber else "",
-                "barbero_id": inv.barber_id,
-                "servicios": [
-                    {"nombre": s.servicio.name, "precio": str(s.precio_cobrado)}
-                    for s in servicios
-                ],
-                "productos": [
-                    {"nombre": p.producto.name, "cantidad": p.cantidad, "precio": str(p.precio_unitario), "incluido": p.incluido_en_precio}
-                    for p in productos
-                ],
-                "sucursal": str(inv.barbershop) if inv.barbershop else "",
-                "precio_total": str(total),
-                "precio_total_fmt": f"${_format_money(total)}",
-                "estado": inv.estado,
-                "estado_display": inv.get_estado_display(),
-                "notas": inv.notas,
-            })
+            # ── Commission calculation ──
+            ganancia_barbero = Decimal("0")
+            ganancia_barberia = Decimal("0")
+
+            for s in servicios:
+                if s.porcentaje_comision_aplicado is not None:
+                    mto_barbero = (
+                        s.monto_barbero if s.monto_barbero is not None else Decimal("0")
+                    )
+                    mto_barberia = (
+                        s.monto_barberia
+                        if s.monto_barberia is not None
+                        else Decimal("0")
+                    )
+                else:
+                    com_pct = com_svc_map.get((inv.barber_id, s.servicio_id), 50)
+                    mto_barbero = (
+                        s.precio_cobrado * Decimal(str(com_pct)) / Decimal("100")
+                    ).quantize(Decimal("0.01"))
+                    mto_barberia = s.precio_cobrado - mto_barbero
+                ganancia_barbero += mto_barbero
+                ganancia_barberia += mto_barberia
+
+            for p in productos:
+                if p.incluido_en_precio or p.precio_unitario == Decimal("0"):
+                    continue
+                subtotal_prod = p.cantidad * p.precio_unitario
+                if p.porcentaje_comision_aplicado is not None:
+                    mto_barbero = (
+                        p.monto_barbero if p.monto_barbero is not None else Decimal("0")
+                    )
+                    mto_barberia = (
+                        p.monto_barberia
+                        if p.monto_barberia is not None
+                        else Decimal("0")
+                    )
+                else:
+                    com_pct = com_prod_map.get((inv.barber_id, p.producto_id), 0)
+                    mto_barbero = (
+                        subtotal_prod * Decimal(str(com_pct)) / Decimal("100")
+                    ).quantize(Decimal("0.01"))
+                    mto_barberia = subtotal_prod - mto_barbero
+                ganancia_barbero += mto_barbero
+                ganancia_barberia += mto_barberia
+
+            if total > 0:
+                pct_barberia = round(float(ganancia_barberia / total * 100), 2)
+                pct_barbero = round(float(ganancia_barbero / total * 100), 2)
+            else:
+                pct_barberia = 0
+                pct_barbero = 0
+
+            fecha_local = timezone.localtime(inv.fecha) if inv.fecha else None
+            can_edit = is_admin or (barber_profile and inv.barber_id == barber_profile.id)
+
+            rows.append(
+                {
+                    "can_edit": bool(can_edit),
+                    "id": inv.pk,
+                    "fecha": fecha_local.strftime("%d/%m/%Y %H:%M")
+                    if fecha_local
+                    else "",
+                    "fecha_iso": fecha_local.isoformat() if fecha_local else "",
+                    "cliente": inv.client.name if inv.client else "",
+                    "cliente_id": inv.client_id,
+                    "barbero": str(inv.barber) if inv.barber else "",
+                    "barbero_id": inv.barber_id,
+                    "sucursal_id": inv.barbershop_id,
+                    "service_ids": [s.servicio_id for s in servicios],
+                    "servicios": [
+                        {
+                            "id": s.servicio.id,
+                            "nombre": s.servicio.name,
+                            "precio": str(s.precio_cobrado)
+                        }
+                        for s in servicios
+                    ],
+                    "productos": [
+                        {
+                            "producto_id": p.producto_id,
+                            "nombre": p.producto.name,
+                            "cantidad": p.cantidad,
+                            "precio": str(p.precio_unitario),
+                            "incluido": p.incluido_en_precio,
+                            "auto": p.intervencion_servicio_id is not None,
+                            "is_deleted": not p.producto.is_active,
+                            "servicio_id": p.intervencion_servicio.servicio_id if p.intervencion_servicio else None
+                        }
+                        for p in productos
+                    ],
+                    "sucursal": str(inv.barbershop) if inv.barbershop else "",
+                    "precio_total": str(total),
+                    "precio_total_fmt": f"${_format_money(total)}",
+                    "ganancia_barberia": str(ganancia_barberia),
+                    "ganancia_barberia_fmt": f"${_format_money(ganancia_barberia)}",
+                    "ganancia_barbero": str(ganancia_barbero),
+                    "ganancia_barbero_fmt": f"${_format_money(ganancia_barbero)}",
+                    "pct_barberia": pct_barberia,
+                    "pct_barbero": pct_barbero,
+                    "estado": inv.estado,
+                    "estado_display": inv.get_estado_display(),
+                    "notas": inv.notas,
+                }
+            )
 
         last_row = total_count if end_row >= total_count else -1
         return JsonResponse({"rows": rows, "lastRow": last_row})
@@ -301,6 +446,75 @@ def _freeze_product_prices(intervencion):
     for ip in intervencion.productos_usados.select_related("producto").all():
         ip.precio_unitario = ip.producto.price
         ip.save(update_fields=["precio_unitario"])
+
+
+def _freeze_commissions(intervencion):
+    """Freeze commission percentages and amounts on service/product lines
+    when an intervention transitions to 'realizada'. Must be called inside
+    transaction.atomic()."""
+    barber_id = intervencion.barber_id
+    if not barber_id:
+        return
+
+    servicio_ids = [s.servicio_id for s in intervencion.servicios.all()]
+    producto_ids = [
+        p.producto_id
+        for p in intervencion.productos_usados.all()
+        if not p.incluido_en_precio and p.precio_unitario > 0
+    ]
+
+    com_svc_map = {}
+    for cs in ComisionServicioBarbero.objects.filter(
+        barber_id=barber_id, servicio_id__in=servicio_ids
+    ):
+        com_svc_map[cs.servicio_id] = cs.porcentaje
+
+    com_prod_map = {}
+    for cp in ComisionProductoBarbero.objects.filter(
+        barber_id=barber_id, producto_id__in=producto_ids
+    ):
+        com_prod_map[cp.producto_id] = cp.porcentaje
+
+    for s in intervencion.servicios.select_related("servicio").all():
+        if s.porcentaje_comision_aplicado is not None:
+            continue
+        pct = com_svc_map.get(s.servicio_id, 50)
+        mto_barbero = (s.precio_cobrado * Decimal(str(pct)) / Decimal("100")).quantize(
+            Decimal("0.01")
+        )
+        mto_barberia = s.precio_cobrado - mto_barbero
+        s.porcentaje_comision_aplicado = pct
+        s.monto_barbero = mto_barbero
+        s.monto_barberia = mto_barberia
+        s.save(
+            update_fields=[
+                "porcentaje_comision_aplicado",
+                "monto_barbero",
+                "monto_barberia",
+            ]
+        )
+
+    for p in intervencion.productos_usados.all():
+        if p.incluido_en_precio or p.precio_unitario == Decimal("0"):
+            continue
+        if p.porcentaje_comision_aplicado is not None:
+            continue
+        subtotal = p.cantidad * p.precio_unitario
+        pct = com_prod_map.get(p.producto_id, 0)
+        mto_barbero = (subtotal * Decimal(str(pct)) / Decimal("100")).quantize(
+            Decimal("0.01")
+        )
+        mto_barberia = subtotal - mto_barbero
+        p.porcentaje_comision_aplicado = pct
+        p.monto_barbero = mto_barbero
+        p.monto_barberia = mto_barberia
+        p.save(
+            update_fields=[
+                "porcentaje_comision_aplicado",
+                "monto_barbero",
+                "monto_barberia",
+            ]
+        )
 
 
 def _deduct_stock(intervencion, user):
@@ -335,7 +549,6 @@ def _restore_stock(intervencion, user):
 # Crear intervención (POST JSON)
 # ─────────────────────────────────────────────
 class IntervencionCreateView(LoginRequiredMixin, View):
-
     def post(self, request):
         barbershop = request.barbershop
         try:
@@ -347,18 +560,20 @@ class IntervencionCreateView(LoginRequiredMixin, View):
         client_id = data.get("client_id")
         service_ids = data.get("service_ids", [])
         producto_items = data.get("productos", [])
-        print('producto_items',producto_items)
+        print("producto_items", producto_items)
         notas = data.get("notas", "")
         fecha_str = data.get("fecha")
         estado = data.get("estado", Intervencion.Estado.PENDIENTE)
         sucursal_id = data.get("sucursal_id")
-        print('sucursal_id',sucursal_id)
+        print("sucursal_id", sucursal_id)
 
         # Venta directa: allow no services if at least one product
         if not barber_id or not client_id:
             return JsonResponse({"error": "Faltan campos requeridos"}, status=400)
         if not service_ids and not producto_items:
-            return JsonResponse({"error": "Debe incluir al menos un servicio o un producto"}, status=400)
+            return JsonResponse(
+                {"error": "Debe incluir al menos un servicio o un producto"}, status=400
+            )
 
         if estado not in dict(Intervencion.Estado.choices):
             estado = Intervencion.Estado.PENDIENTE
@@ -366,20 +581,24 @@ class IntervencionCreateView(LoginRequiredMixin, View):
         # Resolve target barbershop (sucursal)
         target_barbershop = barbershop
         if sucursal_id:
-            target_barbershop = Barbershop.objects.filter(
-                pk=sucursal_id, organization=barbershop.organization,
-            ).first() or barbershop
+            target_barbershop = (
+                Barbershop.objects.filter(
+                    pk=sucursal_id,
+                    organization=barbershop.organization,
+                ).first()
+                or barbershop
+            )
 
         barber = BarberProfile.objects.filter(
-            Q(pk=barber_id) & (
-                Q(membership__barbershop=barbershop) | Q(sucursales=barbershop)
-            )
+            Q(pk=barber_id)
+            & (Q(membership__barbershop=barbershop) | Q(sucursales=barbershop))
         ).first()
         if not barber:
             return JsonResponse({"error": "Barbero no encontrado"}, status=404)
 
         client = Client.objects.filter(
-            pk=client_id, organization=barbershop.organization,
+            pk=client_id,
+            organization=barbershop.organization,
         ).first()
         if not client:
             return JsonResponse({"error": "Cliente no encontrado"}, status=404)
@@ -391,16 +610,27 @@ class IntervencionCreateView(LoginRequiredMixin, View):
         except (ValueError, TypeError):
             fecha = timezone.now()
 
-        services = Service.objects.filter(
-            pk__in=service_ids, barbershop=barbershop, is_active=True,
-        ) if service_ids else Service.objects.none()
+        services = (
+            Service.objects.filter(
+                pk__in=service_ids,
+                barbershop=barbershop,
+                is_active=True,
+            )
+            if service_ids
+            else Service.objects.none()
+        )
 
         if service_ids and not services.exists():
-            return JsonResponse({"error": "No se encontraron servicios válidos"}, status=400)
+            return JsonResponse(
+                {"error": "No se encontraron servicios válidos"}, status=400
+            )
 
         from datetime import timedelta
+
         total_duration = sum(s.duration_minutes for s in services)
-        fecha_fin = fecha + timedelta(minutes=total_duration) if total_duration else fecha
+        fecha_fin = (
+            fecha + timedelta(minutes=total_duration) if total_duration else fecha
+        )
 
         with transaction.atomic():
             intervencion = Intervencion.objects.create(
@@ -427,14 +657,20 @@ class IntervencionCreateView(LoginRequiredMixin, View):
                 cantidad = int(item.get("cantidad", 1))
                 if not prod_id or cantidad <= 0:
                     continue
-                product = Product.objects.select_for_update().filter(
-                    pk=prod_id, barbershop=target_barbershop, is_active=True,
-                ).first()
+                product = (
+                    Product.objects.select_for_update()
+                    .filter(
+                        pk=prod_id,
+                        barbershop=target_barbershop,
+                        is_active=True,
+                    )
+                    .first()
+                )
                 if not product:
                     continue
                 # Respect incluido_en_precio from modal; default False
                 incluido = bool(item.get("incluido_en_precio", False))
-                print('cantidad2',cantidad)
+                print("cantidad2", cantidad)
                 IntervencionProducto.objects.create(
                     intervencion=intervencion,
                     intervencion_servicio=None,
@@ -447,14 +683,18 @@ class IntervencionCreateView(LoginRequiredMixin, View):
             # Auto-consume products linked to services via ServicioProducto
             for service in services:
                 is_svc = IntervencionServicio.objects.filter(
-                    intervencion=intervencion, servicio=service,
+                    intervencion=intervencion,
+                    servicio=service,
                 ).first()
-                for sp in service.productos_consumidos.select_related("producto").filter(producto__is_active=True):
+                for sp in service.productos_consumidos.select_related(
+                    "producto"
+                ).filter(producto__is_active=True):
                     product = Product.objects.select_for_update().get(pk=sp.producto_id)
                     # Check if already added explicitly; if so, skip adding to existing quantity
                     # because the frontend modal already includes auto-consumed products in the payload.
                     existing = IntervencionProducto.objects.filter(
-                        intervencion=intervencion, producto=product,
+                        intervencion=intervencion,
+                        producto=product,
                     ).first()
                     if not existing:
                         IntervencionProducto.objects.create(
@@ -469,29 +709,36 @@ class IntervencionCreateView(LoginRequiredMixin, View):
             # Deduct stock for all products used
             _deduct_stock(intervencion, request.user)
 
-        return JsonResponse({
-            "message": "Intervención creada",
-            "id": intervencion.pk,
-        }, status=201)
+        return JsonResponse(
+            {
+                "message": "Intervención creada",
+                "id": intervencion.pk,
+            },
+            status=201,
+        )
 
 
 # ─────────────────────────────────────────────
 # Editar intervención (PUT JSON)
 # ─────────────────────────────────────────────
 class IntervencionUpdateView(LoginRequiredMixin, View):
-
     def put(self, request, pk):
         barbershop = request.barbershop
         org = barbershop.organization
         intervencion = get_object_or_404(
-            Intervencion, pk=pk, barbershop__organization=org,
+            Intervencion,
+            pk=pk,
+            barbershop__organization=org,
         )
-        # Permisos: si es barbero, solo puede editar sus propias intervenciones
+        # Permisos: solo Admin/Owner o el Barbero asignado
         membership = request.user.membership
-        if membership.role == "barber":
-            barber_profile = getattr(membership, "barber_profile", None)
-            if not barber_profile or intervencion.barber != barber_profile:
-                return JsonResponse({"error": "No tienes permiso para editar esta intervención."}, status=403)
+        is_admin = membership.role in ["owner", "admin"]
+        barber_profile = getattr(membership, "barber_profile", None)
+        if not is_admin and (not barber_profile or intervencion.barber != barber_profile):
+            return JsonResponse(
+                {"error": "No tienes permiso para modificar esta intervención."},
+                status=403,
+            )
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
@@ -509,46 +756,64 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
         if not barber_id or not client_id:
             return JsonResponse({"error": "Faltan campos requeridos"}, status=400)
         if not service_ids and not producto_items:
-            return JsonResponse({"error": "Debe incluir al menos un servicio o un producto"}, status=400)
+            return JsonResponse(
+                {"error": "Debe incluir al menos un servicio o un producto"}, status=400
+            )
 
         # Resolve target barbershop (sucursal)
         target_barbershop = intervencion.barbershop
         if sucursal_id:
             resolved = Barbershop.objects.filter(
-                pk=sucursal_id, organization=org,
+                pk=sucursal_id,
+                organization=org,
             ).first()
             if resolved:
                 target_barbershop = resolved
 
         barber = BarberProfile.objects.filter(
-            pk=barber_id, membership__barbershop__organization=org,
+            pk=barber_id,
+            membership__barbershop__organization=org,
         ).first()
         if not barber:
             return JsonResponse({"error": "Barbero no encontrado"}, status=404)
 
         client = Client.objects.filter(
-            pk=client_id, organization=org,
+            pk=client_id,
+            organization=org,
         ).first()
         if not client:
             return JsonResponse({"error": "Cliente no encontrado"}, status=404)
 
         try:
-            fecha = datetime.fromisoformat(fecha_str) if fecha_str else intervencion.fecha
+            fecha = (
+                datetime.fromisoformat(fecha_str) if fecha_str else intervencion.fecha
+            )
             if timezone.is_naive(fecha):
                 fecha = timezone.make_aware(fecha)
         except (ValueError, TypeError):
             fecha = intervencion.fecha
 
-        services = Service.objects.filter(
-            pk__in=service_ids, barbershop__organization=org, is_active=True,
-        ) if service_ids else Service.objects.none()
+        services = (
+            Service.objects.filter(
+                pk__in=service_ids,
+                barbershop__organization=org,
+                is_active=True,
+            )
+            if service_ids
+            else Service.objects.none()
+        )
 
         if service_ids and not services.exists():
-            return JsonResponse({"error": "No se encontraron servicios válidos"}, status=400)
+            return JsonResponse(
+                {"error": "No se encontraron servicios válidos"}, status=400
+            )
 
         from datetime import timedelta
+
         total_duration = sum(s.duration_minutes for s in services)
-        fecha_fin = fecha + timedelta(minutes=total_duration) if total_duration else fecha
+        fecha_fin = (
+            fecha + timedelta(minutes=total_duration) if total_duration else fecha
+        )
 
         with transaction.atomic():
             # Restore stock from previous products before replacing
@@ -564,7 +829,10 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
 
             if estado and estado in dict(Intervencion.Estado.choices):
                 intervencion.estado = estado
-                if estado == Intervencion.Estado.REALIZADA and not intervencion.fecha_fin:
+                if (
+                    estado == Intervencion.Estado.REALIZADA
+                    and not intervencion.fecha_fin
+                ):
                     intervencion.fecha_fin = timezone.now()
 
             intervencion.save()
@@ -589,9 +857,14 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
                     continue
                 # Allow both active and inactive (deleted) products in edits
                 # Deleted products are kept as historical records (readonly in UI)
-                product = Product.objects.select_for_update().filter(
-                    pk=prod_id, barbershop=target_barbershop,
-                ).first()
+                product = (
+                    Product.objects.select_for_update()
+                    .filter(
+                        pk=prod_id,
+                        barbershop=target_barbershop,
+                    )
+                    .first()
+                )
                 if not product:
                     continue
                 IntervencionProducto.objects.create(
@@ -616,26 +889,32 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
                     updated_by=request.user,
                 ).save()
 
-        return JsonResponse({"message": "Intervención actualizada", "id": intervencion.pk})
+        return JsonResponse(
+            {"message": "Intervención actualizada", "id": intervencion.pk}
+        )
 
 
 # ─────────────────────────────────────────────
 # Eliminar intervención (DELETE)
 # ─────────────────────────────────────────────
 class IntervencionDeleteView(LoginRequiredMixin, View):
-
     def delete(self, request, pk):
         barbershop = request.barbershop
         org = barbershop.organization
         intervencion = get_object_or_404(
-            Intervencion, pk=pk, barbershop__organization=org,
+            Intervencion,
+            pk=pk,
+            barbershop__organization=org,
         )
-        # Permisos: si es barbero, solo puede eliminar sus propias intervenciones
+        # Permisos: solo Admin/Owner o el Barbero asignado
         membership = request.user.membership
-        if membership.role == "barber":
-            barber_profile = getattr(membership, "barber_profile", None)
-            if not barber_profile or intervencion.barber != barber_profile:
-                return JsonResponse({"error": "No tienes permiso para eliminar esta intervención."}, status=403)
+        is_admin = membership.role in ["owner", "admin"]
+        barber_profile = getattr(membership, "barber_profile", None)
+        if not is_admin and (not barber_profile or intervencion.barber != barber_profile):
+            return JsonResponse(
+                {"error": "No tienes permiso para modificar esta intervención."},
+                status=403,
+            )
         with transaction.atomic():
             _restore_stock(intervencion, request.user)
             intervencion.delete()
@@ -650,8 +929,19 @@ class IntervencionChangeStatusAPI(LoginRequiredMixin, View):
         barbershop = request.barbershop
         org = barbershop.organization
         intervencion = get_object_or_404(
-            Intervencion, pk=pk, barbershop__organization=org,
+            Intervencion,
+            pk=pk,
+            barbershop__organization=org,
         )
+        # Permisos: solo Admin/Owner o el Barbero asignado
+        membership = request.user.membership
+        is_admin = membership.role in ["owner", "admin"]
+        barber_profile = getattr(membership, "barber_profile", None)
+        if not is_admin and (not barber_profile or intervencion.barber != barber_profile):
+            return JsonResponse(
+                {"error": "No tienes permiso para modificar esta intervención."},
+                status=403,
+            )
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
@@ -666,64 +956,71 @@ class IntervencionChangeStatusAPI(LoginRequiredMixin, View):
             if nuevo_estado == Intervencion.Estado.REALIZADA:
                 if not intervencion.fecha_fin:
                     intervencion.fecha_fin = timezone.now()
-                # Freeze product prices at the moment of completion
                 _freeze_product_prices(intervencion)
+                _freeze_commissions(intervencion)
             intervencion.updated_by = request.user
             intervencion.save()
 
-        return JsonResponse({"message": f"Estado actualizado a {intervencion.get_estado_display()}"})
+        return JsonResponse(
+            {"message": f"Estado actualizado a {intervencion.get_estado_display()}"}
+        )
 
 
 # ─────────────────────────────────────────────
 # Datos para formulario (barberos + servicios)
 # ─────────────────────────────────────────────
 class IntervencionDataAPI(LoginRequiredMixin, View):
-
     def get(self, request):
         barbershop = request.barbershop
         if not barbershop:
             return JsonResponse({"error": "Sin barbería"}, status=403)
 
-        barbers = BarberProfile.objects.filter(
-            Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
-            is_active=True,
-        ).select_related("membership__user").distinct()
+        barbers = (
+            BarberProfile.objects.filter(
+                Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
+                is_active=True,
+            )
+            .select_related("membership__user")
+            .distinct()
+        )
 
         services = Service.objects.filter(
-            barbershop=barbershop, is_active=True,
+            barbershop=barbershop,
+            is_active=True,
         )
 
         sucursales = Barbershop.objects.filter(
             organization=barbershop.organization,
         )
 
-        return JsonResponse({
-            "barbers": [
-                {"id": b.pk, "name": str(b)}
-                for b in barbers
-            ],
-            "services": [
-                {"id": s.pk, "name": s.name, "price": str(s.price), "duration": s.duration_minutes}
-                for s in services
-            ],
-            "sucursales": [
-                {"id": s.pk, "name": s.name}
-                for s in sucursales
-            ],
-        })
+        return JsonResponse(
+            {
+                "barbers": [{"id": b.pk, "name": str(b)} for b in barbers],
+                "services": [
+                    {
+                        "id": s.pk,
+                        "name": s.name,
+                        "price": str(s.price),
+                        "duration": s.duration_minutes,
+                    }
+                    for s in services
+                ],
+                "sucursales": [{"id": s.pk, "name": s.name} for s in sucursales],
+            }
+        )
 
 
 # ─────────────────────────────────────────────
 # Detalle de intervención (GET JSON)
 # ─────────────────────────────────────────────
 class IntervencionDetailAPI(LoginRequiredMixin, View):
-
     def get(self, request, pk):
         barbershop = request.barbershop
         org = barbershop.organization
         intervencion = get_object_or_404(
             Intervencion.objects.select_related(
-                "barber__membership__user", "client",
+                "barber__membership__user",
+                "client",
             ).prefetch_related(
                 "servicios__servicio",
                 "productos_usados__producto",
@@ -741,27 +1038,41 @@ class IntervencionDetailAPI(LoginRequiredMixin, View):
             for sp in ServicioProducto.objects.filter(servicio_id=s.servicio_id):
                 auto_product_ids.add(sp.producto_id)
 
-        return JsonResponse({
-            "id": intervencion.pk,
-            "barber_id": intervencion.barber_id,
-            "barbero": str(intervencion.barber),
-            "client_id": intervencion.client_id,
-            "cliente": intervencion.client.name,
-            "fecha": timezone.localtime(intervencion.fecha).strftime("%Y-%m-%dT%H:%M") if intervencion.fecha else "",
-            "estado": intervencion.estado,
-            "notas": intervencion.notas,
-            "sucursal_id": intervencion.barbershop_id,
-            "service_ids": [s.servicio_id for s in servicios],
-            "servicios": [
-                {"id": s.servicio_id, "nombre": s.servicio.name, "precio": str(s.precio_cobrado)}
-                for s in servicios
-            ],
-            "productos": [
-                {"producto_id": p.producto_id, "nombre": p.producto.name,
-                 "cantidad": p.cantidad, "precio": str(p.precio_unitario),
-                 "auto": p.producto_id in auto_product_ids,
-                 "is_deleted": not p.producto.is_active,
-                 "incluido": p.incluido_en_precio}
-                for p in productos
-            ],
-        })
+        return JsonResponse(
+            {
+                "id": intervencion.pk,
+                "barber_id": intervencion.barber_id,
+                "barbero": str(intervencion.barber),
+                "client_id": intervencion.client_id,
+                "cliente": intervencion.client.name,
+                "fecha": timezone.localtime(intervencion.fecha).strftime(
+                    "%Y-%m-%dT%H:%M"
+                )
+                if intervencion.fecha
+                else "",
+                "estado": intervencion.estado,
+                "notas": intervencion.notas,
+                "sucursal_id": intervencion.barbershop_id,
+                "service_ids": [s.servicio_id for s in servicios],
+                "servicios": [
+                    {
+                        "id": s.servicio_id,
+                        "nombre": s.servicio.name,
+                        "precio": str(s.precio_cobrado),
+                    }
+                    for s in servicios
+                ],
+                "productos": [
+                    {
+                        "producto_id": p.producto_id,
+                        "nombre": p.producto.name,
+                        "cantidad": p.cantidad,
+                        "precio": str(p.precio_unitario),
+                        "auto": p.producto_id in auto_product_ids,
+                        "is_deleted": not p.producto.is_active,
+                        "incluido": p.incluido_en_precio,
+                    }
+                    for p in productos
+                ],
+            }
+        )

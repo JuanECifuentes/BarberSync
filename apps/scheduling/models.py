@@ -62,7 +62,9 @@ class Service(TenantModel):
         help_text="Duración estimada en minutos.",
     )
     price = models.DecimalField(
-        "precio", max_digits=10, decimal_places=2,
+        "precio",
+        max_digits=10,
+        decimal_places=2,
         validators=[MinValueValidator(0)],
     )
     is_active = models.BooleanField(default=True)
@@ -103,7 +105,7 @@ class Service(TenantModel):
                         valor_anterior=str(old_custom),
                         valor_nuevo="(heredado global)",
                         motivo=f"Precio global subió de ${old.price} a ${new_price}. "
-                               f"El precio personalizado ${old_custom} fue inferior y se desvinculó.",
+                        f"El precio personalizado ${old_custom} fue inferior y se desvinculó.",
                     )
 
         super().save(*args, **kwargs)
@@ -121,7 +123,9 @@ class HistorialPrecioServicio(models.Model):
         related_name="price_history",
     )
     price = models.DecimalField(
-        "precio", max_digits=10, decimal_places=2,
+        "precio",
+        max_digits=10,
+        decimal_places=2,
     )
     changed_at = models.DateTimeField("fecha de cambio", auto_now_add=True)
     changed_by = models.ForeignKey(
@@ -189,11 +193,17 @@ class BarberService(AuditModel):
 
     @property
     def effective_price(self):
-        return self.custom_price if self.custom_price is not None else self.service.price
+        return (
+            self.custom_price if self.custom_price is not None else self.service.price
+        )
 
     @property
     def effective_duration(self):
-        return self.custom_duration if self.custom_duration is not None else self.service.duration_minutes
+        return (
+            self.custom_duration
+            if self.custom_duration is not None
+            else self.service.duration_minutes
+        )
 
 
 # ─────────────────────────────────────────────
@@ -208,7 +218,8 @@ class HistorialCambiosConfiguracionBarbero(models.Model):
         related_name="historial_cambios",
     )
     campo = models.CharField(
-        "campo modificado", max_length=50,
+        "campo modificado",
+        max_length=50,
         help_text="precio_personalizado o duracion_personalizada",
     )
     valor_anterior = models.CharField("valor anterior", max_length=50, blank=True)
@@ -230,7 +241,9 @@ class HistorialCambiosConfiguracionBarbero(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"{self.barber_service} – {self.campo} @ {self.created_at:%d/%m/%Y %H:%M}"
+        return (
+            f"{self.barber_service} – {self.campo} @ {self.created_at:%d/%m/%Y %H:%M}"
+        )
 
 
 # ─────────────────────────────────────────────
@@ -299,13 +312,16 @@ class ScheduleException(AuditModel):
         related_name="schedule_exceptions",
     )
     exception_type = models.CharField(
-        "tipo", max_length=20, choices=ExceptionType.choices,
+        "tipo",
+        max_length=20,
+        choices=ExceptionType.choices,
     )
     description = models.TextField("descripción", blank=True)
     start = models.DateTimeField("inicio")
     end = models.DateTimeField("fin")
     is_recurring = models.BooleanField(
-        "recurrente", default=False,
+        "recurrente",
+        default=False,
         help_text="Si es True, se repite semanalmente (ej: almuerzo diario).",
     )
 
@@ -557,6 +573,28 @@ class IntervencionServicio(models.Model):
         decimal_places=2,
         help_text="Snapshot del precio al momento de la intervención.",
     )
+    porcentaje_comision_aplicado = models.PositiveSmallIntegerField(
+        "porcentaje comisión aplicado",
+        null=True,
+        blank=True,
+        help_text="Snapshot del porcentaje de comisión del barbero al momento de completar.",
+    )
+    monto_barbero = models.DecimalField(
+        "monto barbero",
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Monto correspondiente al barbero (congelado al completar).",
+    )
+    monto_barberia = models.DecimalField(
+        "monto barbería",
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Monto correspondiente a la barbería (congelado al completar).",
+    )
 
     class Meta:
         db_table = "scheduling_intervencion_servicio"
@@ -600,6 +638,28 @@ class IntervencionProducto(models.Model):
         default=False,
         help_text="Snapshot del estado al momento de la intervención.",
     )
+    porcentaje_comision_aplicado = models.PositiveSmallIntegerField(
+        "porcentaje comisión aplicado",
+        null=True,
+        blank=True,
+        help_text="Snapshot del porcentaje de comisión del barbero al momento de completar.",
+    )
+    monto_barbero = models.DecimalField(
+        "monto barbero",
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Monto correspondiente al barbero (congelado al completar).",
+    )
+    monto_barberia = models.DecimalField(
+        "monto barbería",
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Monto correspondiente a la barbería (congelado al completar).",
+    )
 
     class Meta:
         db_table = "scheduling_intervencion_producto"
@@ -612,3 +672,135 @@ class IntervencionProducto(models.Model):
     @property
     def subtotal(self):
         return self.cantidad * self.precio_unitario
+
+
+# ─────────────────────────────────────────────
+# Commission models
+# ─────────────────────────────────────────────
+
+
+class ComisionServicioBarbero(TenantModel):
+    """Comisión de un barbero sobre un servicio específico."""
+
+    barber = models.ForeignKey(
+        "accounts.BarberProfile",
+        on_delete=models.CASCADE,
+        related_name="comisiones_servicios",
+    )
+    servicio = models.ForeignKey(
+        Service,
+        on_delete=models.CASCADE,
+        related_name="comisiones_barberos",
+    )
+    porcentaje = models.PositiveSmallIntegerField(
+        "porcentaje",
+        default=50,
+        validators=[MinValueValidator(0)],
+        help_text="Porcentaje de comisión del barbero (0-100). Por defecto 50%.",
+    )
+
+    class Meta:
+        db_table = "scheduling_comision_servicio_barbero"
+        verbose_name = "comisión servicio barbero"
+        verbose_name_plural = "comisiones servicio barbero"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["barber", "servicio"],
+                name="unique_comision_servicio_barbero",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.barber} – {self.servicio.name} → {self.porcentaje}%"
+
+
+class ComisionProductoBarbero(TenantModel):
+    """Comisión de un barbero sobre un producto específico."""
+
+    barber = models.ForeignKey(
+        "accounts.BarberProfile",
+        on_delete=models.CASCADE,
+        related_name="comisiones_productos",
+    )
+    producto = models.ForeignKey(
+        "inventory.Product",
+        on_delete=models.CASCADE,
+        related_name="comisiones_barberos",
+    )
+    porcentaje = models.PositiveSmallIntegerField(
+        "porcentaje",
+        default=0,
+        validators=[MinValueValidator(0)],
+        help_text="Porcentaje de comisión del barbero (0-100). Por defecto 0%.",
+    )
+
+    class Meta:
+        db_table = "scheduling_comison_producto_barbero"
+        verbose_name = "comisión producto barbero"
+        verbose_name_plural = "comisiones producto barbero"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["barber", "producto"],
+                name="unique_comision_producto_barbero",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.barber} – {self.producto.name} → {self.porcentaje}%"
+
+
+class HistorialComisionesBarbero(models.Model):
+    """Auditoría de cambios en comisiones de barberos."""
+
+    class TipoItem(models.TextChoices):
+        SERVICIO = "servicio", "Servicio"
+        PRODUCTO = "producto", "Producto"
+
+    barber = models.ForeignKey(
+        "accounts.BarberProfile",
+        on_delete=models.CASCADE,
+        related_name="historial_comisiones",
+    )
+    tipo = models.CharField(
+        "tipo",
+        max_length=10,
+        choices=TipoItem.choices,
+    )
+    item_id = models.PositiveIntegerField(
+        "ID del item",
+        help_text="ID del servicio o producto modificado.",
+    )
+    item_nombre = models.CharField(
+        "nombre del item",
+        max_length=200,
+        blank=True,
+        help_text="Nombre del servicio o producto al momento del cambio.",
+    )
+    valor_anterior = models.PositiveSmallIntegerField(
+        "valor anterior (%)",
+        help_text="Porcentaje de comisión anterior.",
+    )
+    valor_nuevo = models.PositiveSmallIntegerField(
+        "valor nuevo (%)",
+        help_text="Porcentaje de comisión nuevo.",
+    )
+    changed_by = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "scheduling_historial_comisiones_barbero"
+        verbose_name = "historial comisión barbero"
+        verbose_name_plural = "historial comisiones barbero"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["barber", "tipo", "item_id"]),
+        ]
+
+    def __str__(self):
+        return f"{self.barber} – {self.get_tipo_display()} #{self.item_id}: {self.valor_anterior}% → {self.valor_nuevo}%"

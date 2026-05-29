@@ -9,9 +9,40 @@ urlpatterns = [
     path("api/<int:pk>/", views.BarberoDetailAPI.as_view(), name="api_detail"),
     path("api/create/", views.BarberoCreateAPI.as_view(), name="api_create"),
     path("api/<int:pk>/update/", views.BarberoUpdateAPI.as_view(), name="api_update"),
-    path("api/<int:pk>/deactivate/", views.BarberoDeactivateAPI.as_view(), name="api_deactivate"),
-    path("api/<int:pk>/reactivate/", views.BarberoReactivateAPI.as_view(), name="api_reactivate"),
+    path(
+        "api/<int:pk>/deactivate/",
+        views.BarberoDeactivateAPI.as_view(),
+        name="api_deactivate",
+    ),
+    path(
+        "api/<int:pk>/reactivate/",
+        views.BarberoReactivateAPI.as_view(),
+        name="api_reactivate",
+    ),
     path("api/<int:pk>/horarios/", views.HorarioSaveAPI.as_view(), name="api_horarios"),
-    path("api/<int:pk>/excepciones/create/", views.ExcepcionCreateAPI.as_view(), name="api_excepcion_create"),
-    path("api/<int:pk>/excepciones/<int:exc_pk>/delete/", views.ExcepcionDeleteAPI.as_view(), name="api_excepcion_delete"),
+    path(
+        "api/<int:pk>/excepciones/create/",
+        views.ExcepcionCreateAPI.as_view(),
+        name="api_excepcion_create",
+    ),
+    path(
+        "api/<int:pk>/excepciones/<int:exc_pk>/delete/",
+        views.ExcepcionDeleteAPI.as_view(),
+        name="api_excepcion_delete",
+    ),
+    path(
+        "api/<int:pk>/comisiones/",
+        views.ComisionesDataAPI.as_view(),
+        name="api_comisiones_data",
+    ),
+    path(
+        "api/<int:pk>/comisiones/save/",
+        views.ComisionesSaveAPI.as_view(),
+        name="api_comisiones_save",
+    ),
+    path(
+        "api/historial-comisiones/",
+        views.HistorialComisionesAPI.as_view(),
+        name="api_historial_comisiones",
+    ),
 ]
