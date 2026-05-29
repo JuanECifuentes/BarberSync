@@ -86,6 +86,9 @@
     .ag-theme-alpine .ag-header-cell-label .ag-sort-indicator-icon {
         color: #ff2301;
     }
+    .ag-theme-alpine .ag-row {
+        cursor: pointer;
+    }
     .ag-theme-alpine .ag-paging-panel {
         background-color: #2a2a2d;
         border-top: 1px solid #3d3d41;
@@ -366,7 +369,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="flex flex-col h-full" x-data="intervencionesApp()" x-init="init()">
+<div class="flex flex-col h-full overflow-hidden" x-data="intervencionesApp()" x-init="init()">
 
     <!-- ═══════ Header ═══════ -->
     <div class="flex items-center justify-between flex-wrap gap-3 mb-3 flex-shrink-0">
@@ -517,8 +520,100 @@
         </div>
     </div>
 
-    <!-- ═══════ ag-Grid container ═══════ -->
-    <div id="intervencionesGrid" class="ag-theme-alpine flex-1 min-h-0 w-full rounded-xl overflow-hidden border border-neutral-800"></div>
+    <!-- ═══════ ag-Grid container (desktop only) ═══════ -->
+    <div id="intervencionesGrid" class="ag-theme-alpine hidden md:block flex-1 min-h-0 w-full rounded-xl overflow-hidden border border-neutral-800"></div>
+
+    <!-- ═══════ Mobile Cards container (mobile only) ═══════ -->
+    <div id="mobileCardsContainer" class="block md:hidden flex-1 min-h-0 overflow-y-auto space-y-3 pb-4">
+        <p class="text-neutral-400 text-center py-8 text-sm">Cargando...</p>
+    </div>
+
+    <!-- ═══════ Drawer: Detalle de Intervención ═══════ -->
+    <div id="drawer-intervencion" class="hidden fixed inset-0 z-[100]" aria-hidden="true">
+        <div class="absolute inset-0 bg-black/60 transition-opacity" onclick="closeDrawer()"></div>
+        <div class="absolute right-0 top-0 bottom-0 w-full max-w-md bg-neutral-900 border-l border-neutral-800 shadow-2xl transform transition-transform duration-300 translate-x-full flex flex-col" style="max-height:100vh;" id="drawer-panel">
+            <!-- Header -->
+            <div class="flex items-center justify-between p-5 border-b border-neutral-800 flex-shrink-0">
+                <h3 class="font-heading font-bold text-lg text-white">Detalle de Intervención</h3>
+                <button onclick="closeDrawer()" class="text-neutral-400 hover:text-white transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <!-- Scrollable body -->
+            <div class="flex-1 overflow-y-auto p-5 space-y-5" style="min-height:0;">
+                <!-- Basic info -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-neutral-400 uppercase tracking-wider">Fecha</span>
+                        <span class="text-sm text-white" id="drawer-fecha">—</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-neutral-400 uppercase tracking-wider">Cliente</span>
+                        <span class="text-sm text-white font-medium" id="drawer-cliente">—</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-neutral-400 uppercase tracking-wider">Barbero</span>
+                        <span class="text-sm text-white" id="drawer-barbero">—</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-neutral-400 uppercase tracking-wider">Sucursal</span>
+                        <span class="text-sm text-white" id="drawer-sucursal">—</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-neutral-400 uppercase tracking-wider">Estado</span>
+                        <span id="drawer-estado">—</span>
+                    </div>
+                </div>
+
+                <!-- Services list -->
+                <div>
+                    <h4 class="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Servicios</h4>
+                    <div id="drawer-servicios" class="space-y-1.5"></div>
+                </div>
+
+                <!-- Products list -->
+                <div>
+                    <h4 class="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Productos</h4>
+                    <div id="drawer-productos" class="space-y-1.5"></div>
+                </div>
+
+                <!-- Financial summary card -->
+                <div class="bg-neutral-800/50 border border-neutral-700 rounded-xl p-4 space-y-3">
+                    <h4 class="font-heading font-bold text-sm text-white">Resumen Económico</h4>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-neutral-300">Total Cobrado</span>
+                        <span class="font-heading font-bold text-white" id="drawer-total">$0</span>
+                    </div>
+                    <div class="h-px bg-neutral-700"></div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-neutral-300">Ingreso Barbería</span>
+                        <span class="font-heading font-bold" style="color:#ff2301;" id="drawer-barberia">$0</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-neutral-300">Comisión Barbero</span>
+                        <span class="font-heading font-bold" style="color:#10b981;" id="drawer-comision-barbero">$0</span>
+                    </div>
+                    <div class="h-px bg-neutral-700"></div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-neutral-400">Reparto Efectivo</span>
+                        <span class="text-xs text-neutral-300" id="drawer-reparto">0% / 0%</span>
+                    </div>
+                </div>
+
+                <!-- Notas -->
+                <div x-show="$el.querySelector('#drawer-notas')?.textContent?.trim()">
+                    <h4 class="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Notas</h4>
+                    <p class="text-sm text-neutral-300 bg-neutral-800/50 border border-neutral-700 rounded-lg p-3" id="drawer-notas"></p>
+                </div>
+            </div>
+
+            <!-- Actions footer -->
+            <div class="p-4 border-t border-neutral-800 flex-shrink-0">
+                <button onclick="closeDrawer()" class="w-full py-2.5 rounded-lg text-sm font-medium border border-neutral-700 text-neutral-300 hover:bg-neutral-800 transition-colors">Cerrar</button>
+            </div>
+        </div>
+    </div>
 
     <!-- ═══════ Modal Crear / Editar ═══════ -->
     <template x-if="showModal">
@@ -817,48 +912,6 @@ const AG_LOCALE_ES = {
    ══════════════════════════════════════════ */
 let gridApi = null;
 
-function serviciosCellRenderer(params) {
-    if (!params.value || !params.value.length) {
-        // Show "Venta" tag if the intervention has products but no services
-        if (params.data?.productos?.length) {
-            return '<div class="flex items-center w-full h-full"><span class="venta-tag">Venta</span></div>';
-        }
-        return '<div class="flex items-center w-full h-full"><span class="text-neutral-400 text-xs">—</span></div>';
-    }
-    const wrapper = document.createElement('div');
-    wrapper.className = 'flex items-center w-full h-full';
-    const svcs = params.value;
-    const container = document.createElement('div');
-    container.className = 'svc-tags-wrap';
-    const maxWidth = params.column.getActualWidth() - 20;
-    let totalWidth = 0;
-    let fitsAll = true;
-    for (const s of svcs) {
-        totalWidth += (s.nombre.length * 9) + 32;
-        if (totalWidth > maxWidth) { fitsAll = false; break; }
-    }
-    if (fitsAll) {
-        for (const s of svcs) {
-            const tag = document.createElement('span');
-            tag.className = 'svc-tag';
-            tag.textContent = s.nombre;
-            container.appendChild(tag);
-        }
-    } else {
-        const first = document.createElement('span');
-        first.className = 'svc-tag';
-        first.textContent = svcs[0].nombre;
-        container.appendChild(first);
-        const badge = document.createElement('span');
-        badge.className = 'svc-count-badge';
-        badge.textContent = `+${svcs.length - 1} más`;
-        badge.title = svcs.map(s => s.nombre).join(', ');
-        container.appendChild(badge);
-    }
-    wrapper.appendChild(container);
-    return wrapper;
-}
-
 function estadoCellRenderer(params) {
     if (!params.value) return '';
     const wrapper = document.createElement('div');
@@ -919,32 +972,60 @@ function formatCommissionMoney(value) {
     return '$' + intFormatted + ',' + dec;
 }
 
-function gananciaBarberiaCellRenderer(params) {
+function clienteBarberoCellRenderer(params) {
     if (!params.data) return '';
-    const el = document.createElement('span');
-    el.className = 'font-heading font-semibold';
-    el.style.color = '#ff2301';
-    el.textContent = params.data.ganancia_barberia_fmt || '$0';
-    return el;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'flex flex-col justify-center w-full h-full py-1';
+    const cliente = document.createElement('span');
+    cliente.className = 'text-white text-sm font-medium truncate';
+    cliente.textContent = params.data.cliente || '—';
+    const barbero = document.createElement('span');
+    barbero.className = 'text-neutral-400 text-xs truncate';
+    barbero.textContent = params.data.barbero || '';
+    wrapper.appendChild(cliente);
+    wrapper.appendChild(barbero);
+    return wrapper;
 }
 
-function comisionBarberoCellRenderer(params) {
-    if (!params.data) return '';
-    const el = document.createElement('span');
-    el.className = 'font-heading font-semibold';
-    el.style.color = '#10b981';
-    el.textContent = params.data.ganancia_barbero_fmt || '$0';
-    return el;
-}
-
-function repartoCellRenderer(params) {
-    if (!params.data) return '';
-    const pctBarberia = params.data.pct_barberia;
-    const pctBarbero = params.data.pct_barbero;
-    const el = document.createElement('span');
-    el.className = 'text-neutral-400 text-xs';
-    el.textContent = `${pctBarberia}% / ${pctBarbero}%`;
-    return el;
+function serviciosCellRenderer(params) {
+    if (!params.value || !params.value.length) {
+        if (params.data?.productos?.length) {
+            return '<div class="flex items-center w-full h-full"><span class="venta-tag">Venta</span></div>';
+        }
+        return '<div class="flex items-center w-full h-full"><span class="text-neutral-400 text-xs">—</span></div>';
+    }
+    const wrapper = document.createElement('div');
+    wrapper.className = 'flex items-center w-full h-full';
+    const svcs = params.value;
+    const container = document.createElement('div');
+    container.className = 'svc-tags-wrap';
+    const maxWidth = params.column.getActualWidth() - 20;
+    let totalWidth = 0;
+    let fitsAll = true;
+    for (const s of svcs) {
+        totalWidth += (s.nombre.length * 9) + 32;
+        if (totalWidth > maxWidth) { fitsAll = false; break; }
+    }
+    if (fitsAll) {
+        for (const s of svcs) {
+            const tag = document.createElement('span');
+            tag.className = 'svc-tag';
+            tag.textContent = s.nombre;
+            container.appendChild(tag);
+        }
+    } else {
+        const first = document.createElement('span');
+        first.className = 'svc-tag';
+        first.textContent = svcs[0].nombre;
+        container.appendChild(first);
+        const badge = document.createElement('span');
+        badge.className = 'svc-count-badge';
+        badge.textContent = `+${svcs.length - 1} más`;
+        badge.title = svcs.map(s => s.nombre).join(', ');
+        container.appendChild(badge);
+    }
+    wrapper.appendChild(container);
+    return wrapper;
 }
 
 function productosCellRenderer(params) {
@@ -988,20 +1069,16 @@ function productosCellRenderer(params) {
     return wrapper;
 }
 
-// Column definitions — NO internal filters
+// Column definitions — compact 8-column layout
 const columnDefs = [
-    { headerName: 'Fecha',     field: 'fecha',     sortable: true,  minWidth: 150, maxWidth: 180 },
-    { headerName: 'Cliente',   field: 'cliente',   sortable: true,  minWidth: 140, flex: 1 },
-    { headerName: 'Barbero',   field: 'barbero',   sortable: true,  minWidth: 140, flex: 1 },
-    { headerName: 'Servicios', field: 'servicios', sortable: false, minWidth: 160, flex: 1.2, cellRenderer: serviciosCellRenderer },
-    { headerName: 'Productos', field: 'productos', sortable: false, minWidth: 160, flex: 1.2, cellRenderer: productosCellRenderer },
-    { headerName: 'Sucursal',  field: 'sucursal',  sortable: true,  minWidth: 120, flex: 0.8 },
-    { headerName: 'Total',     field: 'precio_total', sortable: false, minWidth: 100, maxWidth: 120, cellRenderer: precioTotalCellRenderer },
-    { headerName: 'Ingreso Barbería', field: 'ganancia_barberia', sortable: false, minWidth: 110, maxWidth: 140, cellRenderer: gananciaBarberiaCellRenderer },
-    { headerName: 'Comisión Barbero', field: 'ganancia_barbero', sortable: false, minWidth: 110, maxWidth: 140, cellRenderer: comisionBarberoCellRenderer },
-    { headerName: 'Reparto (%)', field: 'pct_barberia', sortable: false, minWidth: 100, maxWidth: 130, cellRenderer: repartoCellRenderer },
-    { headerName: 'Estado',    field: 'estado',    sortable: true,  minWidth: 120, maxWidth: 150, cellRenderer: estadoCellRenderer },
-    { headerName: 'Acciones',  field: 'acciones',  sortable: false, minWidth: 90,  maxWidth: 90,  cellRenderer: accionesCellRenderer, suppressSizeToFit: true },
+    { headerName: 'Fecha', field: 'fecha', sortable: true, minWidth: 140, maxWidth: 160 },
+    { headerName: 'Cliente / Barbero', field: 'cliente_barbero', sortable: true, minWidth: 180, flex: 1.2, cellRenderer: clienteBarberoCellRenderer },
+    { headerName: 'Servicios', field: 'servicios', sortable: false, minWidth: 100, flex: 1, cellRenderer: serviciosCellRenderer },
+    { headerName: 'Productos', field: 'productos', sortable: false, minWidth: 100, flex: 1, cellRenderer: productosCellRenderer },
+    { headerName: 'Sucursal', field: 'sucursal', sortable: true, minWidth: 180, flex: 1.2 },
+    { headerName: 'Total', field: 'precio_total', sortable: true, minWidth: 110, maxWidth: 130, cellRenderer: precioTotalCellRenderer },
+    { headerName: 'Estado', field: 'estado', sortable: true, minWidth: 100, maxWidth: 130, cellRenderer: estadoCellRenderer },
+    { headerName: 'Acciones', field: 'acciones', sortable: false, minWidth: 90, maxWidth: 90, cellRenderer: accionesCellRenderer, suppressSizeToFit: true },
 ];
 
 // Datasource — reads external filter state from Alpine
@@ -1062,12 +1139,272 @@ document.addEventListener('DOMContentLoaded', () => {
         overlayLoadingTemplate: '<div class="flex items-center gap-3"><div class="w-5 h-5 border-2 border-[#ff2301] border-t-transparent rounded-full animate-spin"></div><span>Cargando intervenciones...</span></div>',
         overlayNoRowsTemplate: '<div class="text-neutral-400 py-8"><p class="text-lg mb-1">No se encontraron intervenciones</p><p class="text-sm">Ajusta los filtros o crea una nueva</p></div>',
         getRowId: (params) => params.data?.id?.toString(),
+        onRowClicked: (event) => {
+            if (event.data) openDrawer(event.data);
+        },
     });
 });
 
-/* ══════════════════════════════════════════
-   Alpine.js App
-   ══════════════════════════════════════════ */
+// ══════════════════════════════════════════
+// DRAWER: Master-Detail Panel
+// ══════════════════════════════════════════
+function openDrawer(data) {
+    const drawer = document.getElementById('drawer-intervencion');
+    const panel = document.getElementById('drawer-panel');
+    if (!drawer || !panel) return;
+
+    document.getElementById('drawer-fecha').textContent = data.fecha || '—';
+    document.getElementById('drawer-cliente').textContent = data.cliente || '—';
+    document.getElementById('drawer-barbero').textContent = data.barbero || '—';
+    document.getElementById('drawer-sucursal').textContent = data.sucursal || '—';
+    document.getElementById('drawer-notas').textContent = data.notas || '';
+
+    const estadoEl = document.getElementById('drawer-estado');
+    if (data.estado) {
+        estadoEl.innerHTML = `<span class="estado-badge estado-${data.estado}">${data.estado_display || data.estado}</span>`;
+    } else {
+        estadoEl.textContent = '—';
+    }
+
+    // Services
+    const svcContainer = document.getElementById('drawer-servicios');
+    if (data.servicios && data.servicios.length) {
+        svcContainer.innerHTML = data.servicios.map(s => `
+            <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-neutral-800 border border-neutral-700">
+                <span class="text-sm text-white">${s.nombre}</span>
+                <span class="text-sm font-medium" style="color:#ff2301;">$${formatMoneyGrid(s.precio)}</span>
+            </div>
+        `).join('');
+    } else {
+        svcContainer.innerHTML = '<p class="text-xs text-neutral-500">Sin servicios</p>';
+    }
+
+    // Products
+    const prodContainer = document.getElementById('drawer-productos');
+    const prods = (data.productos || []).filter(p => !p.incluido);
+    if (prods.length) {
+        prodContainer.innerHTML = prods.map(p => `
+            <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-neutral-800 border border-neutral-700">
+                <span class="text-sm text-white">${p.nombre} x${p.cantidad}</span>
+                <span class="text-sm font-medium" style="color:#ff2301;">$${formatMoneyGrid(p.precio)}</span>
+            </div>
+        `).join('');
+    } else {
+        prodContainer.innerHTML = '<p class="text-xs text-neutral-500">Sin productos adicionales</p>';
+    }
+
+    // Financial summary
+    document.getElementById('drawer-total').textContent = data.precio_total_fmt || '$0';
+    document.getElementById('drawer-barberia').textContent = data.ganancia_barberia_fmt || '$0';
+    document.getElementById('drawer-comision-barbero').textContent = data.ganancia_barbero_fmt || '$0';
+    document.getElementById('drawer-reparto').textContent = `${data.pct_barberia || 0}% / ${data.pct_barbero || 0}%`;
+
+    drawer.classList.remove('hidden');
+    requestAnimationFrame(() => {
+        panel.classList.remove('translate-x-full');
+    });
+    document.body.style.overflow = 'hidden';
+}
+
+function closeDrawer() {
+    const drawer = document.getElementById('drawer-intervencion');
+    const panel = document.getElementById('drawer-panel');
+    if (!drawer || !panel) return;
+    panel.classList.add('translate-x-full');
+    setTimeout(() => {
+        drawer.classList.add('hidden');
+        document.body.style.overflow = '';
+    }, 300);
+}
+
+function formatMoneyGrid(value) {
+    const num = parseFloat(value);
+    if (isNaN(num)) return '0';
+    const rounded = Math.round(num);
+    return rounded.toLocaleString('de-DE');
+}
+
+// ══════════════════════════════════════════
+// MOBILE CARDS
+// ══════════════════════════════════════════
+let _mobileCardsData = [];
+let _mobileCardsPage = 0;
+let _mobileCardsLoading = false;
+let _mobileCardsHasMore = true;
+
+async function refreshMobileCards() {
+    _mobileCardsPage = 0;
+    _mobileCardsHasMore = true;
+    _mobileCardsData = [];
+    const container = document.getElementById('mobileCardsContainer');
+    if (!container) return;
+    container.innerHTML = '<p class="text-neutral-400 text-center py-8 text-sm">Cargando...</p>';
+    await loadMoreMobileCards();
+}
+
+async function loadMoreMobileCards() {
+    if (_mobileCardsLoading || !_mobileCardsHasMore) return;
+    _mobileCardsLoading = true;
+
+    const f = window.__intervencionFilters || {};
+    const urlParams = new URLSearchParams();
+    urlParams.set('startRow', _mobileCardsPage * 30);
+    urlParams.set('endRow', (_mobileCardsPage + 1) * 30);
+    if (f.barberos?.length)   urlParams.set('filter_barberos', f.barberos.join(','));
+    if (f.servicios?.length)  urlParams.set('filter_servicios', f.servicios.join(','));
+    if (f.sucursales?.length) urlParams.set('filter_sucursales', f.sucursales.join(','));
+    if (f.estados?.length)    urlParams.set('filter_estados', f.estados.join(','));
+    if (f.fechaDesde)         urlParams.set('filter_fecha_desde', f.fechaDesde);
+    if (f.fechaHasta)         urlParams.set('filter_fecha_hasta', f.fechaHasta);
+    if (f.totalMin)           urlParams.set('filter_total_min', f.totalMin);
+    if (f.totalMax)           urlParams.set('filter_total_max', f.totalMax);
+
+    try {
+        const res = await fetch(`${API_GRID_URL}?${urlParams.toString()}`);
+        const data = await res.json();
+        const rows = data.rows || [];
+        _mobileCardsHasMore = data.lastRow === -1 || ((_mobileCardsPage + 1) * 30) < data.lastRow;
+
+        if (_mobileCardsPage === 0) {
+            _mobileCardsData = rows;
+            renderMobileCards(_mobileCardsData);
+        } else {
+            _mobileCardsData.push(...rows);
+            appendMobileCards(rows);
+        }
+        _mobileCardsPage++;
+    } catch (e) {
+        console.error(e);
+        const container = document.getElementById('mobileCardsContainer');
+        if (container && _mobileCardsPage === 0) {
+            container.innerHTML = '<p class="text-red-400 text-center py-8 text-sm">Error al cargar datos.</p>';
+        }
+    }
+    _mobileCardsLoading = false;
+}
+
+function renderMobileCards(rows) {
+    const container = document.getElementById('mobileCardsContainer');
+    if (!container) return;
+    if (!rows.length) {
+        container.innerHTML = '<div class="text-neutral-400 py-8 text-center"><p class="text-lg mb-1">No se encontraron intervenciones</p><p class="text-sm">Ajusta los filtros o crea una nueva</p></div>';
+        return;
+    }
+    container.innerHTML = rows.map(row => buildMobileCardHTML(row)).join('');
+    attachMobileCardEvents();
+}
+
+function appendMobileCards(rows) {
+    const container = document.getElementById('mobileCardsContainer');
+    if (!container) return;
+    const html = rows.map(row => buildMobileCardHTML(row)).join('');
+    container.insertAdjacentHTML('beforeend', html);
+    attachMobileCardEvents();
+}
+
+function buildMobileCardHTML(row) {
+    const svcCount = (row.servicios || []).length;
+    const prodCount = (row.productos || []).filter(p => !p.incluido).length;
+    const estadoClass = `estado-${row.estado}`;
+    const estadoLabel = row.estado_display || row.estado;
+    const totalNum = parseFloat(row.precio_total) || 0;
+
+    return `
+    <div class="mobile-card bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-3"
+         data-id="${row.id}"
+         data-barbero-id="${row.barbero_id || ''}"
+         data-cliente-id="${row.cliente_id || ''}"
+         data-estado="${row.estado || ''}"
+         data-sucursal="${escapeHtml(row.sucursal || '')}"
+         data-total="${totalNum}"
+         data-fecha="${row.fecha_iso || ''}">
+        <!-- Header -->
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-neutral-400">${row.fecha || ''}</span>
+                <span class="estado-badge ${estadoClass}" style="padding:3px 8px;font-size:10px;">${estadoLabel}</span>
+            </div>
+            <span class="text-xs text-neutral-500">${escapeHtml(row.sucursal || '')}</span>
+        </div>
+        <!-- Body -->
+        <div>
+            <p class="text-white font-medium text-sm">${escapeHtml(row.cliente || '—')}</p>
+            <p class="text-neutral-400 text-xs">${escapeHtml(row.barbero || '')}</p>
+        </div>
+        <!-- Summary -->
+        <div class="flex items-center gap-2 text-xs text-neutral-400">
+            ${svcCount ? `<span class="svc-tag" style="padding:3px 8px;font-size:10px;">${svcCount} Serv.</span>` : ''}
+            ${prodCount ? `<span class="prod-tag" style="padding:3px 8px;font-size:10px;">${prodCount} Prod.</span>` : ''}
+            <span class="font-heading font-bold text-sm ml-auto" style="color:#ff2301;">${row.precio_total_fmt || '$0'}</span>
+        </div>
+        <!-- Collapsible commission detail -->
+        <div>
+            <button type="button" class="mobile-comm-toggle w-full flex items-center justify-between py-2 text-xs text-neutral-400 hover:text-white transition-colors border-t border-neutral-800"
+                    onclick="toggleMobileComm(this)">
+                <span>Ver desglose financiero</span>
+                <svg class="w-3.5 h-3.5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div class="mobile-comm-content hidden space-y-2 pt-2">
+                <div class="flex items-center justify-between text-sm">
+                    <span class="text-neutral-300">Ingreso Barbería</span>
+                    <span class="font-semibold" style="color:#ff2301;">${row.ganancia_barberia_fmt || '$0'}</span>
+                </div>
+                <div class="flex items-center justify-between text-sm">
+                    <span class="text-neutral-300">Comisión Barbero</span>
+                    <span class="font-semibold" style="color:#10b981;">${row.ganancia_barbero_fmt || '$0'}</span>
+                </div>
+                <div class="flex items-center justify-between text-xs text-neutral-400 pt-1 border-t border-neutral-800">
+                    <span>Reparto</span>
+                    <span>${row.pct_barberia || 0}% / ${row.pct_barbero || 0}%</span>
+                </div>
+            </div>
+        </div>
+    </div>`;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function toggleMobileComm(btn) {
+    const content = btn.nextElementSibling;
+    const icon = btn.querySelector('svg');
+    if (content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        icon.style.transform = 'rotate(180deg)';
+    } else {
+        content.classList.add('hidden');
+        icon.style.transform = 'rotate(0deg)';
+    }
+}
+
+function attachMobileCardEvents() {
+    document.querySelectorAll('.mobile-card').forEach(card => {
+        card.addEventListener('click', (e) => {
+            if (e.target.closest('.mobile-comm-toggle') || e.target.closest('.mobile-comm-content')) return;
+            const id = card.dataset.id;
+            const row = _mobileCardsData.find(r => r.id == id);
+            if (row) openDrawer(row);
+        });
+    });
+}
+
+// Infinite scroll for mobile cards
+function initMobileScroll() {
+    const container = document.getElementById('mobileCardsContainer');
+    if (!container) return;
+    container.addEventListener('scroll', () => {
+        if (container.scrollTop + container.clientHeight >= container.scrollHeight - 100) {
+            loadMoreMobileCards();
+        }
+    });
+}
+
+// ══════════════════════════════════════════
+// Alpine.js App
+// ══════════════════════════════════════════
 function intervencionesApp() {
     return {
         showModal: false,
@@ -1133,6 +1470,10 @@ function intervencionesApp() {
             document.addEventListener('edit-intervencion', (e) => this.openEditModal(e.detail));
             document.addEventListener('delete-intervencion', (e) => this.openDeleteConfirm(e.detail));
 
+            // Init mobile cards
+            initMobileScroll();
+            refreshMobileCards();
+
             // Init Flatpickr range for date filter
             this.$nextTick(() => {
                 const rangeInput = this.$refs.filterFechaRange;
@@ -1193,6 +1534,7 @@ function intervencionesApp() {
             if (gridApi) {
                 gridApi.purgeInfiniteCache();
             }
+            refreshMobileCards();
         },
 
         clearFilters() {
