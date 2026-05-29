@@ -18,7 +18,9 @@ from django.utils import timezone
 
 from apps.accounts.models import BarberProfile, Barbershop
 from apps.clients.models import Client
-from apps.notifications.tasks import schedule_appointment_reminders
+from apps.notifications.notifications import (
+    send_appointment_reminders as schedule_appointment_reminders,
+)
 
 from .models import (
     Appointment,
@@ -153,10 +155,12 @@ def get_available_slots(
     for window_start, window_end in free_slots:
         slot_start = window_start
         while slot_start + slot_duration <= window_end:
-            available.append({
-                "start": slot_start,
-                "end": slot_start + slot_duration,
-            })
+            available.append(
+                {
+                    "start": slot_start,
+                    "end": slot_start + slot_duration,
+                }
+            )
             slot_start += timedelta(minutes=30)  # 30-min intervals
 
     return available
@@ -202,7 +206,9 @@ def create_appointment(
     Raises ValueError on conflicts.
     """
     # Validate services exist and barber can perform them
-    services = Service.objects.filter(pk__in=service_ids, is_active=True) #POR AHORA LOS SERVICIOS FUNCIONAN SIN DISCRIMINAR LA BARBERIA , FALTA AGREGAR PARA HACER ESTA DISCRIMINACION barbershop=barbershop
+    services = Service.objects.filter(
+        pk__in=service_ids, is_active=True
+    )  # POR AHORA LOS SERVICIOS FUNCIONAN SIN DISCRIMINAR LA BARBERIA , FALTA AGREGAR PARA HACER ESTA DISCRIMINACION barbershop=barbershop
     if services.count() != len(service_ids):
         raise ValueError("Uno o más servicios no existen o no están activos.")
 
@@ -215,9 +221,7 @@ def create_appointment(
             raise ValueError(f"El barbero no realiza el servicio: {svc_obj.name}")
 
     # Calculate total duration using custom durations where available
-    total_minutes = sum(
-        barber_service_map[s.pk].effective_duration for s in services
-    )
+    total_minutes = sum(barber_service_map[s.pk].effective_duration for s in services)
     buffer = timedelta(minutes=barber.buffer_minutes)
     end_time = start_time + timedelta(minutes=total_minutes)
 
@@ -227,12 +231,16 @@ def create_appointment(
         Appointment.Status.CONFIRMED,
         Appointment.Status.IN_PROGRESS,
     ]
-    conflict = Appointment.objects.filter(
-        barber=barber,
-        status__in=active_statuses,
-    ).filter(
-        Q(start_time__lt=end_time + buffer) & Q(end_time__gt=start_time - buffer)
-    ).exists()
+    conflict = (
+        Appointment.objects.filter(
+            barber=barber,
+            status__in=active_statuses,
+        )
+        .filter(
+            Q(start_time__lt=end_time + buffer) & Q(end_time__gt=start_time - buffer)
+        )
+        .exists()
+    )
 
     if conflict:
         raise ValueError("El horario seleccionado ya está ocupado.")
@@ -306,7 +314,8 @@ def create_appointment(
         ).select_related("producto"):
             product = Product.objects.select_for_update().get(pk=sp.producto_id)
             existing = IntervencionProducto.objects.filter(
-                intervencion=intervencion, producto=product,
+                intervencion=intervencion,
+                producto=product,
             ).first()
             if existing:
                 existing.cantidad += sp.cantidad_consumida
@@ -426,12 +435,14 @@ def get_calendar_events(
         status=Appointment.Status.CANCELLED,
     )
 
-    qs = (qs | cancelled_qs).select_related(
-        "client", "barber__membership__user"
-    ).prefetch_related(
-        "services__service",
-        "intervencion__servicios__servicio",
-        "intervencion__productos_usados__producto",
+    qs = (
+        (qs | cancelled_qs)
+        .select_related("client", "barber__membership__user")
+        .prefetch_related(
+            "services__service",
+            "intervencion__servicios__servicio",
+            "intervencion__productos_usados__producto",
+        )
     )
 
     if barber is not None:
@@ -439,9 +450,7 @@ def get_calendar_events(
 
     events = []
     for apt in qs:
-        service_names = ", ".join(
-            apt.services.values_list("service__name", flat=True)
-        )
+        service_names = ", ".join(apt.services.values_list("service__name", flat=True))
 
         # Services detail with prices
         services_detail = [
@@ -491,38 +500,40 @@ def get_calendar_events(
                 for p in intervencion.productos_usados.select_related("producto").all()
             ]
 
-        events.append({
-            "id": apt.pk,
-            "title": f"{apt.client.name} – {service_names}",
-            "start": apt.start_time.isoformat(),
-            "end": apt.end_time.isoformat(),
-            "color": _status_color(apt.status),
-            "extendedProps": {
-                "client_name": apt.client.name,
-                "client_phone": apt.client.phone,
-                "client_email": apt.client.email,
-                "barber_name": str(apt.barber),
-                "services": service_names,
-                "services_detail": services_detail,
-                "total_price": str(apt.total_price),
-                "status": apt.status,
-                "status_display": apt.get_status_display(),
-                "notes": apt.notes,
-                "intervencion_estado": intervencion_estado,
-                "intervencion_estado_display": intervencion_estado_display,
-                "intervencion_notas": intervencion_notas,
-                "intervencion_productos": intervencion_productos,
-            },
-        })
+        events.append(
+            {
+                "id": apt.pk,
+                "title": f"{apt.client.name} – {service_names}",
+                "start": apt.start_time.isoformat(),
+                "end": apt.end_time.isoformat(),
+                "color": _status_color(apt.status),
+                "extendedProps": {
+                    "client_name": apt.client.name,
+                    "client_phone": apt.client.phone,
+                    "client_email": apt.client.email,
+                    "barber_name": str(apt.barber),
+                    "services": service_names,
+                    "services_detail": services_detail,
+                    "total_price": str(apt.total_price),
+                    "status": apt.status,
+                    "status_display": apt.get_status_display(),
+                    "notes": apt.notes,
+                    "intervencion_estado": intervencion_estado,
+                    "intervencion_estado_display": intervencion_estado_display,
+                    "intervencion_notas": intervencion_notas,
+                    "intervencion_productos": intervencion_productos,
+                },
+            }
+        )
 
     return events
 
 
 def _status_color(status: str) -> str:
     return {
-        "pending": "#f59e0b",     # amber
-        "confirmed": "#3b82f6",   # blue
-        "in_progress": "#ff2301", # brand orange
-        "completed": "#10b981",   # green
-        "cancelled": "#ef4444",   # red
-    }.get(status, "#6b7280")      # gray
+        "pending": "#f59e0b",  # amber
+        "confirmed": "#3b82f6",  # blue
+        "in_progress": "#ff2301",  # brand orange
+        "completed": "#10b981",  # green
+        "cancelled": "#ef4444",  # red
+    }.get(status, "#6b7280")  # gray

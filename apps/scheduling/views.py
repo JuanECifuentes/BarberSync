@@ -11,7 +11,7 @@ ServiceListView     – CRUD for services
 
 import json
 from collections import OrderedDict
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
@@ -21,13 +21,22 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
 
-from apps.accounts.models import BarberProfile
+from apps.accounts.models import BarberProfile, Membership
 from . import services as svc
 from apps.inventory.models import Product, ProductCategory, StockMovement
+from apps.notifications.notifications import send_notification
 from .models import (
-    Appointment, BarberService, CategoriaServicio,
-    HistorialCambiosConfiguracionBarbero, HistorialPrecioServicio,
-    Intervencion, IntervencionProducto, Service, ServicioProducto,
+    Appointment,
+    BarberService,
+    CategoriaServicio,
+    HistorialCambiosConfiguracionBarbero,
+    HistorialPrecioServicio,
+    Intervencion,
+    IntervencionProducto,
+    Service,
+    ServicioProducto,
+    WorkSchedule,
+    ScheduleException,
 )
 
 
@@ -43,13 +52,20 @@ class CalendarView(LoginRequiredMixin, TemplateView):
         membership = self.request.user.membership
         if not membership:
             from django.core.exceptions import PermissionDenied
-            raise PermissionDenied("No perteneces a ninguna organización o tu cuenta no tiene rol de empleado.")
+
+            raise PermissionDenied(
+                "No perteneces a ninguna organización o tu cuenta no tiene rol de empleado."
+            )
 
         # Barbers for filter dropdown
-        barbers = BarberProfile.objects.filter(
-            Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
-            is_active=True,
-        ).select_related("membership__user").distinct()
+        barbers = (
+            BarberProfile.objects.filter(
+                Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
+                is_active=True,
+            )
+            .select_related("membership__user")
+            .distinct()
+        )
 
         ctx["barbers"] = barbers
         print("membership", membership, "role", membership.role)
@@ -57,16 +73,19 @@ class CalendarView(LoginRequiredMixin, TemplateView):
 
         # If user is a barber, pre-select their own profile
         if membership.role == "barber":
-            ctx["selected_barber_id"] = getattr(
-                membership, "barber_profile", None
-            )
+            ctx["selected_barber_id"] = getattr(membership, "barber_profile", None)
             if ctx["selected_barber_id"]:
                 ctx["selected_barber_id"] = ctx["selected_barber_id"].pk
 
         # Products grouped by category for product consumption in modal
-        products = Product.objects.filter(
-            barbershop=barbershop, is_active=True,
-        ).select_related("category").order_by("category__name", "name")
+        products = (
+            Product.objects.filter(
+                barbershop=barbershop,
+                is_active=True,
+            )
+            .select_related("category")
+            .order_by("category__name", "name")
+        )
         grouped_products = OrderedDict()
         for prod in products:
             cat_name = prod.category.name if prod.category else "Sin Categoría"
@@ -94,10 +113,8 @@ class CalendarEventsAPI(LoginRequiredMixin, View):
         barber = None
         if barber_id:
             barber = BarberProfile.objects.filter(
-                Q(pk=barber_id) & (
-                    Q(membership__barbershop=barbershop) |
-                    Q(sucursales=barbershop)
-                )
+                Q(pk=barber_id)
+                & (Q(membership__barbershop=barbershop) | Q(sucursales=barbershop))
             ).first()
 
         # If user is a barber, restrict to their own events
@@ -128,11 +145,13 @@ class AvailableSlotsAPI(LoginRequiredMixin, View):
         duration = int(request.GET.get("duration", 30))
 
         if not barber_id or not target_date_str:
-            return JsonResponse({"error": "barber_id y date son requeridos"}, status=400)
+            return JsonResponse(
+                {"error": "barber_id y date son requeridos"}, status=400
+            )
 
         barber = BarberProfile.objects.filter(
             Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
-            pk=barber_id
+            pk=barber_id,
         ).first()
 
         if not barber:
@@ -142,7 +161,9 @@ class AvailableSlotsAPI(LoginRequiredMixin, View):
         if target_date is None:
             return JsonResponse({"error": "Fecha inválida"}, status=400)
 
-        slots = svc.get_available_slots(barber, target_date, duration, barbershop=barbershop)
+        slots = svc.get_available_slots(
+            barber, target_date, duration, barbershop=barbershop
+        )
         data = [
             {"start": s["start"].isoformat(), "end": s["end"].isoformat()}
             for s in slots
@@ -172,14 +193,16 @@ class AppointmentCreateAPI(LoginRequiredMixin, View):
 
         barber = BarberProfile.objects.filter(
             Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
-            pk=barber_id
+            pk=barber_id,
         ).first()
         if not barber:
             return JsonResponse({"error": "Barbero no encontrado"}, status=404)
 
         from apps.clients.models import Client
+
         client = Client.objects.filter(
-            pk=client_id, organization=barbershop.organization,
+            pk=client_id,
+            organization=barbershop.organization,
         ).first()
         if not client:
             return JsonResponse({"error": "Cliente no encontrado"}, status=404)
@@ -204,12 +227,15 @@ class AppointmentCreateAPI(LoginRequiredMixin, View):
         except ValueError as e:
             return JsonResponse({"error": str(e)}, status=409)
 
-        return JsonResponse({
-            "message": "Cita creada exitosamente",
-            "appointment_id": appointment.pk,
-            "start": appointment.start_time.isoformat(),
-            "end": appointment.end_time.isoformat(),
-        }, status=201)
+        return JsonResponse(
+            {
+                "message": "Cita creada exitosamente",
+                "appointment_id": appointment.pk,
+                "start": appointment.start_time.isoformat(),
+                "end": appointment.end_time.isoformat(),
+            },
+            status=201,
+        )
 
 
 # ─────────────────────────────────────────────
@@ -224,7 +250,8 @@ class AppointmentActionAPI(LoginRequiredMixin, View):
 
         barbershop = request.barbershop
         appointment = Appointment.objects.filter(
-            pk=pk, barbershop=barbershop,
+            pk=pk,
+            barbershop=barbershop,
         ).first()
         if not appointment:
             return JsonResponse({"error": "Cita no encontrada"}, status=404)
@@ -233,7 +260,9 @@ class AppointmentActionAPI(LoginRequiredMixin, View):
 
         if action == "cancel":
             reason = data.get("reason", "")
-            svc.cancel_appointment(appointment, reason=reason, cancelled_by=request.user)
+            svc.cancel_appointment(
+                appointment, reason=reason, cancelled_by=request.user
+            )
             # Sync linked Intervencion → cancelada
             try:
                 intervencion = appointment.intervencion
@@ -256,9 +285,18 @@ class AppointmentActionAPI(LoginRequiredMixin, View):
                     if not intervencion.fecha_fin:
                         intervencion.fecha_fin = timezone.now()
                     intervencion.updated_by = request.user
-                    intervencion.save(update_fields=["estado", "fecha_fin", "updated_by", "updated_at"])
+                    intervencion.save(
+                        update_fields=[
+                            "estado",
+                            "fecha_fin",
+                            "updated_by",
+                            "updated_at",
+                        ]
+                    )
                     # Freeze product prices at the moment of completion
-                    for ip in intervencion.productos_usados.select_related("producto").all():
+                    for ip in intervencion.productos_usados.select_related(
+                        "producto"
+                    ).all():
                         ip.precio_unitario = ip.producto.price
                         ip.save(update_fields=["precio_unitario"])
                 except Intervencion.DoesNotExist:
@@ -292,15 +330,19 @@ class AppointmentActionAPI(LoginRequiredMixin, View):
 
             try:
                 new_apt = svc.reschedule_appointment(
-                    appointment, new_start, rescheduled_by=request.user,
+                    appointment,
+                    new_start,
+                    rescheduled_by=request.user,
                 )
             except ValueError as e:
                 return JsonResponse({"error": str(e)}, status=409)
 
-            return JsonResponse({
-                "message": "Cita reagendada",
-                "new_appointment_id": new_apt.pk,
-            })
+            return JsonResponse(
+                {
+                    "message": "Cita reagendada",
+                    "new_appointment_id": new_apt.pk,
+                }
+            )
 
         return JsonResponse({"error": "Acción no válida"}, status=400)
 
@@ -317,29 +359,51 @@ class ServiceListView(LoginRequiredMixin, TemplateView):
         org = self.request.organization
 
         if barbershop:
-            services = Service.objects.filter(
-                barbershop=barbershop, is_active=True,
-            ).select_related("category").order_by("category__name", "name")
+            services = (
+                Service.objects.filter(
+                    barbershop=barbershop,
+                    is_active=True,
+                )
+                .select_related("category")
+                .order_by("category__name", "name")
+            )
 
             categories = CategoriaServicio.objects.filter(
-                barbershop=barbershop, is_active=True,
+                barbershop=barbershop,
+                is_active=True,
             ).order_by("name")
-            
-            products = Product.objects.filter(
-                barbershop=barbershop, is_active=True,
-            ).select_related("category").order_by("category__name", "name")
+
+            products = (
+                Product.objects.filter(
+                    barbershop=barbershop,
+                    is_active=True,
+                )
+                .select_related("category")
+                .order_by("category__name", "name")
+            )
         else:
-            services = Service.objects.filter(
-                barbershop__organization=org, is_active=True,
-            ).select_related("category").order_by("category__name", "name")
+            services = (
+                Service.objects.filter(
+                    barbershop__organization=org,
+                    is_active=True,
+                )
+                .select_related("category")
+                .order_by("category__name", "name")
+            )
 
             categories = CategoriaServicio.objects.filter(
-                barbershop__organization=org, is_active=True,
+                barbershop__organization=org,
+                is_active=True,
             ).order_by("name")
-            
-            products = Product.objects.filter(
-                barbershop__organization=org, is_active=True,
-            ).select_related("category").order_by("category__name", "name")
+
+            products = (
+                Product.objects.filter(
+                    barbershop__organization=org,
+                    is_active=True,
+                )
+                .select_related("category")
+                .order_by("category__name", "name")
+            )
 
         # Group services by category for accordion display
         grouped = OrderedDict()
@@ -375,14 +439,19 @@ class ServiceDetailAPI(LoginRequiredMixin, View):
         barbershop = request.barbershop
         try:
             service = Service.objects.select_related("category").get(
-                pk=pk, barbershop=barbershop, is_active=True,
+                pk=pk,
+                barbershop=barbershop,
+                is_active=True,
             )
         except Service.DoesNotExist:
             return JsonResponse({"error": "Servicio no encontrado"}, status=404)
 
         history = list(
             HistorialPrecioServicio.objects.filter(service=service).values(
-                "price", "changed_at", "changed_by__first_name", "changed_by__last_name",
+                "price",
+                "changed_at",
+                "changed_by__first_name",
+                "changed_by__last_name",
             )[:50]
         )
         for h in history:
@@ -404,17 +473,19 @@ class ServiceDetailAPI(LoginRequiredMixin, View):
             for sp in productos
         ]
 
-        return JsonResponse({
-            "id": service.pk,
-            "name": service.name,
-            "description": service.description,
-            "duration_minutes": service.duration_minutes,
-            "price": str(service.price),
-            "category_id": service.category_id or "",
-            "category_name": service.category.name if service.category else "",
-            "price_history": history,
-            "productos": productos_data,
-        })
+        return JsonResponse(
+            {
+                "id": service.pk,
+                "name": service.name,
+                "description": service.description,
+                "duration_minutes": service.duration_minutes,
+                "price": str(service.price),
+                "category_id": service.category_id or "",
+                "category_name": service.category.name if service.category else "",
+                "price_history": history,
+                "productos": productos_data,
+            }
+        )
 
 
 class ServiceCreateAPI(LoginRequiredMixin, View):
@@ -438,7 +509,9 @@ class ServiceCreateAPI(LoginRequiredMixin, View):
         category = None
         if category_id:
             category = CategoriaServicio.objects.filter(
-                pk=category_id, barbershop=barbershop, is_active=True,
+                pk=category_id,
+                barbershop=barbershop,
+                is_active=True,
             ).first()
 
         service = Service.objects.create(
@@ -465,7 +538,9 @@ class ServiceCreateAPI(LoginRequiredMixin, View):
             cantidad = p.get("cantidad", 1)
             if prod_id and cantidad and int(cantidad) > 0:
                 product = Product.objects.filter(
-                    pk=prod_id, barbershop=barbershop, is_active=True,
+                    pk=prod_id,
+                    barbershop=barbershop,
+                    is_active=True,
                 ).first()
                 if product:
                     ServicioProducto.objects.create(
@@ -475,10 +550,13 @@ class ServiceCreateAPI(LoginRequiredMixin, View):
                         incluido_en_precio=bool(p.get("incluido_en_precio", False)),
                     )
 
-        return JsonResponse({
-            "message": "Servicio creado",
-            "id": service.pk,
-        }, status=201)
+        return JsonResponse(
+            {
+                "message": "Servicio creado",
+                "id": service.pk,
+            },
+            status=201,
+        )
 
 
 class ServiceUpdateAPI(LoginRequiredMixin, View):
@@ -504,7 +582,9 @@ class ServiceUpdateAPI(LoginRequiredMixin, View):
 
         service.name = name
         service.description = data.get("description", service.description)
-        service.duration_minutes = data.get("duration_minutes", service.duration_minutes)
+        service.duration_minutes = data.get(
+            "duration_minutes", service.duration_minutes
+        )
         new_price = data.get("price", service.price)
         service.price = new_price
 
@@ -513,7 +593,9 @@ class ServiceUpdateAPI(LoginRequiredMixin, View):
             service.category = None
         else:
             service.category = CategoriaServicio.objects.filter(
-                pk=category_id, barbershop=barbershop, is_active=True,
+                pk=category_id,
+                barbershop=barbershop,
+                is_active=True,
             ).first()
 
         service.updated_by = request.user
@@ -521,6 +603,7 @@ class ServiceUpdateAPI(LoginRequiredMixin, View):
 
         # Record price change in history if price changed
         from decimal import Decimal
+
         if Decimal(str(new_price)) != old_price:
             HistorialPrecioServicio.objects.create(
                 service=service,
@@ -537,7 +620,9 @@ class ServiceUpdateAPI(LoginRequiredMixin, View):
                 cantidad = p.get("cantidad", 1)
                 if prod_id and cantidad and int(cantidad) > 0:
                     product = Product.objects.filter(
-                        pk=prod_id, barbershop=barbershop, is_active=True,
+                        pk=prod_id,
+                        barbershop=barbershop,
+                        is_active=True,
                     ).first()
                     if product:
                         ServicioProducto.objects.create(
@@ -562,7 +647,9 @@ class ServicePriceHistoryAPI(LoginRequiredMixin, View):
         except Service.DoesNotExist:
             return JsonResponse({"error": "Servicio no encontrado"}, status=404)
 
-        qs = HistorialPrecioServicio.objects.filter(service=service).select_related("changed_by")
+        qs = HistorialPrecioServicio.objects.filter(service=service).select_related(
+            "changed_by"
+        )
         paginator = Paginator(qs, 30)
         page_num = request.GET.get("page", 1)
         page = paginator.get_page(page_num)
@@ -571,18 +658,27 @@ class ServicePriceHistoryAPI(LoginRequiredMixin, View):
         for h in page:
             who = ""
             if h.changed_by:
-                who = " ".join(filter(None, [h.changed_by.first_name, h.changed_by.last_name])) or "Sistema"
-            items.append({
-                "price": str(h.price),
-                "changed_at": h.changed_at.isoformat(),
-                "changed_by": who or "Sistema",
-            })
+                who = (
+                    " ".join(
+                        filter(None, [h.changed_by.first_name, h.changed_by.last_name])
+                    )
+                    or "Sistema"
+                )
+            items.append(
+                {
+                    "price": str(h.price),
+                    "changed_at": h.changed_at.isoformat(),
+                    "changed_by": who or "Sistema",
+                }
+            )
 
-        return JsonResponse({
-            "results": items,
-            "page": page.number,
-            "has_next": page.has_next(),
-        })
+        return JsonResponse(
+            {
+                "results": items,
+                "page": page.number,
+                "has_next": page.has_next(),
+            }
+        )
 
 
 class ServiceDeleteAPI(LoginRequiredMixin, View):
@@ -635,13 +731,14 @@ class BarberServicesAPI(LoginRequiredMixin, View):
 
         barber = BarberProfile.objects.filter(
             Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
-            pk=barber_id
+            pk=barber_id,
         ).first()
         if not barber:
             return JsonResponse({"error": "Barbero no encontrado"}, status=404)
 
         barber_services = BarberService.objects.filter(
-            barber=barber, service__is_active=True,
+            barber=barber,
+            service__is_active=True,
         ).select_related("service")
 
         data = [
@@ -653,7 +750,9 @@ class BarberServicesAPI(LoginRequiredMixin, View):
                 "global_duration": bs.service.duration_minutes,
                 "global_price": str(bs.service.price),
                 "custom_duration": bs.custom_duration,
-                "custom_price": str(bs.custom_price) if bs.custom_price is not None else None,
+                "custom_price": str(bs.custom_price)
+                if bs.custom_price is not None
+                else None,
             }
             for bs in barber_services
         ]
@@ -695,7 +794,8 @@ class AppointmentProductsAPI(LoginRequiredMixin, View):
     def post(self, request, pk):
         barbershop = request.barbershop
         appointment = Appointment.objects.filter(
-            pk=pk, barbershop=barbershop,
+            pk=pk,
+            barbershop=barbershop,
         ).first()
         if not appointment:
             return JsonResponse({"error": "Cita no encontrada"}, status=404)
@@ -734,9 +834,15 @@ class AppointmentProductsAPI(LoginRequiredMixin, View):
                 cantidad = int(item.get("cantidad", 1))
                 if not prod_id or cantidad <= 0:
                     continue
-                product = Product.objects.select_for_update().filter(
-                    pk=prod_id, barbershop=barbershop, is_active=True,
-                ).first()
+                product = (
+                    Product.objects.select_for_update()
+                    .filter(
+                        pk=prod_id,
+                        barbershop=barbershop,
+                        is_active=True,
+                    )
+                    .first()
+                )
                 if not product:
                     continue
                 IntervencionProducto.objects.create(
@@ -776,7 +882,9 @@ class BarberServiceCustomizeAPI(LoginRequiredMixin, View):
             return JsonResponse({"error": "JSON inválido"}, status=400)
 
         try:
-            bs = BarberService.objects.select_related("service").get(pk=barber_service_id)
+            bs = BarberService.objects.select_related("service").get(
+                pk=barber_service_id
+            )
         except BarberService.DoesNotExist:
             return JsonResponse({"error": "Configuración no encontrada"}, status=404)
 
@@ -790,7 +898,11 @@ class BarberServiceCustomizeAPI(LoginRequiredMixin, View):
             new_price = Decimal(str(new_price_raw))
 
         if new_price != bs.custom_price:
-            old_val = str(bs.custom_price) if bs.custom_price is not None else "(heredado global)"
+            old_val = (
+                str(bs.custom_price)
+                if bs.custom_price is not None
+                else "(heredado global)"
+            )
             new_val = str(new_price) if new_price is not None else "(heredado global)"
             changes.append(("precio_personalizado", old_val, new_val))
             bs.custom_price = new_price
@@ -803,7 +915,11 @@ class BarberServiceCustomizeAPI(LoginRequiredMixin, View):
             new_dur = int(new_dur_raw)
 
         if new_dur != bs.custom_duration:
-            old_val = str(bs.custom_duration) if bs.custom_duration is not None else "(heredado global)"
+            old_val = (
+                str(bs.custom_duration)
+                if bs.custom_duration is not None
+                else "(heredado global)"
+            )
             new_val = str(new_dur) if new_dur is not None else "(heredado global)"
             changes.append(("duracion_personalizada", old_val, new_val))
             bs.custom_duration = new_dur
@@ -821,11 +937,13 @@ class BarberServiceCustomizeAPI(LoginRequiredMixin, View):
                 changed_by=request.user,
             )
 
-        return JsonResponse({
-            "ok": True,
-            "effective_price": str(bs.effective_price),
-            "effective_duration": bs.effective_duration,
-        })
+        return JsonResponse(
+            {
+                "ok": True,
+                "effective_price": str(bs.effective_price),
+                "effective_duration": bs.effective_duration,
+            }
+        )
 
 
 class BarberServiceHistoryAPI(LoginRequiredMixin, View):
@@ -851,21 +969,297 @@ class BarberServiceHistoryAPI(LoginRequiredMixin, View):
         for h in page:
             who = ""
             if h.changed_by:
-                who = " ".join(filter(None, [h.changed_by.first_name, h.changed_by.last_name])) or "Sistema"
-            items.append({
-                "campo": h.campo,
-                "valor_anterior": h.valor_anterior,
-                "valor_nuevo": h.valor_nuevo,
-                "motivo": h.motivo,
-                "changed_by": who or "Sistema",
-                "created_at": h.created_at.isoformat(),
-            })
+                who = (
+                    " ".join(
+                        filter(None, [h.changed_by.first_name, h.changed_by.last_name])
+                    )
+                    or "Sistema"
+                )
+            items.append(
+                {
+                    "campo": h.campo,
+                    "valor_anterior": h.valor_anterior,
+                    "valor_nuevo": h.valor_nuevo,
+                    "motivo": h.motivo,
+                    "changed_by": who or "Sistema",
+                    "created_at": h.created_at.isoformat(),
+                }
+            )
 
-        return JsonResponse({
-            "results": items,
-            "page": page.number,
-            "has_next": page.has_next(),
-        })
+        return JsonResponse(
+            {
+                "results": items,
+                "page": page.number,
+                "has_next": page.has_next(),
+            }
+        )
+
+
+# ─────────────────────────────────────────────
+# Appointment reschedule (with RBAC, atomic, cascade, notifications)
+# ─────────────────────────────────────────────
+class AppointmentRescheduleAPI(LoginRequiredMixin, View):
+    """
+    Reschedule an appointment's date/time.
+
+    RBAC: Only org admin or the originally-assigned barber can reschedule.
+    Atomic: Updates Appointment + Intervencion in cascade.
+    Notifications: Sends email+SMS to client; email+SMS to barber if
+    the change was made by an admin (not the barber themselves).
+    """
+
+    def post(self, request, pk):
+        membership = getattr(request.user, "membership", None)
+        if not membership:
+            return JsonResponse({"error": "Sin membresía activa"}, status=403)
+
+        barbershop = request.barbershop
+        if not barbershop:
+            return JsonResponse({"error": "Sin barbería asignada"}, status=403)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "JSON inválido"}, status=400)
+
+        new_start_str = data.get("new_start_time")
+        if not new_start_str:
+            return JsonResponse({"error": "new_start_time es requerido"}, status=400)
+
+        try:
+            new_start = datetime.fromisoformat(new_start_str)
+            if timezone.is_naive(new_start):
+                new_start = timezone.make_aware(new_start)
+        except (ValueError, TypeError):
+            return JsonResponse({"error": "Formato de fecha inválido"}, status=400)
+
+        appointment = (
+            Appointment.objects.filter(
+                pk=pk,
+                barbershop=barbershop,
+            )
+            .select_related("client", "barber__membership__user", "barbershop")
+            .first()
+        )
+        if not appointment:
+            return JsonResponse({"error": "Cita no encontrada"}, status=404)
+
+        if appointment.status in (
+            Appointment.Status.CANCELLED,
+            Appointment.Status.NO_SHOW,
+            Appointment.Status.COMPLETED,
+        ):
+            return JsonResponse(
+                {
+                    "error": "No se puede reprogramar una cita cancelada, completada o inasistencia"
+                },
+                status=409,
+            )
+
+        # RBAC: Only admin/owner or the assigned barber
+        barber_profile = getattr(membership, "barber_profile", None)
+        is_admin = membership.role in (Membership.Role.OWNER, Membership.Role.ADMIN)
+        is_assigned_barber = (
+            barber_profile is not None and barber_profile.pk == appointment.barber_id
+        )
+
+        if not is_admin and not is_assigned_barber:
+            return JsonResponse(
+                {"error": "No tienes permisos para reprogramar esta cita"}, status=403
+            )
+
+        # Conflict check: verify new time slot is available
+        target_date = new_start.date()
+        service_ids = list(appointment.services.values_list("service_id", flat=True))
+        barber_services = BarberService.objects.filter(
+            barber=appointment.barber,
+            service_id__in=service_ids,
+        )
+        total_duration = (
+            sum(bs.effective_duration for bs in barber_services)
+            if barber_services.exists()
+            else 30
+        )
+        buffer_minutes = appointment.barber.buffer_minutes
+
+        available_slots = svc.get_available_slots(
+            appointment.barber, target_date, total_duration, barbershop=barbershop
+        )
+
+        new_end = new_start + timedelta(minutes=total_duration)
+        slot_available = any(
+            s["start"] <= new_start and s["end"] >= new_end for s in available_slots
+        )
+
+        if not slot_available:
+            return JsonResponse(
+                {"error": "El horario seleccionado no está disponible"}, status=409
+            )
+
+        old_start_time = appointment.start_time
+
+        with transaction.atomic():
+            # Update Appointment
+            appointment.start_time = new_start
+            appointment.end_time = new_end
+            appointment.updated_by = request.user
+            appointment.save(
+                update_fields=["start_time", "end_time", "updated_by", "updated_at"]
+            )
+
+            # Cascade: Update linked Intervencion
+            try:
+                intervencion = appointment.intervencion
+                intervencion.fecha = new_start
+                intervencion.fecha_fin = new_end
+                intervencion.updated_by = request.user
+                intervencion.save(
+                    update_fields=["fecha", "fecha_fin", "updated_by", "updated_at"]
+                )
+            except Intervencion.DoesNotExist:
+                pass
+
+        # Reschedule reminders: cancel old ones and schedule new
+        try:
+            from django_q.models import Schedule
+
+            Schedule.objects.filter(
+                name__startswith=f"reminder_24h_apt_{appointment.pk}"
+            ).delete()
+            Schedule.objects.filter(
+                name__startswith=f"reminder_1h_apt_{appointment.pk}"
+            ).delete()
+            Schedule.objects.filter(
+                name__startswith=f"barber_reminder_apt_{appointment.pk}"
+            ).delete()
+        except Exception:
+            pass
+
+        svc.schedule_appointment_reminders(appointment.pk)
+        service_names = ", ".join(
+            appointment.services.values_list("service__name", flat=True)
+        )
+
+        client_channels = ["email"]
+        if appointment.client.phone:
+            client_channels.append("sms")
+
+        send_notification(
+            recipient={
+                "email": appointment.client.email,
+                "phone": appointment.client.phone,
+                "name": appointment.client.name,
+            },
+            notif_type="reschedule_client",
+            context={
+                "recipient_name": appointment.client.name,
+                "barbershop_name": appointment.barbershop.name,
+                "barber_name": str(appointment.barber),
+                "service_names": service_names,
+                "start_time": appointment.start_time,
+                "new_start_time": new_start.strftime("%d/%m/%Y %H:%M"),
+            },
+            channels=client_channels,
+            appointment_id=appointment.pk,
+        )
+
+        # Notify barber if the change was made by an admin (not the barber themselves)
+        if is_admin and not is_assigned_barber:
+            barber_channels = ["email"]
+            barber_phone = getattr(appointment.barber, "phone", "") or ""
+            if barber_phone:
+                barber_channels.append("sms")
+
+            send_notification(
+                recipient={
+                    "email": appointment.barber.user.email,
+                    "phone": barber_phone,
+                    "name": str(appointment.barber),
+                },
+                notif_type="reschedule_barber",
+                context={
+                    "recipient_name": str(appointment.barber),
+                    "barbershop_name": appointment.barbershop.name,
+                    "client_name": appointment.client.name,
+                    "service_names": service_names,
+                    "start_time": appointment.start_time,
+                    "new_start_time": new_start.strftime("%d/%m/%Y %H:%M"),
+                },
+                channels=barber_channels,
+                appointment_id=appointment.pk,
+            )
+
+        return JsonResponse(
+            {
+                "message": "Horario actualizado",
+                "new_start_time": new_start.isoformat(),
+                "new_end_time": new_end.isoformat(),
+            }
+        )
+
+
+# ─────────────────────────────────────────────
+# Available slots for rescheduling (for a specific appointment's barber)
+# ─────────────────────────────────────────────
+class RescheduleSlotsAPI(LoginRequiredMixin, View):
+    """Returns available time slots for a specific appointment's barber on a date."""
+
+    def get(self, request, pk):
+        barbershop = request.barbershop
+        if not barbershop:
+            return JsonResponse({"error": "Sin barbería"}, status=403)
+
+        appointment = Appointment.objects.filter(
+            pk=pk,
+            barbershop=barbershop,
+        ).first()
+        if not appointment:
+            return JsonResponse({"error": "Cita no encontrada"}, status=404)
+
+        date_str = request.GET.get("date")
+        if not date_str:
+            return JsonResponse({"error": "date es requerido"}, status=400)
+
+        target_date = _parse_date(date_str)
+        if target_date is None:
+            return JsonResponse({"error": "Fecha inválida"}, status=400)
+
+        service_ids = list(appointment.services.values_list("service_id", flat=True))
+        barber_services = BarberService.objects.filter(
+            barber=appointment.barber,
+            service_id__in=service_ids,
+        )
+        total_duration = (
+            sum(bs.effective_duration for bs in barber_services)
+            if barber_services.exists()
+            else 30
+        )
+
+        slots = svc.get_available_slots(
+            appointment.barber, target_date, total_duration, barbershop=barbershop
+        )
+
+        active_statuses = [
+            Appointment.Status.PENDING,
+            Appointment.Status.CONFIRMED,
+            Appointment.Status.IN_PROGRESS,
+        ]
+        available_dates = [
+            (timezone.now().date() + timedelta(days=i)).isoformat()
+            for i in range(31)
+            if svc.get_available_slots(
+                appointment.barber,
+                (timezone.now().date() + timedelta(days=i)),
+                total_duration,
+                barbershop=barbershop,
+            )
+        ]
+
+        data = [
+            {"start": s["start"].isoformat(), "end": s["end"].isoformat()}
+            for s in slots
+        ]
+        return JsonResponse({"slots": data, "available_dates": available_dates})
 
 
 # ─────────────────────────────────────────────

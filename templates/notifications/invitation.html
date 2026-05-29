@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family:Arial,sans-serif;background:#1a1a1c;color:#f7f7f8;padding:20px;">
+<div style="max-width:480px;margin:0 auto;background:#2a2a2d;border-radius:12px;border:1px solid #4a4a4f;padding:24px;">
+    <h2 style="color:#ff2301;margin:0 0 16px;">Invitación a BarberSync</h2>
+    <p style="margin:0 0 8px;">Hola {{ recipient_name }},</p>
+    <p style="margin:0 0 16px;">Has sido invitado a unirte a la organización <strong>{{ organization_name }}</strong> con el rol de <strong>{{ role_display }}</strong>.</p>
+    <a href="{{ accept_url }}" style="display:inline-block;background:#ff2301;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Aceptar invitación</a>
+    <p style="margin:16px 0 0;color:#91919a;font-size:12px;">Este enlace expira el {{ expires_at }}.</p>
+    <p style="margin:8px 0 0;color:#91919a;font-size:12px;">Si no esperabas esta invitación, puedes ignorar este correo.</p>
+    <p style="margin:16px 0 0;color:#91919a;font-size:12px;">– BarberSync</p>
+</div>
+</body>
+</html>

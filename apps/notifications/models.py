@@ -11,6 +11,7 @@ class NotificationLog(models.Model):
 
     class Channel(models.TextChoices):
         EMAIL = "email", "Correo electrónico"
+        SMS = "sms", "SMS"
 
     class NotifType(models.TextChoices):
         REMINDER_24H = "reminder_24h", "Recordatorio 24h"
@@ -18,6 +19,8 @@ class NotificationLog(models.Model):
         BARBER_REMINDER = "barber_reminder", "Recordatorio barbero"
         CANCELLATION = "cancellation", "Cancelación"
         CONFIRMATION = "confirmation", "Confirmación"
+        RESCHEDULE_CLIENT = "reschedule_client", "Reprogramación (cliente)"
+        RESCHEDULE_BARBER = "reschedule_barber", "Reprogramación (barbero)"
 
     appointment = models.ForeignKey(
         "scheduling.Appointment",
@@ -26,11 +29,14 @@ class NotificationLog(models.Model):
         null=True,
         blank=True,
     )
-    recipient_email = models.EmailField()
+    recipient_email = models.EmailField(blank=True)
+    recipient_phone = models.CharField(
+        "teléfono destinatario", max_length=20, blank=True
+    )
     recipient_name = models.CharField(max_length=150, blank=True)
     channel = models.CharField(max_length=10, choices=Channel.choices)
-    notif_type = models.CharField(max_length=20, choices=NotifType.choices)
-    subject = models.CharField(max_length=200)
+    notif_type = models.CharField(max_length=25, choices=NotifType.choices)
+    subject = models.CharField(max_length=200, blank=True)
     body = models.TextField()
     sent_at = models.DateTimeField(auto_now_add=True)
     success = models.BooleanField(default=True)
