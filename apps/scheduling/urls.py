@@ -58,11 +58,7 @@ urlpatterns = [
         views.AppointmentRescheduleAPI.as_view(),
         name="api_appointment_reschedule",
     ),
-    path(
-        "api/appointments/<int:pk>/reschedule-slots/",
-        views.RescheduleSlotsAPI.as_view(),
-        name="api_reschedule_slots",
-    ),
+
     path(
         "api/appointments/<int:pk>/products/",
         views.AppointmentProductsAPI.as_view(),

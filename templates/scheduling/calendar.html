@@ -532,6 +532,7 @@
 {% block extra_js %}
 {{ barbers_data|json_script:"barbers-data" }}
 <script>
+window._barbershopClosedDays = {{ current_barbershop.closed_days|default:"[]" }};
 window._barbersData = JSON.parse(document.getElementById('barbers-data').textContent);
 document.addEventListener('DOMContentLoaded', function() {
     const calendarEl = document.getElementById('calendar');
@@ -724,6 +725,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Pre-fill reschedule inputs
             window._currentRescheduleAptId = aptId;
             window._currentBarberId = props.barber_id;
+            window._currentRescheduleDuration = Math.round((endTime - startTime) / (60 * 1000));
             const padZ = (n) => n < 10 ? '0'+n : n;
             window._currentRescheduleDateStr = `${startTime.getFullYear()}-${padZ(startTime.getMonth()+1)}-${padZ(startTime.getDate())}`;
             window._currentRescheduleTimeStr = `${padZ(startTime.getHours())}:${padZ(startTime.getMinutes())}`;
@@ -1257,6 +1259,139 @@ document.addEventListener('DOMContentLoaded', function() {
     let rescheduleAvailableDates = [];
     let rescheduleSelectedSlot = null;
 
+    // Helper: Calculates available reschedule dates for a barber locally
+    function getBarberAvailableDates(barberData) {
+        const dates = [];
+        const today = new Date();
+        const closedDays = window._barbershopClosedDays || [];
+        const daysAhead = barberData.intervalo_apertura_dias || 15;
+
+        for (let i = 0; i <= daysAhead; i++) {
+            const d = new Date(today);
+            d.setDate(today.getDate() + i);
+
+            // Map JS Day (0=Sun, 1=Mon, ..., 6=Sat) to Python Day (0=Mon, ..., 6=Sun)
+            const jsDay = d.getDay();
+            const pyDay = (jsDay + 6) % 7;
+
+            if (closedDays.includes(pyDay)) continue;
+
+            const hasSchedule = barberData.work_schedules.some(ws => ws.day_of_week === pyDay);
+            if (hasSchedule) {
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const dayStr = String(d.getDate()).padStart(2, '0');
+                dates.push(`${y}-${m}-${dayStr}`);
+            }
+        }
+        return dates;
+    }
+
+    // Helper: Calculates available slots for a barber on a given date locally
+    function getBarberAvailableSlots(barberData, dateStr, duration, currentAptId) {
+        const parts = dateStr.split('-');
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const targetDate = new Date(year, month, day);
+
+        const dayOfWeek = (targetDate.getDay() + 6) % 7;
+
+        const schedule = barberData.work_schedules.find(ws => ws.day_of_week === dayOfWeek);
+        if (!schedule) return [];
+
+        const startParts = schedule.start.split(':');
+        const endParts = schedule.end.split(':');
+
+        const dayStart = new Date(year, month, day, parseInt(startParts[0], 10), parseInt(startParts[1], 10), 0);
+        const dayEnd = new Date(year, month, day, parseInt(endParts[0], 10), parseInt(endParts[1], 10), 0);
+
+        let computedStart = new Date(dayStart);
+        const now = new Date();
+        if (computedStart < now) {
+            computedStart = new Date(now);
+            computedStart.setSeconds(0, 0);
+            const min = computedStart.getMinutes();
+            if (min < 30) {
+                computedStart.setMinutes(30);
+            } else {
+                computedStart.setHours(computedStart.getHours() + 1);
+                computedStart.setMinutes(0);
+            }
+        }
+
+        if (computedStart >= dayEnd) return [];
+
+        const blocks = [];
+
+        if (barberData.lunch_start && barberData.lunch_end) {
+            const lStartParts = barberData.lunch_start.split(':');
+            const lEndParts = barberData.lunch_end.split(':');
+            const lunchStart = new Date(year, month, day, parseInt(lStartParts[0], 10), parseInt(lStartParts[1], 10), 0);
+            const lunchEnd = new Date(year, month, day, parseInt(lEndParts[0], 10), parseInt(lEndParts[1], 10), 0);
+            blocks.push({ start: lunchStart, end: lunchEnd });
+        }
+
+        const isSameDay = (d1, d2) => {
+            return d1.getFullYear() === d2.getFullYear() &&
+                   d1.getMonth() === d2.getMonth() &&
+                   d1.getDate() === d2.getDate();
+        };
+
+        const bufferMs = (barberData.buffer_minutes || 0) * 60 * 1000;
+        barberData.appointments.forEach(apt => {
+            if (apt.id === currentAptId) return;
+            const aptStart = new Date(apt.start);
+            if (isSameDay(aptStart, targetDate)) {
+                const aptEnd = new Date(new Date(apt.end).getTime() + bufferMs);
+                blocks.push({ start: aptStart, end: aptEnd });
+            }
+        });
+
+        barberData.exceptions.forEach(exc => {
+            const excStart = new Date(exc.start);
+            const excEnd = new Date(exc.end);
+            if (isSameDay(excStart, targetDate)) {
+                blocks.push({ start: excStart, end: excEnd });
+            }
+        });
+
+        blocks.sort((a, b) => a.start - b.start);
+
+        const freeSlots = [];
+        let currentStart = computedStart;
+
+        for (const block of blocks) {
+            if (block.start > currentStart) {
+                freeSlots.push({ start: new Date(currentStart), end: new Date(block.start) });
+            }
+            if (block.end > currentStart) {
+                currentStart = new Date(block.end);
+            }
+        }
+        if (currentStart < dayEnd) {
+            freeSlots.push({ start: new Date(currentStart), end: new Date(dayEnd) });
+        }
+
+        const available = [];
+        const slotDurationMs = duration * 60 * 1000;
+        const stepMs = 30 * 60 * 1000;
+
+        for (const window of freeSlots) {
+            let slotStart = new Date(window.start);
+            while (slotStart.getTime() + slotDurationMs <= window.end.getTime()) {
+                const slotEnd = new Date(slotStart.getTime() + slotDurationMs);
+                available.push({
+                    start: new Date(slotStart),
+                    end: slotEnd
+                });
+                slotStart = new Date(slotStart.getTime() + stepMs);
+            }
+        }
+
+        return available;
+    }
+
     window.toggleRescheduleSection = function(show) {
         const section = document.getElementById('reschedule-section');
         const actions = document.getElementById('modal-actions');
@@ -1278,70 +1413,41 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('reschedule-confirm-btn').disabled = true;
             rescheduleSelectedSlot = null;
 
-            fetch(`/app/schedule/api/appointments/${aptId}/reschedule-slots/`)
-                .then(r => r.json())
-                .then(data => {
-                    rescheduleAvailableDates = data.available_dates || [];
-                    if (rescheduleFlatpickrDate) {
-                        rescheduleFlatpickrDate.destroy();
-                        rescheduleFlatpickrDate = null;
+            rescheduleAvailableDates = getBarberAvailableDates(barberData);
+            if (rescheduleFlatpickrDate) {
+                rescheduleFlatpickrDate.destroy();
+                rescheduleFlatpickrDate = null;
+            }
+
+            const today = new Date();
+            const padZ = (n) => n < 10 ? '0'+n : n;
+            const todayStr = `${today.getFullYear()}-${padZ(today.getMonth()+1)}-${padZ(today.getDate())}`;
+            const minDateVal = window._currentRescheduleDateStr < todayStr ? window._currentRescheduleDateStr : 'today';
+
+            rescheduleFlatpickrDate = flatpickr('#reschedule-date', {
+                locale: 'es',
+                dateFormat: 'Y-m-d',
+                minDate: minDateVal,
+                maxDate: maxDate,
+                defaultDate: window._currentRescheduleDateStr,
+                disable: [
+                    function(date) {
+                        const y = date.getFullYear();
+                        const m = String(date.getMonth() + 1).padStart(2, '0');
+                        const d = String(date.getDate()).padStart(2, '0');
+                        const dateStr = `${y}-${m}-${d}`;
+                        return dateStr !== window._currentRescheduleDateStr && !rescheduleAvailableDates.includes(dateStr);
                     }
+                ],
+                onChange: function(selectedDates, dateStr) {
+                    if (dateStr) loadRescheduleSlots(dateStr);
+                },
+                plugins: [window.makeFpConfirmPlugin()],
+            });
 
-                    const today = new Date();
-                    const padZ = (n) => n < 10 ? '0'+n : n;
-                    const todayStr = `${today.getFullYear()}-${padZ(today.getMonth()+1)}-${padZ(today.getDate())}`;
-                    const minDateVal = window._currentRescheduleDateStr < todayStr ? window._currentRescheduleDateStr : 'today';
-
-                    rescheduleFlatpickrDate = flatpickr('#reschedule-date', {
-                        locale: 'es',
-                        dateFormat: 'Y-m-d',
-                        minDate: minDateVal,
-                        maxDate: maxDate,
-                        defaultDate: window._currentRescheduleDateStr,
-                        disable: [
-                            function(date) {
-                                const y = date.getFullYear();
-                                const m = String(date.getMonth() + 1).padStart(2, '0');
-                                const d = String(date.getDate()).padStart(2, '0');
-                                const dateStr = `${y}-${m}-${d}`;
-                                return dateStr !== window._currentRescheduleDateStr && !rescheduleAvailableDates.includes(dateStr);
-                            }
-                        ],
-                        onChange: function(selectedDates, dateStr) {
-                            if (dateStr) loadRescheduleSlots(dateStr);
-                        },
-                        plugins: [window.makeFpConfirmPlugin()],
-                    });
-
-                    if (window._currentRescheduleDateStr) {
-                        loadRescheduleSlots(window._currentRescheduleDateStr);
-                    }
-                })
-                .catch(() => {
-                    rescheduleAvailableDates = [];
-                    if (rescheduleFlatpickrDate) {
-                        rescheduleFlatpickrDate.destroy();
-                        rescheduleFlatpickrDate = null;
-                    }
-
-                    const today = new Date();
-                    const padZ = (n) => n < 10 ? '0'+n : n;
-                    const todayStr = `${today.getFullYear()}-${padZ(today.getMonth()+1)}-${padZ(today.getDate())}`;
-                    const minDateVal = window._currentRescheduleDateStr < todayStr ? window._currentRescheduleDateStr : 'today';
-
-                    rescheduleFlatpickrDate = flatpickr('#reschedule-date', {
-                        locale: 'es',
-                        dateFormat: 'Y-m-d',
-                        minDate: minDateVal,
-                        maxDate: maxDate,
-                        defaultDate: window._currentRescheduleDateStr,
-                        plugins: [window.makeFpConfirmPlugin()],
-                    });
-
-                    if (window._currentRescheduleDateStr) {
-                        loadRescheduleSlots(window._currentRescheduleDateStr);
-                    }
-                });
+            if (window._currentRescheduleDateStr) {
+                loadRescheduleSlots(window._currentRescheduleDateStr);
+            }
         } else {
             section.classList.add('hidden');
             actions.classList.remove('hidden');
@@ -1354,6 +1460,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function loadRescheduleSlots(dateStr) {
         const aptId = window._currentRescheduleAptId;
+        const barberId = window._currentBarberId;
+        const barberData = window._barbersData.find(b => b.id === barberId);
+
         const container = document.getElementById('reschedule-slots-container');
         const scroll = document.getElementById('reschedule-slots-scroll');
         const hiddenTime = document.getElementById('reschedule-time');
@@ -1366,39 +1475,33 @@ document.addEventListener('DOMContentLoaded', function() {
         confirmBtn.disabled = true;
         errorEl.classList.add('hidden');
 
-        scroll.innerHTML = '<div class="text-xs text-neutral-400 py-2 px-3 animate-pulse">Cargando horarios...</div>';
         container.classList.remove('hidden');
 
-        fetch(`/app/schedule/api/appointments/${aptId}/reschedule-slots/?date=${dateStr}`)
-            .then(r => r.json())
-            .then(data => {
-                scroll.innerHTML = '';
-                if (data.slots && data.slots.length > 0) {
-                    data.slots.forEach(slot => {
-                        const startDate = new Date(slot.start);
-                        const h = String(startDate.getHours()).padStart(2, '0');
-                        const m = String(startDate.getMinutes()).padStart(2, '0');
-                        const timeStr = `${h}:${m}`;
+        const duration = window._currentRescheduleDuration || 30;
+        const slots = getBarberAvailableSlots(barberData, dateStr, duration, aptId);
 
-                        const chip = document.createElement('button');
-                        chip.type = 'button';
-                        chip.className = 'reschedule-snap snap-center px-4 py-2.5 rounded-lg border border-neutral-700 bg-neutral-800 text-sm text-white font-medium whitespace-nowrap reschedule-slot';
-                        chip.textContent = timeStr;
-                        chip.dataset.time = timeStr;
-                        chip.addEventListener('click', () => selectRescheduleSlot(timeStr, chip));
-                        scroll.appendChild(chip);
+        if (slots && slots.length > 0) {
+            slots.forEach(slot => {
+                const startDate = slot.start;
+                const h = String(startDate.getHours()).padStart(2, '0');
+                const m = String(startDate.getMinutes()).padStart(2, '0');
+                const timeStr = `${h}:${m}`;
 
-                        if (timeStr === window._currentRescheduleTimeStr && !rescheduleSelectedSlot) {
-                            selectRescheduleSlot(timeStr, chip);
-                        }
-                    });
-                } else {
-                    scroll.innerHTML = '<div class="text-xs text-neutral-400 py-2 px-3">No hay horarios disponibles para esta fecha</div>';
+                const chip = document.createElement('button');
+                chip.type = 'button';
+                chip.className = 'reschedule-snap snap-center px-4 py-2.5 rounded-lg border border-neutral-700 bg-neutral-800 text-sm text-white font-medium whitespace-nowrap reschedule-slot';
+                chip.textContent = timeStr;
+                chip.dataset.time = timeStr;
+                chip.addEventListener('click', () => selectRescheduleSlot(timeStr, chip));
+                scroll.appendChild(chip);
+
+                if (timeStr === window._currentRescheduleTimeStr && !rescheduleSelectedSlot) {
+                    selectRescheduleSlot(timeStr, chip);
                 }
-            })
-            .catch(() => {
-                scroll.innerHTML = '<div class="text-xs text-red-400 py-2 px-3">Error al cargar horarios</div>';
             });
+        } else {
+            scroll.innerHTML = '<div class="text-xs text-neutral-400 py-2 px-3">No hay horarios disponibles para esta fecha</div>';
+        }
     }
 
     function selectRescheduleSlot(timeStr, chipEl) {

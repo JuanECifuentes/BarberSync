@@ -95,6 +95,60 @@ class CalendarView(LoginRequiredMixin, TemplateView):
         ctx["grouped_products"] = grouped_products
 
         # Compute active barbers data for optimized initial load
+        today = timezone.localdate()
+        
+        # Calculate max window of days ahead
+        max_days = 15
+        for b in barbers:
+            max_days = max(max_days, getattr(b, "intervalo_apertura_dias", 15) or 15)
+        max_date = today + timedelta(days=max_days + 1)
+
+        # Work schedules grouping
+        work_schedules_by_barber = {}
+        for ws in WorkSchedule.objects.filter(barber__in=barbers):
+            if ws.barber_id not in work_schedules_by_barber:
+                work_schedules_by_barber[ws.barber_id] = []
+            work_schedules_by_barber[ws.barber_id].append({
+                "day_of_week": ws.day_of_week,
+                "start": ws.start_time.strftime("%H:%M"),
+                "end": ws.end_time.strftime("%H:%M")
+            })
+
+        # Exceptions grouping within date range
+        exceptions_by_barber = {}
+        for exc in ScheduleException.objects.filter(
+            barber__in=barbers,
+            start__date__gte=today,
+            start__date__lte=max_date
+        ):
+            if exc.barber_id not in exceptions_by_barber:
+                exceptions_by_barber[exc.barber_id] = []
+            exceptions_by_barber[exc.barber_id].append({
+                "start": exc.start.isoformat(),
+                "end": exc.end.isoformat()
+            })
+
+        # Active appointments grouping within date range
+        active_statuses = [
+            Appointment.Status.PENDING,
+            Appointment.Status.CONFIRMED,
+            Appointment.Status.IN_PROGRESS,
+        ]
+        appointments_by_barber = {}
+        for apt in Appointment.objects.filter(
+            barber__in=barbers,
+            start_time__date__gte=today,
+            start_time__date__lte=max_date,
+            status__in=active_statuses
+        ):
+            if apt.barber_id not in appointments_by_barber:
+                appointments_by_barber[apt.barber_id] = []
+            appointments_by_barber[apt.barber_id].append({
+                "id": apt.pk,
+                "start": apt.start_time.isoformat(),
+                "end": apt.end_time.isoformat()
+            })
+
         barbers_data = []
         for b in barbers:
             days_ahead = getattr(b, "intervalo_apertura_dias", 15) or 15
@@ -104,6 +158,11 @@ class CalendarView(LoginRequiredMixin, TemplateView):
                     "name": str(b),
                     "intervalo_apertura_dias": days_ahead,
                     "buffer_minutes": b.buffer_minutes,
+                    "lunch_start": b.lunch_start.strftime("%H:%M") if b.lunch_start else None,
+                    "lunch_end": b.lunch_end.strftime("%H:%M") if b.lunch_end else None,
+                    "work_schedules": work_schedules_by_barber.get(b.pk, []),
+                    "exceptions": exceptions_by_barber.get(b.pk, []),
+                    "appointments": appointments_by_barber.get(b.pk, []),
                 }
             )
         ctx["barbers_data"] = barbers_data
@@ -1213,75 +1272,7 @@ class AppointmentRescheduleAPI(LoginRequiredMixin, View):
         )
 
 
-# ─────────────────────────────────────────────
-# Available slots for rescheduling (for a specific appointment's barber)
-# ─────────────────────────────────────────────
-class RescheduleSlotsAPI(LoginRequiredMixin, View):
-    """Returns available time slots for a specific appointment's barber.
 
-    If ?date= is provided, returns slots for that date plus available_dates and metadata.
-    If no date is provided, returns only available_dates and metadata (lightweight).
-    """
-
-    def get(self, request, pk):
-        barbershop = request.barbershop
-        if not barbershop:
-            return JsonResponse({"error": "Sin barbería"}, status=403)
-
-        appointment = (
-            Appointment.objects.filter(
-                pk=pk,
-                barbershop=barbershop,
-            )
-            .select_related("barber")
-            .first()
-        )
-        if not appointment:
-            return JsonResponse({"error": "Cita no encontrada"}, status=404)
-
-        service_ids = list(appointment.services.values_list("service_id", flat=True))
-        barber_services = BarberService.objects.filter(
-            barber=appointment.barber,
-            service_id__in=service_ids,
-        )
-        total_duration = (
-            sum(bs.effective_duration for bs in barber_services)
-            if barber_services.exists()
-            else 30
-        )
-
-        days_ahead = getattr(appointment.barber, "intervalo_apertura_dias", 15) or 15
-        available_dates = [
-            d.isoformat()
-            for d in svc.get_available_dates(
-                barber=appointment.barber,
-                days_ahead=days_ahead,
-                barbershop=barbershop,
-            )
-        ]
-
-        response_data = {
-            "available_dates": available_dates,
-            "intervalo_apertura_dias": days_ahead,
-            "total_duration": total_duration,
-        }
-
-        date_str = request.GET.get("date")
-        if date_str:
-            target_date = _parse_date(date_str)
-            if target_date is None:
-                return JsonResponse({"error": "Fecha inválida"}, status=400)
-
-            slots = svc.get_available_slots(
-                appointment.barber, target_date, total_duration, barbershop=barbershop
-            )
-            data = [
-                {"start": s["start"].isoformat(), "end": s["end"].isoformat()}
-                for s in slots
-            ]
-            response_data["slots"] = data
-
-        return JsonResponse(response_data)
 
 
 # ─────────────────────────────────────────────
