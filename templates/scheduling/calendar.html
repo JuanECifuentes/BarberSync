@@ -1238,15 +1238,21 @@ document.addEventListener('DOMContentLoaded', function() {
             section.classList.remove('hidden');
             actions.classList.add('hidden');
 
+            const today = new Date();
+            const padZ = (n) => n < 10 ? '0'+n : n;
+            const todayStr = `${today.getFullYear()}-${padZ(today.getMonth()+1)}-${padZ(today.getDate())}`;
+            const minDateVal = window._currentRescheduleDateStr < todayStr ? window._currentRescheduleDateStr : 'today';
+
             if (!rescheduleFlatpickrDate) {
                 rescheduleFlatpickrDate = flatpickr('#reschedule-date', {
                     locale: 'es',
                     dateFormat: 'Y-m-d',
-                    minDate: 'today',
+                    minDate: minDateVal,
                     defaultDate: window._currentRescheduleDateStr,
                     plugins: [window.makeFpConfirmPlugin()],
                 });
             } else {
+                rescheduleFlatpickrDate.set('minDate', minDateVal);
                 rescheduleFlatpickrDate.setDate(window._currentRescheduleDateStr, false);
             }
             
