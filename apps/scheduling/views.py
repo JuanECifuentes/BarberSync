@@ -1272,7 +1272,96 @@ class AppointmentRescheduleAPI(LoginRequiredMixin, View):
         )
 
 
+class BarbersDataAPI(LoginRequiredMixin, View):
+    def get(self, request):
+        barbershop = request.barbershop
+        membership = getattr(request.user, "membership", None)
+        if not membership:
+            return JsonResponse({"error": "Sin membresía activa"}, status=403)
+        if not barbershop:
+            return JsonResponse({"error": "Sin sucursal/barbería"}, status=403)
 
+        # Barbers for filter dropdown
+        barbers = (
+            BarberProfile.objects.filter(
+                Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
+                is_active=True,
+            )
+            .select_related("membership__user")
+            .distinct()
+        )
+
+        today = timezone.localdate()
+        
+        # Calculate max window of days ahead
+        max_days = 15
+        for b in barbers:
+            max_days = max(max_days, getattr(b, "intervalo_apertura_dias", 15) or 15)
+        max_date = today + timedelta(days=max_days + 1)
+
+        # Work schedules grouping
+        work_schedules_by_barber = {}
+        for ws in WorkSchedule.objects.filter(barber__in=barbers):
+            if ws.barber_id not in work_schedules_by_barber:
+                work_schedules_by_barber[ws.barber_id] = []
+            work_schedules_by_barber[ws.barber_id].append({
+                "day_of_week": ws.day_of_week,
+                "start": ws.start_time.strftime("%H:%M"),
+                "end": ws.end_time.strftime("%H:%M")
+            })
+
+        # Exceptions grouping within date range
+        exceptions_by_barber = {}
+        for exc in ScheduleException.objects.filter(
+            barber__in=barbers,
+            start__date__gte=today,
+            start__date__lte=max_date
+        ):
+            if exc.barber_id not in exceptions_by_barber:
+                exceptions_by_barber[exc.barber_id] = []
+            exceptions_by_barber[exc.barber_id].append({
+                "start": exc.start.isoformat(),
+                "end": exc.end.isoformat()
+            })
+
+        # Active appointments grouping within date range
+        active_statuses = [
+            Appointment.Status.PENDING,
+            Appointment.Status.CONFIRMED,
+            Appointment.Status.IN_PROGRESS,
+        ]
+        appointments_by_barber = {}
+        for apt in Appointment.objects.filter(
+            barber__in=barbers,
+            start_time__date__gte=today,
+            start_time__date__lte=max_date,
+            status__in=active_statuses
+        ):
+            if apt.barber_id not in appointments_by_barber:
+                appointments_by_barber[apt.barber_id] = []
+            appointments_by_barber[apt.barber_id].append({
+                "id": apt.pk,
+                "start": apt.start_time.isoformat(),
+                "end": apt.end_time.isoformat()
+            })
+
+        barbers_data = []
+        for b in barbers:
+            days_ahead = getattr(b, "intervalo_apertura_dias", 15) or 15
+            barbers_data.append(
+                {
+                    "id": b.pk,
+                    "name": str(b),
+                    "intervalo_apertura_dias": days_ahead,
+                    "buffer_minutes": b.buffer_minutes,
+                    "lunch_start": b.lunch_start.strftime("%H:%M") if b.lunch_start else None,
+                    "lunch_end": b.lunch_end.strftime("%H:%M") if b.lunch_end else None,
+                    "work_schedules": work_schedules_by_barber.get(b.pk, []),
+                    "exceptions": exceptions_by_barber.get(b.pk, []),
+                    "appointments": appointments_by_barber.get(b.pk, []),
+                }
+            )
+        return JsonResponse(barbers_data, safe=False)
 
 
 # ─────────────────────────────────────────────

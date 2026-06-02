@@ -833,7 +833,10 @@ document.addEventListener('DOMContentLoaded', function() {
             body: JSON.stringify({ action }),
         })
         .then(res => res.json())
-        .then(data => {
+        .then(async data => {
+            if (action === 'cancel') {
+                await refreshBarbersData();
+            }
             closeModal();
             calendar.refetchEvents();
         });
@@ -1336,11 +1339,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }),
         })
         .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-        .then(({ ok, data }) => {
+        .then(async ({ ok, data }) => {
             submitBtn.disabled = false;
             submitBtn.querySelector('span').textContent = 'Crear Cita';
 
             if (ok) {
+                await refreshBarbersData();
                 closeNewAptModal();
                 calendar.refetchEvents();
             } else {
@@ -1376,6 +1380,17 @@ document.addEventListener('DOMContentLoaded', function() {
             newAptFlatpickrDate = null;
         }
     };
+
+    async function refreshBarbersData() {
+        try {
+            const res = await fetch('/app/schedule/api/barbers-data/');
+            if (res.ok) {
+                window._barbersData = await res.json();
+            }
+        } catch (e) {
+            console.error("Error al refrescar información de barberos", e);
+        }
+    }
 
     let rescheduleFlatpickrDate = null;
     let rescheduleAvailableDates = [];
@@ -1617,9 +1632,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 chip.addEventListener('click', () => selectRescheduleSlot(timeStr, chip));
                 scroll.appendChild(chip);
 
-                if (timeStr === window._currentRescheduleTimeStr && !rescheduleSelectedSlot) {
-                    selectRescheduleSlot(timeStr, chip);
-                }
             });
         } else {
             scroll.innerHTML = '<div class="text-xs text-neutral-400 py-2 px-3">No hay horarios disponibles para esta fecha</div>';
@@ -1670,8 +1682,9 @@ document.addEventListener('DOMContentLoaded', function() {
             if (r.status === 403) {
                 return r.json().then(d => { throw new Error(d.error || 'Sin permisos'); });
             }
-            return r.json().then(d => {
+            return r.json().then(async d => {
                 if (r.ok) {
+                    await refreshBarbersData();
                     window.closeModal();
                     window.showRescheduleConfirm();
                     calendar.refetchEvents();
