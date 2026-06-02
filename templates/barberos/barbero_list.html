@@ -622,28 +622,23 @@
                 </svg>
                 Configuración de Tiempo
             </h4>
-            <!-- Branch hours notice -->
-            <div id="sched-branch-notice" class="hidden text-xs text-amber-400 bg-amber-900/30 border border-amber-700/50 rounded-lg px-3 py-2">
-                <svg class="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z"/></svg>
-                <span id="sched-branch-notice-text"></span>
-            </div>
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div>
+                <div class="flex flex-col justify-between h-full">
                     <label class="text-xs text-neutral-400 mb-1 block">Inicio almuerzo</label>
                     <input id="sched-lunch-start" type="text" placeholder="--:--"
                         class="flatpickr-time-input w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                 </div>
-                <div>
+                <div class="flex flex-col justify-between h-full">
                     <label class="text-xs text-neutral-400 mb-1 block">Fin almuerzo</label>
                     <input id="sched-lunch-end" type="text" placeholder="--:--"
                         class="flatpickr-time-input w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                 </div>
-                <div>
+                <div class="flex flex-col justify-between h-full">
                     <label class="text-xs text-neutral-400 mb-1 block">Buffer entre citas (min)</label>
                     <input id="sched-buffer" type="number" min="0" value="0"
                         class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                 </div>
-                <div>
+                <div class="flex flex-col justify-between h-full">
                     <label class="text-xs text-neutral-400 mb-1 block">Ventana de apertura (días)</label>
                     <input id="sched-intervalo" type="number" min="1" max="365" value="15"
                         class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
@@ -1449,16 +1444,6 @@
         document.getElementById('sched-buffer').value = currentBarberData.buffer_minutes || 0;
         document.getElementById('sched-intervalo').value = currentBarberData.intervalo_apertura_dias || 15;
 
-        // Show branch hours notice
-        const noticeEl = document.getElementById('sched-branch-notice');
-        const noticeText = document.getElementById('sched-branch-notice-text');
-        if (currentBarberData.branch_hours) {
-            const bh = currentBarberData.branch_hours;
-            noticeText.textContent = `Horario de sucursal: ${String(bh.min_open).padStart(2,'0')}:00 – ${String(bh.max_close).padStart(2,'0')}:00`;
-            noticeEl.classList.remove('hidden');
-        } else {
-            noticeEl.classList.add('hidden');
-        }
 
         // Update flatpickr instances for lunch inputs
         const lunchStartEl = document.getElementById('sched-lunch-start');
@@ -1491,10 +1476,14 @@
                         time_24hr: true,
                         locale: "es",
                         theme: "dark",
-                        plugins: [makeFpConfirmPlugin()]
+                        plugins: [makeFpConfirmPlugin()],
+                        onChange: function() {
+                            validateSchedules();
+                        }
                     });
                 }
             });
+            validateSchedules();
         });
     }
 
@@ -1549,7 +1538,7 @@
         const content = document.getElementById(`accordion-content-${dayIndex}`);
         const icon = document.getElementById(`accordion-icon-${dayIndex}`);
         const label = document.getElementById(`day-label-${dayIndex}`);
-
+ 
         if (checkbox.checked) {
             content.classList.add('open');
             icon.style.transform = 'rotate(180deg)';
@@ -1561,6 +1550,7 @@
             label.innerHTML = '<span class="text-xs text-neutral-400 bg-neutral-800 px-2 py-0.5 rounded-full hover:bg-neutral-750 transition-colors">Libre</span>';
             content.querySelectorAll('input[type=text]').forEach(t => t.disabled = true);
         }
+        validateSchedules();
     }
 
     function renderScheduleDays(schedules) {
@@ -1593,20 +1583,105 @@
             </div>
             <!-- Accordion content -->
             <div id="accordion-content-${i}" class="accordion-content ${isOpen}">
-                <div class="flex items-center gap-3 px-4 py-3">
-                    <div class="flex-1">
-                        <label class="text-[10px] text-neutral-400 mb-1 block uppercase tracking-wider">Entrada</label>
-                        <input type="text" class="sched-start sched-time-input w-full px-3 py-2 bg-neutral-700 border border-neutral-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand transition-colors" data-day="${i}" value="${startVal}" ${!s ? 'disabled' : ''}>
+                <div class="flex flex-col gap-2.5 px-4 py-3">
+                    <div class="flex items-center gap-3">
+                        <div class="flex-1">
+                            <label class="text-[10px] text-neutral-400 mb-1 block uppercase tracking-wider">Entrada</label>
+                            <input type="text" class="sched-start sched-time-input w-full px-3 py-2 bg-neutral-700 border border-neutral-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand transition-colors" data-day="${i}" value="${startVal}" ${!s ? 'disabled' : ''}>
+                        </div>
+                        <span class="text-neutral-400 text-xs mt-4">a</span>
+                        <div class="flex-1">
+                            <label class="text-[10px] text-neutral-400 mb-1 block uppercase tracking-wider">Salida</label>
+                            <input type="text" class="sched-end sched-time-input w-full px-3 py-2 bg-neutral-700 border border-neutral-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand transition-colors" data-day="${i}" value="${endVal}" ${!s ? 'disabled' : ''}>
+                        </div>
                     </div>
-                    <span class="text-neutral-400 text-xs mt-4">a</span>
-                    <div class="flex-1">
-                        <label class="text-[10px] text-neutral-400 mb-1 block uppercase tracking-wider">Salida</label>
-                        <input type="text" class="sched-end sched-time-input w-full px-3 py-2 bg-neutral-700 border border-neutral-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand transition-colors" data-day="${i}" value="${endVal}" ${!s ? 'disabled' : ''}>
+                    <!-- Day hours error alert -->
+                    <div id="sched-day-alert-${i}" class="hidden text-[11px] text-red-400 bg-red-950/30 border border-red-800/50 rounded-lg px-3 py-2 flex items-center gap-2">
+                        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                        </svg>
+                        <span id="sched-day-alert-text-${i}"></span>
                     </div>
                 </div>
             </div>
         </div>`;
         }).join('');
+    }
+
+    function validateSchedules() {
+        if (!currentBarberData) return;
+
+        let hasError = false;
+        const bh = currentBarberData.branch_hours;
+
+        const parseTimeToMinutes = (timeStr) => {
+            if (!timeStr) return null;
+            const parts = timeStr.split(':');
+            if (parts.length < 2) return null;
+            return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+        };
+
+        for (let i = 0; i < 7; i++) {
+            const chk = document.querySelector(`.sched-day-check[data-day="${i}"]`);
+            const alertEl = document.getElementById(`sched-day-alert-${i}`);
+            const alertTextEl = document.getElementById(`sched-day-alert-text-${i}`);
+            
+            if (!chk || !alertEl || !alertTextEl) continue;
+
+            if (chk.checked) {
+                const startEl = document.querySelector(`.sched-start[data-day="${i}"]`);
+                const endEl = document.querySelector(`.sched-end[data-day="${i}"]`);
+                const startVal = startEl ? startEl.value : '';
+                const endVal = endEl ? endEl.value : '';
+
+                let dayError = false;
+                let errorMsg = '';
+
+                const startMin = parseTimeToMinutes(startVal);
+                const endMin = parseTimeToMinutes(endVal);
+
+                if (bh) {
+                    const minOpenMin = bh.min_open * 60;
+                    const maxCloseMin = bh.max_close * 60;
+
+                    if (startMin !== null && startMin < minOpenMin) {
+                        dayError = true;
+                        errorMsg = `Excede el horario de la sucursal (${String(bh.min_open).padStart(2,'0')}:00 – ${String(bh.max_close).padStart(2,'0')}:00).`;
+                    } else if (endMin !== null && endMin > maxCloseMin) {
+                        dayError = true;
+                        errorMsg = `Excede el horario de la sucursal (${String(bh.min_open).padStart(2,'0')}:00 – ${String(bh.max_close).padStart(2,'0')}:00).`;
+                    }
+                }
+
+                // Also check if start >= end (out of phase)
+                if (!dayError && startMin !== null && endMin !== null && startMin >= endMin) {
+                    dayError = true;
+                    errorMsg = 'La hora de entrada debe ser anterior a la hora de salida.';
+                }
+
+                if (dayError) {
+                    alertTextEl.textContent = errorMsg;
+                    alertEl.classList.remove('hidden');
+                    hasError = true;
+                } else {
+                    alertEl.classList.add('hidden');
+                }
+            } else {
+                alertEl.classList.add('hidden');
+            }
+        }
+
+        // Block or enable Save button
+        const saveBtn = document.getElementById('btn-save-schedule');
+        if (saveBtn) {
+            if (hasError) {
+                saveBtn.disabled = true;
+                saveBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                saveBtn.disabled = false;
+                saveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
     }
 
     function hasScheduleChanges() {
