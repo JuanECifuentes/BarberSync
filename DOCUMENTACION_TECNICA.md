@@ -515,3 +515,264 @@ En sandbox, la mayoría de transacciones se aprueban automáticamente. El webhoo
 | Local (ngrok) | `https://{id}.ngrok-free.app/billing/webhook/stripe/` | `https://{id}.ngrok-free.app/billing/webhook/wompi/` |
 | Staging | `https://staging.barbersync.app/billing/webhook/stripe/` | `https://staging.barbersync.app/billing/webhook/wompi/` |
 | Producción | `https://barbersync.app/billing/webhook/stripe/` | `https://barbersync.app/billing/webhook/wompi/` |
+
+## 7. Servicio Unificado de Notificaciones (Multicanal Asíncrono)
+
+### 7.1 Visión General
+
+BarberSync implementa un motor de notificaciones centralizado y multicanal en `apps/notifications/notifications.py`. Todo envío de correo o SMS pasa por la función `send_notification()`, garantizando:
+
+- **Asíncrono**: Ningún envío bloquea el hilo HTTP. Se despacha vía `django_q.async_task`.
+- **Multicanal**: Soporta `email` y `sms` simultáneamente. Los canales se especifican como lista.
+- **Registro inmutable**: Cada notificación (exitosa o fallida) se registra en `NotificationLog` con canal, tipo, destinatario y error.
+- **Plantillas dinámicas**: Email renderiza HTML corporativo; SMS trunca y adapta a texto plano ≤160 caracteres.
+
+### 7.2 Firma de la Función Principal
+
+```python
+from apps.notifications.notifications import send_notification
+
+send_notification(
+    recipient,           # dict {"email", "phone", "name"} o objeto Django (User/Client)
+    notif_type,          # str: "reminder_24h", "reschedule_client", etc.
+    context=None,        # dict con variables de plantilla
+    channels=None,        # list[str]: ["email"], ["sms"], o ["email", "sms"]
+    appointment_id=None,  # int|None: FK para el log
+    subject=None,         # str|None: asunto override (auto-generado si None)
+    html_template=None,    # str|None: path de plantilla override
+)
+```
+
+### 7.3 Parámetros
+
+| Parámetro | Tipo | Default | Descripción |
+|---|---|---|---|
+| `recipient` | `dict` o objeto | *requerido* | Diccionario con claves `email`, `phone`, `name`, o un modelo con esos atributos |
+| `notif_type` | `str` | *requerido* | Tipo de notificación. Valores: `reminder_24h`, `reminder_1h`, `barber_reminder`, `cancellation`, `confirmation`, `reschedule_client`, `reschedule_barber` |
+| `context` | `dict` | `{}` | Variables de contexto para renderizar plantillas HTML y generar mensajes SMS |
+| `channels` | `list[str]` | `["email"]` | Lista de canales a los que despachar. Valores: `"email"`, `"sms"` |
+| `appointment_id` | `int` | `None` | ID de la cita asociada (para el `NotificationLog`) |
+| `subject` | `str` | `None` | Asunto del correo. Si es `None`, se genera automáticamente según `notif_type` y `context` |
+| `html_template` | `str` | `None` | Path de plantilla Django (ej: `"notifications/reschedule_client.html"`). Si es `None`, usa `"notifications/{notif_type}.html"` |
+
+### 7.4 Canales Soportados
+
+| Canal | Clave | Implementación |
+|---|---|---|
+| Email | `"email"` | `django.core.mail.send_mail` con HTML renderizado. Proveedor: Mailgun (vía `django-anymail`) en producción, consola en desarrollo |
+| SMS | `"sms"` | Twilio (si `TWILIO_ACCOUNT_SID` y `TWILIO_AUTH_TOKEN` están configurados). Si no, el SMS se logge pero no se envía (modo desarrollo) |
+
+### 7.5 NotificationLog – Modelo de Registro
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `appointment` | FK → Appointment | Cita asociada (nullable) |
+| `recipient_email` | EmailField | Correo del destinatario (blank para SMS-only) |
+| `recipient_phone` | CharField(20) | Teléfono del destinatario (blank para email-only) |
+| `recipient_name` | CharField(150) | Nombre del destinatario |
+| `channel` | CharField(10) | `"email"` o `"sms"` |
+| `notif_type` | CharField(25) | Tipo de notificación |
+| `subject` | CharField(200) | Asunto (vacío para SMS) |
+| `body` | TextField | Cuerpo completo (HTML para email, texto para SMS) |
+| `sent_at` | DateTimeField | Marca temporal automática |
+| `success` | BooleanField | `True` si el envío fue exitoso |
+| `error_message` | TextField | Mensaje de error (blank si exitoso) |
+
+### 7.6 Variables de Entorno para SMS (Twilio)
+
+```bash
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_PHONE_NUMBER=+1234567890
+```
+
+### 7.7 Ejemplos de Uso
+
+**Notificar al cliente de reprogramación (email + SMS):**
+
+```python
+from apps.notifications.notifications import send_notification
+
+send_notification(
+    recipient={"email": appointment.client.email, "phone": appointment.client.phone, "name": appointment.client.name},
+    notif_type="reschedule_client",
+    context={
+        "recipient_name": appointment.client.name,
+        "barbershop_name": appointment.barbershop.name,
+        "barber_name": str(appointment.barber),
+        "service_names": service_names,
+        "start_time": appointment.start_time,
+        "new_start_time": appointment.start_time.strftime("%d/%m/%Y %H:%M"),
+    },
+    channels=["email", "sms"],
+    appointment_id=appointment.pk,
+)
+```
+
+**Notificar al barbero (solo si el cambio fue hecho por un admin):**
+
+```python
+send_notification(
+    recipient={"email": barber.user.email, "phone": barber.phone or "", "name": str(barber)},
+    notif_type="reschedule_barber",
+    context={...},
+    channels=["email", "sms"] if barber.phone else ["email"],
+    appointment_id=appointment.pk,
+)
+```
+
+**Programar recordatorios de cita (24h, 1h cliente, 1h barbero):**
+
+```python
+from apps.notifications.notifications import send_appointment_reminders
+
+send_appointment_reminders(appointment.pk)
+```
+
+### 7.8 Plantillas HTML de Notificación
+
+Las plantillas se encuentran en `templates/notifications/`:
+
+| Plantilla | Canal | Descripción |
+|---|---|---|
+| `reminder_24h.html` | Email | Recordatorio 24 horas antes |
+| `reminder_1h.html` | Email | Recordatorio 1 hora antes |
+| `barber_reminder.html` | Email | Recordatorio 1 hora antes (barbero) |
+| `reschedule_client.html` | Email | Cita reprogramada (cliente) |
+| `reschedule_barber.html` | Email | Agenda modificada (barbero) |
+| `invitation.html` | Email | Invitación a organización |
+
+### 7.9 Refactorización de Código Existente
+
+- **`apps/notifications/tasks.py`**: Ahora delega a `apps/notifications.notifications.send_appointment_reminders()` y `_send_reminder_task()`. La signatura de `send_reminder()` y `schedule_appointment_reminders()` se mantienen como shim para compatibilidad con tareas `django_q` ya agendadas.
+- **`apps/accounts/tasks.py`**: `send_invitation_email_task()` refactorizado para usar `send_notification()` con canal `["email"]` y plantilla `notifications/invitation.html`.
+
+### 7.10 Reglas de Despacho de Notificaciones en Reprogramación
+
+Cuando un administrador o barbero reprograma una cita vía `AppointmentRescheduleAPI`:
+
+1. **Al Cliente**: Se envía **email + SMS** al cliente notificando el nuevo horario (`notif_type="reschedule_client"`).
+2. **Al Barbero (condicional)**: Si el cambio fue hecho por un **administrador** (rol owner/admin) y no por el propio barbero asignado, se envía **email + SMS** al barbero notificando que su agenda fue modificada (`notif_type="reschedule_barber"`).
+3. **Ambas notificaciones** se despachan de forma asíncrona vía `django_q` sin bloquear la respuesta HTTP.
+4. Los **recordatorios agendados** (24h/1h) de la cita original se eliminan y se recrean con la nueva fecha/hora.
+
+## 8. Módulo Agenda – Reprogramación de Citas
+
+### 8.1 Endpoint de Reprogramación
+
+**URL**: `POST /app/schedule/api/appointments/<int:pk>/reschedule/`
+
+**Permisos**: Solo administradores de organización (owner/admin) o el barbero asignado originalmente a la cita.
+
+**Payload**:
+```json
+{
+    "new_start_time": "2025-06-15T14:30:00"
+}
+```
+
+**Flujo**:
+1. Validar permisos RBAC → 403 si no autorizado
+2. Validar estado de cita (no cancelada, no completada, no no_show) → 409 si inválido
+3. Verificar disponibilidad del horario nuevo contra la agenda del barbero → 409 si conflicto
+4. `transaction.atomic()`: Actualizar `start_time` y `end_time` de Appointment + sincronizar Intervencion en cascada
+5. Cancelar recordatorios agendados previos y recrear con nueva fecha
+6. Despachar notificaciones asíncronas al cliente (email+SMS) y al barbero si es admin
+7. Retornar `{ "message": "Horario actualizado", "new_start_time": "...", "new_end_time": "..." }`
+
+**Códigos de respuesta**:
+| Código | Significado |
+|---|---|
+| 200 | Horario actualizado exitosamente |
+| 400 | Falta `new_start_time` o formato inválido |
+| 403 | Usuario sin permisos (no es admin ni barbero asignado) |
+| 404 | Cita no encontrada |
+| 409 | Horario no disponible o cita en estado inválido |
+
+### 8.2 Endpoint de Horarios Disponibles para Reprogramación
+
+**URL**: `GET /app/schedule/api/appointments/<int:pk>/reschedule-slots/`
+
+**Parámetros**:
+| Parámetro | Requerido | Descripción |
+|---|---|---|
+| `date` | No | Fecha en formato `YYYY-MM-DD`. Si se omite, retorna solo `available_dates` y metadatos. |
+
+**Respuesta sin `date`** (inicialización del picker):
+```json
+{
+    "available_dates": ["2025-06-15", "2025-06-16", "..."],
+    "intervalo_apertura_dias": 15,
+    "total_duration": 60
+}
+```
+
+**Respuesta con `date`** (slots para una fecha):
+```json
+{
+    "slots": [
+        {"start": "2025-06-15T09:00:00-03:00", "end": "2025-06-15T10:00:00-03:00"},
+        "..."
+    ],
+    "available_dates": ["2025-06-15", "..."],
+    "intervalo_apertura_dias": 15,
+    "total_duration": 60
+}
+```
+
+Las `available_dates` se calculan usando `get_available_dates()` que verifica únicamente horarios de trabajo (WorkSchedule) y días cerrados de la barbería, sin computar disponibilidad completa de slots por cada día.
+
+### 8.3 Componente de UI – Modal de Detalle de Cita
+
+El botón **"Modificar horario"** aparece en el modal de detalle únicamente para citas en estado `pending`. Al activarse:
+
+1. Se consulta `RescheduleSlotsAPI` sin `date` para obtener `available_dates` y `intervalo_apertura_dias`
+2. Se inicializa **Flatpickr** para fecha con `minDate: today`, `maxDate: today + intervalo_apertura_dias`, y `disable` función que deshabilita fechas fuera de `available_dates`
+3. Al seleccionar una fecha, se llama `loadRescheduleSlots(date)` que consulta `RescheduleSlotsAPI?date=YYYY-MM-DD`
+4. Los slots se renderizan como **chips horizontales scrolleables** con `snap-x snap-mandatory` / `snap-center`, paleta oscura, y estado seleccionado con `#ff2301`
+5. Al seleccionar un slot, se establece el valor del campo oculto `reschedule-time` y se habilita el botón "Confirmar cambio"
+6. POST al endpoint de reprogramación con `new_start_time`
+7. Modal de confirmación: **"Horario actualizado. Se notificará a los implicados automáticamente."**
+
+### 8.4 Intervalo de Apertura (`intervalo_apertura_dias`)
+
+Campo añadido a `BarberProfile` (`apps/accounts/models.py`):
+- **Campo**: `intervalo_apertura_dias` (PositiveIntegerField, default=15)
+- **Propósito**: Limita cuántos días hacia adelante puede un cliente agendar o reprogramar citas con un barbero específico
+- **Configuración**: Se edita desde el modal de horarios del barbero junto con los WorkSchedules
+- **Validación backend**: `HorarioSaveAPI` guarda este valor y valida que los horarios de trabajo (`start_time`/`end_time`) estén dentro del rango operativo de las sucursales asignadas al barbero
+- **Uso en calendario**: `CalendarView` inyecta `barbers_data` JSON (id, nombre, intervalo, buffer) en el contexto para uso frontend
+
+### 8.5 Validación de Horarios de Trabajo contra Horarios de Sucursal
+
+`_get_branch_hours()` en `apps/accounts/views_barberos.py` calcula el rango horario más restrictivo entre todas las sucursales asignadas a un barbero:
+- **open**: Mínimo `open_hour` entre todas las sucursales
+- **close**: Máximo `close_hour` entre todas las sucursales
+
+`HorarioSaveAPI` valida que `start_time >= branch_open` y `end_time <= branch_close`, retornando 400 con mensaje descriptivo si un horario de trabajo excede el rango operativo.
+
+### 8.6 Datos Inyectados en Contexto del Calendario
+
+`CalendarView` inyecta `barbers_data` como lista JSON en el contexto:
+```json
+[
+    {"id": 1, "name": "Carlos", "intervalo_apertura_dias": 15, "buffer_minutes": 10},
+    "..."
+]
+```
+
+Este dato se serializa con `json_script` y se carga en `window._barbersData` para uso en el frontend, evitando llamadas adicionales al backend.
+
+### 8.7 Eventos del Calendario con ID de Barbero
+
+El campo `barber_id` now se incluye en `extendedProps` de cada evento del calendario (API `/api/events/`), permitiendo al frontend identificar al barbero de cada cita sin consultas adicionales.
+
+### 8.8 AvailableSlotsAPI con intervalo
+
+El endpoint `GET /app/schedule/api/slots/` ahora retorna también `intervalo_apertura_dias` del barbero:
+```json
+{
+    "slots": [...],
+    "intervalo_apertura_dias": 15
+}
+```

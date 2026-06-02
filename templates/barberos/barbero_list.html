@@ -614,7 +614,7 @@
         </div>
         <input type="hidden" id="schedule-barber-id" value="">
 
-        <!-- Global time settings: Lunch & Buffer -->
+        <!-- Global time settings: Lunch, Buffer & Opening Interval -->
         <div class="card space-y-3">
             <h4 class="font-heading font-bold text-sm text-white flex items-center gap-2">
                 <svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -622,7 +622,12 @@
                 </svg>
                 Configuración de Tiempo
             </h4>
-            <div class="grid grid-cols-3 gap-3">
+            <!-- Branch hours notice -->
+            <div id="sched-branch-notice" class="hidden text-xs text-amber-400 bg-amber-900/30 border border-amber-700/50 rounded-lg px-3 py-2">
+                <svg class="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z"/></svg>
+                <span id="sched-branch-notice-text"></span>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
                     <label class="text-xs text-neutral-400 mb-1 block">Inicio almuerzo</label>
                     <input id="sched-lunch-start" type="text" placeholder="--:--"
@@ -636,6 +641,11 @@
                 <div>
                     <label class="text-xs text-neutral-400 mb-1 block">Buffer entre citas (min)</label>
                     <input id="sched-buffer" type="number" min="0" value="0"
+                        class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                </div>
+                <div>
+                    <label class="text-xs text-neutral-400 mb-1 block">Ventana de apertura (días)</label>
+                    <input id="sched-intervalo" type="number" min="1" max="365" value="15"
                         class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                 </div>
             </div>
@@ -1433,10 +1443,22 @@
         if (!res.ok) return;
         currentBarberData = await res.json();
 
-        // Populate lunch/buffer fields
+        // Populate lunch/buffer/interval fields
         document.getElementById('sched-lunch-start').value = currentBarberData.lunch_start || '';
         document.getElementById('sched-lunch-end').value = currentBarberData.lunch_end || '';
         document.getElementById('sched-buffer').value = currentBarberData.buffer_minutes || 0;
+        document.getElementById('sched-intervalo').value = currentBarberData.intervalo_apertura_dias || 15;
+
+        // Show branch hours notice
+        const noticeEl = document.getElementById('sched-branch-notice');
+        const noticeText = document.getElementById('sched-branch-notice-text');
+        if (currentBarberData.branch_hours) {
+            const bh = currentBarberData.branch_hours;
+            noticeText.textContent = `Horario de sucursal: ${String(bh.min_open).padStart(2,'0')}:00 – ${String(bh.max_close).padStart(2,'0')}:00`;
+            noticeEl.classList.remove('hidden');
+        } else {
+            noticeEl.classList.add('hidden');
+        }
 
         // Update flatpickr instances for lunch inputs
         const lunchStartEl = document.getElementById('sched-lunch-start');
@@ -1652,6 +1674,7 @@
             buffer_minutes: parseInt(document.getElementById('sched-buffer').value) || 0,
             lunch_start: document.getElementById('sched-lunch-start').value || '',
             lunch_end: document.getElementById('sched-lunch-end').value || '',
+            intervalo_apertura_dias: parseInt(document.getElementById('sched-intervalo').value) || 15,
         };
 
         const res = await fetch(`/app/barberos/api/${id}/horarios/`, {

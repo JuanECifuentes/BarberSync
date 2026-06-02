@@ -34,6 +34,22 @@ from apps.inventory.models import Product, ProductCategory
 from .models import BarberProfile, Barbershop, Membership, User
 
 
+def _get_branch_hours(barber):
+    """Return the most restrictive branch hour range for a barber's assigned shops."""
+    assigned_shops = barber.sucursales.filter(is_active=True)
+    if not assigned_shops.exists():
+        membership_shop = barber.membership.barbershop if barber.membership else None
+        if membership_shop:
+            return {
+                "min_open": membership_shop.open_hour,
+                "max_close": membership_shop.close_hour,
+            }
+        return None
+    min_open = min(s.open_hour for s in assigned_shops)
+    max_close = max(s.close_hour for s in assigned_shops)
+    return {"min_open": min_open, "max_close": max_close}
+
+
 class BarberoListView(LoginRequiredMixin, RoleRequiredMixin, TemplateView):
     template_name = "barberos/barbero_list.html"
     allowed_roles = ["owner", "admin", "staff", "barber"]
@@ -209,9 +225,11 @@ class BarberoDetailAPI(LoginRequiredMixin, RoleRequiredMixin, View):
                 "lunch_end": barber.lunch_end.strftime("%H:%M")
                 if barber.lunch_end
                 else "",
+                "intervalo_apertura_dias": barber.intervalo_apertura_dias,
                 "is_active": barber.is_active,
                 "sucursal_ids": sucursal_ids,
                 "sucursal_names": sucursal_names,
+                "branch_hours": _get_branch_hours(barber),
                 "servicio_ids": servicio_ids,
                 "servicio_names": servicio_names,
                 "barber_service_configs": barber_service_configs,
@@ -602,14 +620,16 @@ def _apply_customizations(barber, customizations, user):
 
 
 class HorarioSaveAPI(LoginRequiredMixin, RoleRequiredMixin, View):
-    """Save/replace the full weekly schedule for a barber, including lunch and buffer."""
+    """Save/replace the full weekly schedule for a barber, including lunch, buffer, and opening interval."""
 
     allowed_roles = ["owner", "admin", "staff", "barber"]
 
     def post(self, request, pk):
         org = request.organization
         try:
-            barber = BarberProfile.objects.get(pk=pk, membership__organization=org)
+            barber = BarberProfile.objects.select_related("membership").get(
+                pk=pk, membership__organization=org
+            )
         except BarberProfile.DoesNotExist:
             return JsonResponse({"error": "Barbero no encontrado"}, status=404)
 
@@ -623,8 +643,18 @@ class HorarioSaveAPI(LoginRequiredMixin, RoleRequiredMixin, View):
         except json.JSONDecodeError:
             return JsonResponse({"error": "JSON inválido"}, status=400)
 
+        # Save intervalo_apertura_dias
+        intervalo = int(
+            data.get("intervalo_apertura_dias", barber.intervalo_apertura_dias)
+        )
+        if intervalo < 1:
+            intervalo = 1
+        elif intervalo > 365:
+            intervalo = 365
+
         # Save lunch and buffer settings
         barber.buffer_minutes = int(data.get("buffer_minutes", barber.buffer_minutes))
+        barber.intervalo_apertura_dias = intervalo
         lunch_start = data.get("lunch_start", "")
         lunch_end = data.get("lunch_end", "")
         if lunch_start:
@@ -637,26 +667,76 @@ class HorarioSaveAPI(LoginRequiredMixin, RoleRequiredMixin, View):
             barber.lunch_end = time(h, m)
         else:
             barber.lunch_end = None
-        barber.save(update_fields=["buffer_minutes", "lunch_start", "lunch_end"])
+        barber.save(
+            update_fields=[
+                "buffer_minutes",
+                "intervalo_apertura_dias",
+                "lunch_start",
+                "lunch_end",
+            ]
+        )
 
         schedules = data.get("schedules", [])
 
-        # Replace all schedules
-        WorkSchedule.objects.filter(barber=barber).delete()
+        # Compute the most restrictive branch hour range for this barber
+        assigned_shops = barber.sucursales.filter(is_active=True)
+        if assigned_shops.exists():
+            min_open = min(s.open_hour for s in assigned_shops)
+            max_close = max(s.close_hour for s in assigned_shops)
+        else:
+            membership_shop = barber.membership.barbershop
+            if membership_shop:
+                min_open = membership_shop.open_hour
+                max_close = membership_shop.close_hour
+            else:
+                min_open = 0
+                max_close = 24
+
+        # Validate each schedule entry against branch hours
+        validated_schedules = []
         for s in schedules:
             try:
                 sh, sm = map(int, s["start_time"].split(":"))
                 eh, em = map(int, s["end_time"].split(":"))
-                WorkSchedule.objects.create(
-                    barber=barber,
-                    day_of_week=int(s["day_of_week"]),
-                    start_time=time(sh, sm),
-                    end_time=time(eh, em),
-                )
             except (ValueError, KeyError):
                 continue
 
-        return JsonResponse({"ok": True})
+            start_minutes = sh * 60 + sm
+            end_minutes = eh * 60 + em
+
+            if start_minutes < min_open * 60:
+                return JsonResponse(
+                    {
+                        "error": f"La hora de inicio ({s['start_time']}) es anterior a la hora de apertura de la sucursal ({min_open:02d}:00). Horario permitido: {min_open:02d}:00–{max_close:02d}:00"
+                    },
+                    status=400,
+                )
+            if end_minutes > max_close * 60:
+                return JsonResponse(
+                    {
+                        "error": f"La hora de fin ({s['end_time']}) supera la hora de cierre de la sucursal ({max_close:02d}:00). Horario permitido: {min_open:02d}:00–{max_close:02d}:00"
+                    },
+                    status=400,
+                )
+            validated_schedules.append(
+                {
+                    "day_of_week": int(s["day_of_week"]),
+                    "start_time": time(sh, sm),
+                    "end_time": time(eh, em),
+                }
+            )
+
+        # Replace all schedules
+        WorkSchedule.objects.filter(barber=barber).delete()
+        for vs in validated_schedules:
+            WorkSchedule.objects.create(
+                barber=barber,
+                day_of_week=vs["day_of_week"],
+                start_time=vs["start_time"],
+                end_time=vs["end_time"],
+            )
+
+        return JsonResponse({"ok": True, "intervalo_apertura_dias": intervalo})
 
 
 class ExcepcionCreateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
