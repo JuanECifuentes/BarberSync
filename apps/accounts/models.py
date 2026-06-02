@@ -255,6 +255,11 @@ class BarberProfile(models.Model):
         null=True,
         blank=True,
     )
+    intervalo_apertura_dias = models.PositiveSmallIntegerField(
+        "ventana de apertura (días)",
+        default=15,
+        help_text="Días máximo en el futuro en los que un cliente puede agendar. Por defecto 15.",
+    )
     is_active = models.BooleanField(default=True)
 
     class Meta:

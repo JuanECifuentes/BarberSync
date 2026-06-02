@@ -168,12 +168,17 @@ def get_available_slots(
 
 def get_available_dates(
     barber: BarberProfile,
-    days_ahead: int = 7,
+    days_ahead: int | None = None,
     barbershop: Barbershop | None = None,
 ) -> list[date]:
-    """Returns dates in the next `days_ahead` days where the barber has working hours."""
+    """Returns dates where the barber has working hours.
+
+    If days_ahead is None, uses the barber's intervalo_apertura_dias field.
+    """
     if barbershop is None:
         barbershop = barber.barbershop
+    if days_ahead is None:
+        days_ahead = getattr(barber, "intervalo_apertura_dias", 15) or 15
     today = timezone.localdate()
     dates = []
     for i in range(days_ahead + 1):
@@ -512,6 +517,7 @@ def get_calendar_events(
                     "client_phone": apt.client.phone,
                     "client_email": apt.client.email,
                     "barber_name": str(apt.barber),
+                    "barber_id": apt.barber_id,
                     "services": service_names,
                     "services_detail": services_detail,
                     "total_price": str(apt.total_price),

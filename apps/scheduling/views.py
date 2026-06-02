@@ -94,6 +94,20 @@ class CalendarView(LoginRequiredMixin, TemplateView):
             grouped_products[cat_name].append(prod)
         ctx["grouped_products"] = grouped_products
 
+        # Compute active barbers data for optimized initial load
+        barbers_data = []
+        for b in barbers:
+            days_ahead = getattr(b, "intervalo_apertura_dias", 15) or 15
+            barbers_data.append(
+                {
+                    "id": b.pk,
+                    "name": str(b),
+                    "intervalo_apertura_dias": days_ahead,
+                    "buffer_minutes": b.buffer_minutes,
+                }
+            )
+        ctx["barbers_data"] = barbers_data
+
         return ctx
 
 
@@ -168,7 +182,8 @@ class AvailableSlotsAPI(LoginRequiredMixin, View):
             {"start": s["start"].isoformat(), "end": s["end"].isoformat()}
             for s in slots
         ]
-        return JsonResponse({"slots": data})
+        days_ahead = getattr(barber, "intervalo_apertura_dias", 15) or 15
+        return JsonResponse({"slots": data, "intervalo_apertura_dias": days_ahead})
 
 
 # ─────────────────────────────────────────────
@@ -1202,27 +1217,27 @@ class AppointmentRescheduleAPI(LoginRequiredMixin, View):
 # Available slots for rescheduling (for a specific appointment's barber)
 # ─────────────────────────────────────────────
 class RescheduleSlotsAPI(LoginRequiredMixin, View):
-    """Returns available time slots for a specific appointment's barber on a date."""
+    """Returns available time slots for a specific appointment's barber.
+
+    If ?date= is provided, returns slots for that date plus available_dates and metadata.
+    If no date is provided, returns only available_dates and metadata (lightweight).
+    """
 
     def get(self, request, pk):
         barbershop = request.barbershop
         if not barbershop:
             return JsonResponse({"error": "Sin barbería"}, status=403)
 
-        appointment = Appointment.objects.filter(
-            pk=pk,
-            barbershop=barbershop,
-        ).first()
+        appointment = (
+            Appointment.objects.filter(
+                pk=pk,
+                barbershop=barbershop,
+            )
+            .select_related("barber")
+            .first()
+        )
         if not appointment:
             return JsonResponse({"error": "Cita no encontrada"}, status=404)
-
-        date_str = request.GET.get("date")
-        if not date_str:
-            return JsonResponse({"error": "date es requerido"}, status=400)
-
-        target_date = _parse_date(date_str)
-        if target_date is None:
-            return JsonResponse({"error": "Fecha inválida"}, status=400)
 
         service_ids = list(appointment.services.values_list("service_id", flat=True))
         barber_services = BarberService.objects.filter(
@@ -1235,31 +1250,38 @@ class RescheduleSlotsAPI(LoginRequiredMixin, View):
             else 30
         )
 
-        slots = svc.get_available_slots(
-            appointment.barber, target_date, total_duration, barbershop=barbershop
-        )
-
-        active_statuses = [
-            Appointment.Status.PENDING,
-            Appointment.Status.CONFIRMED,
-            Appointment.Status.IN_PROGRESS,
-        ]
+        days_ahead = getattr(appointment.barber, "intervalo_apertura_dias", 15) or 15
         available_dates = [
-            (timezone.now().date() + timedelta(days=i)).isoformat()
-            for i in range(31)
-            if svc.get_available_slots(
-                appointment.barber,
-                (timezone.now().date() + timedelta(days=i)),
-                total_duration,
+            d.isoformat()
+            for d in svc.get_available_dates(
+                barber=appointment.barber,
+                days_ahead=days_ahead,
                 barbershop=barbershop,
             )
         ]
 
-        data = [
-            {"start": s["start"].isoformat(), "end": s["end"].isoformat()}
-            for s in slots
-        ]
-        return JsonResponse({"slots": data, "available_dates": available_dates})
+        response_data = {
+            "available_dates": available_dates,
+            "intervalo_apertura_dias": days_ahead,
+            "total_duration": total_duration,
+        }
+
+        date_str = request.GET.get("date")
+        if date_str:
+            target_date = _parse_date(date_str)
+            if target_date is None:
+                return JsonResponse({"error": "Fecha inválida"}, status=400)
+
+            slots = svc.get_available_slots(
+                appointment.barber, target_date, total_duration, barbershop=barbershop
+            )
+            data = [
+                {"start": s["start"].isoformat(), "end": s["end"].isoformat()}
+                for s in slots
+            ]
+            response_data["slots"] = data
+
+        return JsonResponse(response_data)
 
 
 # ─────────────────────────────────────────────

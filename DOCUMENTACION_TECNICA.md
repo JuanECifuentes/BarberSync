@@ -691,16 +691,88 @@ Cuando un administrador o barbero reprograma una cita vía `AppointmentReschedul
 
 ### 8.2 Endpoint de Horarios Disponibles para Reprogramación
 
-**URL**: `GET /app/schedule/api/appointments/<int:pk>/reschedule-slots/?date=2025-06-15`
+**URL**: `GET /app/schedule/api/appointments/<int:pk>/reschedule-slots/`
 
-Retorna los horarios disponibles del barbero asignado a esa cita para la fecha indicada.
+**Parámetros**:
+| Parámetro | Requerido | Descripción |
+|---|---|---|
+| `date` | No | Fecha en formato `YYYY-MM-DD`. Si se omite, retorna solo `available_dates` y metadatos. |
+
+**Respuesta sin `date`** (inicialización del picker):
+```json
+{
+    "available_dates": ["2025-06-15", "2025-06-16", "..."],
+    "intervalo_apertura_dias": 15,
+    "total_duration": 60
+}
+```
+
+**Respuesta con `date`** (slots para una fecha):
+```json
+{
+    "slots": [
+        {"start": "2025-06-15T09:00:00-03:00", "end": "2025-06-15T10:00:00-03:00"},
+        "..."
+    ],
+    "available_dates": ["2025-06-15", "..."],
+    "intervalo_apertura_dias": 15,
+    "total_duration": 60
+}
+```
+
+Las `available_dates` se calculan usando `get_available_dates()` que verifica únicamente horarios de trabajo (WorkSchedule) y días cerrados de la barbería, sin computar disponibilidad completa de slots por cada día.
 
 ### 8.3 Componente de UI – Modal de Detalle de Cita
 
-El botón **"Modificar horario"** aparece en el modal de detalle únicamente para citas en estado `pending` o `confirmed`. Al activarse:
+El botón **"Modificar horario"** aparece en el modal de detalle únicamente para citas en estado `pending`. Al activarse:
 
-1. Despliega un formulario inline con **Flatpickr** para fecha y hora (paleta oscura, formato 24h, plugin `confirmDate` con botón "Aceptar")
-2. Al seleccionar fecha, carga horarios disponibles vía `RescheduleSlotsAPI`
-3. El usuario selecciona un slot y confirma
-4. Se envía `POST` al endpoint de reprogramación
-5. Se muestra un modal de confirmación: **"Horario actualizado. Se notificará a los implicados automáticamente."**
+1. Se consulta `RescheduleSlotsAPI` sin `date` para obtener `available_dates` y `intervalo_apertura_dias`
+2. Se inicializa **Flatpickr** para fecha con `minDate: today`, `maxDate: today + intervalo_apertura_dias`, y `disable` función que deshabilita fechas fuera de `available_dates`
+3. Al seleccionar una fecha, se llama `loadRescheduleSlots(date)` que consulta `RescheduleSlotsAPI?date=YYYY-MM-DD`
+4. Los slots se renderizan como **chips horizontales scrolleables** con `snap-x snap-mandatory` / `snap-center`, paleta oscura, y estado seleccionado con `#ff2301`
+5. Al seleccionar un slot, se establece el valor del campo oculto `reschedule-time` y se habilita el botón "Confirmar cambio"
+6. POST al endpoint de reprogramación con `new_start_time`
+7. Modal de confirmación: **"Horario actualizado. Se notificará a los implicados automáticamente."**
+
+### 8.4 Intervalo de Apertura (`intervalo_apertura_dias`)
+
+Campo añadido a `BarberProfile` (`apps/accounts/models.py`):
+- **Campo**: `intervalo_apertura_dias` (PositiveIntegerField, default=15)
+- **Propósito**: Limita cuántos días hacia adelante puede un cliente agendar o reprogramar citas con un barbero específico
+- **Configuración**: Se edita desde el modal de horarios del barbero junto con los WorkSchedules
+- **Validación backend**: `HorarioSaveAPI` guarda este valor y valida que los horarios de trabajo (`start_time`/`end_time`) estén dentro del rango operativo de las sucursales asignadas al barbero
+- **Uso en calendario**: `CalendarView` inyecta `barbers_data` JSON (id, nombre, intervalo, buffer) en el contexto para uso frontend
+
+### 8.5 Validación de Horarios de Trabajo contra Horarios de Sucursal
+
+`_get_branch_hours()` en `apps/accounts/views_barberos.py` calcula el rango horario más restrictivo entre todas las sucursales asignadas a un barbero:
+- **open**: Mínimo `open_hour` entre todas las sucursales
+- **close**: Máximo `close_hour` entre todas las sucursales
+
+`HorarioSaveAPI` valida que `start_time >= branch_open` y `end_time <= branch_close`, retornando 400 con mensaje descriptivo si un horario de trabajo excede el rango operativo.
+
+### 8.6 Datos Inyectados en Contexto del Calendario
+
+`CalendarView` inyecta `barbers_data` como lista JSON en el contexto:
+```json
+[
+    {"id": 1, "name": "Carlos", "intervalo_apertura_dias": 15, "buffer_minutes": 10},
+    "..."
+]
+```
+
+Este dato se serializa con `json_script` y se carga en `window._barbersData` para uso en el frontend, evitando llamadas adicionales al backend.
+
+### 8.7 Eventos del Calendario con ID de Barbero
+
+El campo `barber_id` now se incluye en `extendedProps` de cada evento del calendario (API `/api/events/`), permitiendo al frontend identificar al barbero de cada cita sin consultas adicionales.
+
+### 8.8 AvailableSlotsAPI con intervalo
+
+El endpoint `GET /app/schedule/api/slots/` ahora retorna también `intervalo_apertura_dias` del barbero:
+```json
+{
+    "slots": [...],
+    "intervalo_apertura_dias": 15
+}
+```

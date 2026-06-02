@@ -45,11 +45,15 @@ class BookingPageView(TemplateView):
             WorkSchedule.objects.values_list("barber_id", flat=True).distinct()
         )
 
-        barbers = BarberProfile.objects.filter(
-            Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
-            is_active=True,
-            membership__is_active=True,
-        ).select_related("membership__user").distinct()
+        barbers = (
+            BarberProfile.objects.filter(
+                Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
+                is_active=True,
+                membership__is_active=True,
+            )
+            .select_related("membership__user")
+            .distinct()
+        )
 
         # Annotate each barber with availability info
         barbers_list = []
@@ -77,32 +81,39 @@ class BookingBarbersAPI(View):
             WorkSchedule.objects.values_list("barber_id", flat=True).distinct()
         )
 
-        barbers = BarberProfile.objects.filter(
-            Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
-            is_active=True,
-        ).select_related("membership__user").distinct()
+        barbers = (
+            BarberProfile.objects.filter(
+                Q(membership__barbershop=barbershop) | Q(sucursales=barbershop),
+                is_active=True,
+            )
+            .select_related("membership__user")
+            .distinct()
+        )
 
         data = []
         for barber in barbers:
             barber_services = BarberService.objects.filter(
-                barber=barber, service__is_active=True,
+                barber=barber,
+                service__is_active=True,
             ).select_related("service")
 
-            data.append({
-                "id": barber.pk,
-                "name": str(barber),
-                "photo": barber.photo.url if barber.photo else None,
-                "has_schedule": barber.pk in barbers_with_schedule,
-                "services": [
-                    {
-                        "id": bs.service.pk,
-                        "name": bs.service.name,
-                        "duration": bs.effective_duration,
-                        "price": str(bs.effective_price),
-                    }
-                    for bs in barber_services
-                ],
-            })
+            data.append(
+                {
+                    "id": barber.pk,
+                    "name": str(barber),
+                    "photo": barber.photo.url if barber.photo else None,
+                    "has_schedule": barber.pk in barbers_with_schedule,
+                    "services": [
+                        {
+                            "id": bs.service.pk,
+                            "name": bs.service.name,
+                            "duration": bs.effective_duration,
+                            "price": str(bs.effective_price),
+                        }
+                        for bs in barber_services
+                    ],
+                }
+            )
 
         return JsonResponse({"barbers": data})
 
@@ -131,19 +142,29 @@ class BookingSlotsAPI(View):
         except ValueError:
             return JsonResponse({"error": "Fecha inválida"}, status=400)
 
-        # Available dates
-        available_dates = [d.isoformat() for d in svc.get_available_dates(barber, barbershop=barbershop)]
+        # Available dates (respects barber's intervalo_apertura_dias)
+        available_dates = [
+            d.isoformat()
+            for d in svc.get_available_dates(barber, barbershop=barbershop)
+        ]
 
-        slots = svc.get_available_slots(barber, target_date, duration, barbershop=barbershop)
+        slots = svc.get_available_slots(
+            barber, target_date, duration, barbershop=barbershop
+        )
         slot_data = [
             {"start": s["start"].isoformat(), "end": s["end"].isoformat()}
             for s in slots
         ]
 
-        return JsonResponse({
-            "slots": slot_data,
-            "available_dates": available_dates,
-        })
+        intervalo = getattr(barber, "intervalo_apertura_dias", 15) or 15
+
+        return JsonResponse(
+            {
+                "slots": slot_data,
+                "available_dates": available_dates,
+                "intervalo_apertura_dias": intervalo,
+            }
+        )
 
 
 class BookingCreateAPI(View):
@@ -212,13 +233,16 @@ class BookingCreateAPI(View):
         except ValueError as e:
             return JsonResponse({"error": str(e)}, status=409)
 
-        return JsonResponse({
-            "message": "¡Reserva confirmada!",
-            "appointment_id": appointment.pk,
-            "start": appointment.start_time.isoformat(),
-            "end": appointment.end_time.isoformat(),
-            "barber": str(appointment.barber),
-        }, status=201)
+        return JsonResponse(
+            {
+                "message": "¡Reserva confirmada!",
+                "appointment_id": appointment.pk,
+                "start": appointment.start_time.isoformat(),
+                "end": appointment.end_time.isoformat(),
+                "barber": str(appointment.barber),
+            },
+            status=201,
+        )
 
 
 class MyBookingsAPI(View):
@@ -238,11 +262,15 @@ class MyBookingsAPI(View):
         if not client:
             return JsonResponse([], safe=False)
 
-        appointments = client.appointments.filter(
-            barbershop=barbershop,
-            start_time__gte=timezone.now(),
-            status__in=["pending", "confirmed"],
-        ).select_related("barber__membership__user").order_by("start_time")
+        appointments = (
+            client.appointments.filter(
+                barbershop=barbershop,
+                start_time__gte=timezone.now(),
+                status__in=["pending", "confirmed"],
+            )
+            .select_related("barber__membership__user")
+            .order_by("start_time")
+        )
 
         data = [
             {
@@ -276,7 +304,8 @@ class BookingGlobalPageView(TemplateView):
         organization = get_object_or_404(Organization, slug=org_slug, is_active=True)
 
         barbershops = Barbershop.objects.filter(
-            organization=organization, is_active=True,
+            organization=organization,
+            is_active=True,
         )
 
         ctx["organization"] = organization
@@ -292,7 +321,8 @@ class BookingBarbershopsAPI(View):
         organization = get_object_or_404(Organization, slug=org_slug, is_active=True)
 
         barbershops = Barbershop.objects.filter(
-            organization=organization, is_active=True,
+            organization=organization,
+            is_active=True,
         )
 
         data = [
