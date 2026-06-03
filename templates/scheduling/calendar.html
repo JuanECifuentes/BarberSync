@@ -338,12 +338,21 @@
         {% endif %}
 
         <button onclick="openNewAppointment()"
-                class="btn-action-primary border border-neutral-700 px-4 py-2 rounded-lg text-sm text-neutral-300 font-medium transition-all">
+                class="hidden md:inline-flex btn-action-primary border border-neutral-700 px-4 py-2 rounded-lg text-sm text-neutral-300 font-medium transition-all">
             <span>
                 + Nueva cita
             </span>
         </button>
     </div>
+
+    <!-- FAB móvil: Nueva cita -->
+    <button onclick="openNewAppointment()"
+            class="md:hidden fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-[#ff2301] shadow-lg shadow-black/30 flex items-center justify-center text-white hover:bg-[#e01e00] active:scale-95 transition-all duration-200"
+            aria-label="Nueva cita">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+    </button>
 
     <!-- Calendar container -->
     <div id="calendar" class="card !p-2 sm:!p-4"></div>
@@ -438,14 +447,29 @@
             <form id="new-apt-form" class="space-y-4" onsubmit="return submitNewAppointment(event)">
                 {% csrf_token %}
 
-                <!-- Client search -->
-                <div>
+                <!-- Client search (dropdown avanzado con scroll infinito) -->
+                <div id="new-apt-client-selector">
                     <label class="block text-xs text-neutral-400 mb-1 font-medium">Cliente</label>
                     <div class="relative">
-                        <input type="text" id="new-apt-client-search" autocomplete="off" placeholder="Buscar por nombre o email..."
-                               class="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2.5 focus:ring-brand focus:border-brand transition-colors">
+                        <div id="new-apt-client-trigger"
+                             class="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2.5 cursor-pointer flex items-center justify-between transition-colors hover:border-neutral-600">
+                            <span id="new-apt-client-display" class="text-neutral-500 truncate">Seleccionar cliente...</span>
+                            <svg class="w-4 h-4 text-neutral-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </div>
                         <input type="hidden" id="new-apt-client-id">
-                        <div id="new-apt-client-results" class="absolute z-10 w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl hidden max-h-40 overflow-y-auto"></div>
+                        <div id="new-apt-client-dropdown" class="absolute z-20 w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl hidden">
+                            <div class="p-2 border-b border-neutral-700">
+                                <input type="text" id="new-apt-client-search" autocomplete="off" placeholder="Buscar por nombre, email o teléfono..."
+                                       class="w-full bg-neutral-900 border border-neutral-600 text-white text-sm rounded-lg px-3 py-2 focus:ring-brand focus:border-brand transition-colors placeholder-neutral-500">
+                            </div>
+                            <div id="new-apt-client-list" class="max-h-56 overflow-y-auto" style="scrollbar-width: thin; scrollbar-color: #4a4a4f #1a1a1c;"></div>
+                            <div id="new-apt-client-loading" class="hidden px-3 py-2 text-center text-xs text-neutral-400">
+                                <span class="inline-block w-4 h-4 border-2 border-neutral-600 border-t-brand rounded-full animate-spin"></span>
+                            </div>
+                            <div id="new-apt-client-empty" class="hidden px-3 py-2 text-sm text-neutral-400 text-center">Sin resultados</div>
+                        </div>
                     </div>
                 </div>
 
@@ -1300,44 +1324,212 @@ document.addEventListener('DOMContentLoaded', function() {
     let newAptFlatpickrDate = null;
     let newAptSelectedSlot = null;
 
-    // Client search
-    let clientSearchTimeout;
-    const clientSearchInput = document.getElementById('new-apt-client-search');
-    const clientResults = document.getElementById('new-apt-client-results');
-    const clientIdInput = document.getElementById('new-apt-client-id');
+    // ═══════════════════════════════════════════
+    // Reusable Client Dropdown Selector
+    // ═══════════════════════════════════════════
+    window.initClienteDropdownSelector = function(config) {
+        const {
+            containerId,
+            triggerId,
+            displayId,
+            hiddenInputId,
+            searchInputId,
+            listId,
+            dropdownId,
+            loadingId,
+            emptyId,
+            onSelect,
+        } = config;
 
-    clientSearchInput.addEventListener('input', function() {
-        clearTimeout(clientSearchTimeout);
-        const q = this.value.trim();
-        if (q.length < 2) {
-            clientResults.classList.add('hidden');
-            return;
+        const PAGE_SIZE = 30;
+        let state = {
+            page: 1,
+            hasMore: true,
+            loading: false,
+            searchQuery: '',
+            searchMode: false,
+            selectedClient: null,
+            isOpen: false,
+        };
+
+        const trigger = document.getElementById(triggerId);
+        const display = document.getElementById(displayId);
+        const hiddenInput = document.getElementById(hiddenInputId);
+        const searchInput = document.getElementById(searchInputId);
+        const list = document.getElementById(listId);
+        const dropdown = document.getElementById(dropdownId);
+        const loadingEl = document.getElementById(loadingId);
+        const emptyEl = document.getElementById(emptyId);
+
+        let searchTimeout = null;
+        let observer = null;
+
+        function resetState() {
+            state.page = 1;
+            state.hasMore = true;
+            state.searchMode = false;
+            state.searchQuery = '';
         }
-        clientSearchTimeout = setTimeout(() => {
-            fetch(`/app/clients/api/search/?q=${encodeURIComponent(q)}`)
-                .then(r => r.json())
-                .then(data => {
-                    if (data.length === 0) {
-                        clientResults.innerHTML = '<div class="px-3 py-2 text-sm text-neutral-400">Sin resultados</div>';
-                    } else {
-                        clientResults.innerHTML = data.map(c => `
-                            <button type="button" onclick="selectClient(${c.id}, '${c.name.replace(/'/g, "\\'")}')"
-                                    class="w-full text-left px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors">
-                                <span class="font-medium">${c.name}</span>
-                                <span class="text-neutral-400 text-xs ml-2">${c.email || c.phone || ''}</span>
-                            </button>
-                        `).join('');
-                    }
-                    clientResults.classList.remove('hidden');
-                });
-        }, 300);
-    });
 
-    window.selectClient = function(id, name) {
-        clientIdInput.value = id;
-        clientSearchInput.value = name;
-        clientResults.classList.add('hidden');
+        function renderClientItem(c) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'w-full text-left px-3 py-2.5 text-sm text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors flex items-center justify-between';
+            const contactInfo = [c.email, c.phone].filter(Boolean).join(' <span class="text-neutral-600">•</span> ');
+            btn.innerHTML = `
+                <div class="flex-1 min-w-0">
+                    <span class="font-medium block truncate">${c.name}</span>
+                    <span class="text-neutral-400 text-xs block truncate">${contactInfo}</span>
+                </div>
+            `;
+            btn.addEventListener('click', () => selectClient(c));
+            return btn;
+        }
+
+        function selectClient(c) {
+            state.selectedClient = c;
+            hiddenInput.value = c.id;
+            display.textContent = c.name;
+            display.classList.remove('text-neutral-500');
+            display.classList.add('text-white');
+            closeDropdown();
+            if (onSelect) onSelect(c);
+        }
+
+        window.clearClientSelector = function(containerIdParam) {
+            if (containerIdParam && containerIdParam !== containerId) return;
+            state.selectedClient = null;
+            hiddenInput.value = '';
+            display.textContent = 'Seleccionar cliente...';
+            display.classList.add('text-neutral-500');
+            display.classList.remove('text-white');
+            resetState();
+        };
+
+        async function fetchClients(append) {
+            if (state.loading || (!state.hasMore && !state.searchMode)) return;
+            state.loading = true;
+            loadingEl.classList.remove('hidden');
+
+            const params = new URLSearchParams({
+                q: state.searchQuery,
+                page: state.page,
+                limit: PAGE_SIZE,
+            });
+
+            try {
+                const res = await fetch(`/app/clients/api/search/?${params}`);
+                const data = await res.json();
+
+                if (!append) list.innerHTML = '';
+
+                if (data.length === 0 && !append) {
+                    emptyEl.classList.remove('hidden');
+                } else {
+                    emptyEl.classList.add('hidden');
+                    data.forEach(c => list.appendChild(renderClientItem(c)));
+                }
+
+                state.hasMore = data.length === PAGE_SIZE;
+                state.page++;
+            } catch (e) {
+                emptyEl.textContent = 'Error al cargar clientes';
+                emptyEl.classList.remove('hidden');
+            }
+
+            state.loading = false;
+            loadingEl.classList.add('hidden');
+        }
+
+        function setupInfiniteScroll() {
+            if (observer) observer.disconnect();
+
+            const sentinel = document.createElement('div');
+            sentinel.className = 'client-scroll-sentinel';
+            sentinel.style.height = '1px';
+            list.querySelectorAll('.client-scroll-sentinel').forEach(s => s.remove());
+            list.appendChild(sentinel);
+
+            observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting && state.hasMore && !state.searchMode && !state.loading) {
+                        fetchClients(true);
+                    }
+                });
+            }, { root: list, threshold: 0.1 });
+
+            observer.observe(sentinel);
+        }
+
+        function openDropdown() {
+            state.isOpen = true;
+            dropdown.classList.remove('hidden');
+            resetState();
+            list.innerHTML = '';
+            searchInput.value = '';
+            fetchClients(false).then(() => setupInfiniteScroll());
+            setTimeout(() => searchInput.focus(), 50);
+        }
+
+        function closeDropdown() {
+            state.isOpen = false;
+            dropdown.classList.add('hidden');
+            if (observer) observer.disconnect();
+        }
+
+        trigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (state.isOpen) {
+                closeDropdown();
+            } else {
+                openDropdown();
+            }
+        });
+
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            const q = this.value.trim();
+
+            if (q.length < 2) {
+                state.searchMode = false;
+                state.searchQuery = '';
+                resetState();
+                list.innerHTML = '';
+                fetchClients(false).then(() => setupInfiniteScroll());
+                return;
+            }
+
+            state.searchMode = true;
+            state.searchQuery = q;
+            state.page = 1;
+            state.hasMore = false;
+            if (observer) observer.disconnect();
+
+            searchTimeout = setTimeout(() => {
+                fetchClients(false);
+            }, 300);
+        });
+
+        searchInput.addEventListener('click', (e) => e.stopPropagation());
+        dropdown.addEventListener('click', (e) => e.stopPropagation());
+
+        document.addEventListener('click', () => {
+            if (state.isOpen) closeDropdown();
+        });
     };
+
+    initClienteDropdownSelector({
+        containerId: 'new-apt-client-selector',
+        triggerId: 'new-apt-client-trigger',
+        displayId: 'new-apt-client-display',
+        hiddenInputId: 'new-apt-client-id',
+        searchInputId: 'new-apt-client-search',
+        listId: 'new-apt-client-list',
+        dropdownId: 'new-apt-client-dropdown',
+        loadingId: 'new-apt-client-loading',
+        emptyId: 'new-apt-client-empty',
+        onSelect: null,
+    });
 
     // Load barber services
     window.loadBarberServices = function() {
@@ -1544,7 +1736,7 @@ document.addEventListener('DOMContentLoaded', function() {
     window.openNewAppointment = function() {
         // Reset form
         document.getElementById('new-apt-form').reset();
-        document.getElementById('new-apt-client-id').value = '';
+        if (typeof clearClientSelector === 'function') clearClientSelector('new-apt-client-selector');
         document.getElementById('new-apt-services').innerHTML = '<p class="text-xs text-neutral-400 italic">Selecciona un barbero primero</p>';
         document.getElementById('new-apt-services-summary').classList.add('hidden');
         document.getElementById('new-apt-error').classList.add('hidden');

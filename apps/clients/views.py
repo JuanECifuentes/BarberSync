@@ -636,17 +636,56 @@ class ClientSearchAPI(View):
             
         offset = (page - 1) * limit
 
-        clients = Client.objects.filter(organization=org, is_active=True).order_by("name")
+        clients = Client.objects.filter(organization=org, is_active=True).select_related("user").order_by("name")
         
         if q:
-            clients = clients.filter(
-                Q(name__icontains=q) | Q(email__icontains=q) | Q(phone__icontains=q)
+            from django.db.models.functions import Concat
+            q_clean = q.replace("+", "").strip()
+            clients = clients.annotate(
+                user_combined_phone=Concat(
+                    Coalesce("user__country_code", Value("")),
+                    Coalesce("user__phone", Value("")),
+                )
+            ).filter(
+                Q(name__icontains=q) |
+                Q(email__icontains=q) |
+                Q(phone__icontains=q) |
+                Q(user__email__icontains=q) |
+                Q(user__phone__icontains=q) |
+                Q(user_combined_phone__icontains=q_clean)
             )
 
         clients_page = clients[offset:offset + limit]
 
-        data = [
-            {"id": c.pk, "name": c.name, "email": c.email, "phone": c.phone}
-            for c in clients_page
-        ]
+        data = []
+        for c in clients_page:
+            # Email: search first in the user account email, otherwise use client email
+            email = c.user.email if (c.user_id and c.user.email) else c.email
+            
+            # Phone: combination of user phone and country_code, otherwise use client phone
+            phone = ""
+            if c.user_id and c.user.phone:
+                user_phone = c.user.phone.strip()
+                user_cc = c.user.country_code.strip() if c.user.country_code else ""
+                
+                # Clean '+' prefix from both to combine them cleanly, then prepend '+'
+                clean_phone = user_phone.lstrip("+")
+                clean_cc = user_cc.lstrip("+")
+                
+                if clean_cc:
+                    if clean_phone.startswith(clean_cc):
+                        phone = f"+{clean_phone}"
+                    else:
+                        phone = f"+{clean_cc}{clean_phone}"
+                else:
+                    phone = user_phone if user_phone.startswith("+") else f"+{user_phone}"
+            else:
+                phone = c.phone
+                
+            data.append({
+                "id": c.pk,
+                "name": c.name,
+                "email": email,
+                "phone": phone
+            })
         return JsonResponse(data, safe=False)
