@@ -63,11 +63,15 @@ urlpatterns = [
         views.BarbersDataAPI.as_view(),
         name="api_barbers_data",
     ),
-
     path(
         "api/appointments/<int:pk>/products/",
         views.AppointmentProductsAPI.as_view(),
         name="api_appointment_products",
+    ),
+    path(
+        "api/appointments/<int:pk>/notes/",
+        views.AppointmentNotesAPI.as_view(),
+        name="api_appointment_notes",
     ),
     path(
         "api/barber-services/<int:barber_id>/",

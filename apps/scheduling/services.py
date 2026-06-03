@@ -516,6 +516,19 @@ def get_calendar_events(
                     "client_name": apt.client.name,
                     "client_phone": apt.client.phone,
                     "client_email": apt.client.email,
+                    "client_country_code": getattr(apt.client.user, "country_code", "")
+                    if apt.client.user
+                    else "",
+                    "client_phone_verified": getattr(
+                        apt.client.user, "phone_verification", False
+                    )
+                    if apt.client.user
+                    else False,
+                    "client_email_verified": getattr(
+                        apt.client.user, "email_verification", False
+                    )
+                    if apt.client.user
+                    else False,
                     "barber_name": str(apt.barber),
                     "barber_id": apt.barber_id,
                     "services": service_names,

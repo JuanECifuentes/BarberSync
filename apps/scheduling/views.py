@@ -96,7 +96,7 @@ class CalendarView(LoginRequiredMixin, TemplateView):
 
         # Compute active barbers data for optimized initial load
         today = timezone.localdate()
-        
+
         # Calculate max window of days ahead
         max_days = 15
         for b in barbers:
@@ -108,25 +108,24 @@ class CalendarView(LoginRequiredMixin, TemplateView):
         for ws in WorkSchedule.objects.filter(barber__in=barbers):
             if ws.barber_id not in work_schedules_by_barber:
                 work_schedules_by_barber[ws.barber_id] = []
-            work_schedules_by_barber[ws.barber_id].append({
-                "day_of_week": ws.day_of_week,
-                "start": ws.start_time.strftime("%H:%M"),
-                "end": ws.end_time.strftime("%H:%M")
-            })
+            work_schedules_by_barber[ws.barber_id].append(
+                {
+                    "day_of_week": ws.day_of_week,
+                    "start": ws.start_time.strftime("%H:%M"),
+                    "end": ws.end_time.strftime("%H:%M"),
+                }
+            )
 
         # Exceptions grouping within date range
         exceptions_by_barber = {}
         for exc in ScheduleException.objects.filter(
-            barber__in=barbers,
-            start__date__gte=today,
-            start__date__lte=max_date
+            barber__in=barbers, start__date__gte=today, start__date__lte=max_date
         ):
             if exc.barber_id not in exceptions_by_barber:
                 exceptions_by_barber[exc.barber_id] = []
-            exceptions_by_barber[exc.barber_id].append({
-                "start": exc.start.isoformat(),
-                "end": exc.end.isoformat()
-            })
+            exceptions_by_barber[exc.barber_id].append(
+                {"start": exc.start.isoformat(), "end": exc.end.isoformat()}
+            )
 
         # Active appointments grouping within date range
         active_statuses = [
@@ -139,15 +138,17 @@ class CalendarView(LoginRequiredMixin, TemplateView):
             barber__in=barbers,
             start_time__date__gte=today,
             start_time__date__lte=max_date,
-            status__in=active_statuses
+            status__in=active_statuses,
         ):
             if apt.barber_id not in appointments_by_barber:
                 appointments_by_barber[apt.barber_id] = []
-            appointments_by_barber[apt.barber_id].append({
-                "id": apt.pk,
-                "start": apt.start_time.isoformat(),
-                "end": apt.end_time.isoformat()
-            })
+            appointments_by_barber[apt.barber_id].append(
+                {
+                    "id": apt.pk,
+                    "start": apt.start_time.isoformat(),
+                    "end": apt.end_time.isoformat(),
+                }
+            )
 
         barbers_data = []
         for b in barbers:
@@ -158,7 +159,9 @@ class CalendarView(LoginRequiredMixin, TemplateView):
                     "name": str(b),
                     "intervalo_apertura_dias": days_ahead,
                     "buffer_minutes": b.buffer_minutes,
-                    "lunch_start": b.lunch_start.strftime("%H:%M") if b.lunch_start else None,
+                    "lunch_start": b.lunch_start.strftime("%H:%M")
+                    if b.lunch_start
+                    else None,
                     "lunch_end": b.lunch_end.strftime("%H:%M") if b.lunch_end else None,
                     "work_schedules": work_schedules_by_barber.get(b.pk, []),
                     "exceptions": exceptions_by_barber.get(b.pk, []),
@@ -1272,6 +1275,33 @@ class AppointmentRescheduleAPI(LoginRequiredMixin, View):
         )
 
 
+class AppointmentNotesAPI(LoginRequiredMixin, View):
+    """Update appointment notes safely."""
+
+    def post(self, request, pk):
+        barbershop = request.barbershop
+        appointment = Appointment.objects.filter(
+            pk=pk,
+            barbershop=barbershop,
+        ).first()
+        if not appointment:
+            return JsonResponse({"error": "Cita no encontrada"}, status=404)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "JSON inválido"}, status=400)
+
+        notes = data.get("notes", "")
+        appointment.notes = notes
+        appointment.updated_by = request.user
+        appointment.save(update_fields=["notes", "updated_by", "updated_at"])
+
+        return JsonResponse(
+            {"message": "Notas actualizadas", "notes": appointment.notes}
+        )
+
+
 class BarbersDataAPI(LoginRequiredMixin, View):
     def get(self, request):
         barbershop = request.barbershop
@@ -1292,7 +1322,7 @@ class BarbersDataAPI(LoginRequiredMixin, View):
         )
 
         today = timezone.localdate()
-        
+
         # Calculate max window of days ahead
         max_days = 15
         for b in barbers:
@@ -1304,25 +1334,24 @@ class BarbersDataAPI(LoginRequiredMixin, View):
         for ws in WorkSchedule.objects.filter(barber__in=barbers):
             if ws.barber_id not in work_schedules_by_barber:
                 work_schedules_by_barber[ws.barber_id] = []
-            work_schedules_by_barber[ws.barber_id].append({
-                "day_of_week": ws.day_of_week,
-                "start": ws.start_time.strftime("%H:%M"),
-                "end": ws.end_time.strftime("%H:%M")
-            })
+            work_schedules_by_barber[ws.barber_id].append(
+                {
+                    "day_of_week": ws.day_of_week,
+                    "start": ws.start_time.strftime("%H:%M"),
+                    "end": ws.end_time.strftime("%H:%M"),
+                }
+            )
 
         # Exceptions grouping within date range
         exceptions_by_barber = {}
         for exc in ScheduleException.objects.filter(
-            barber__in=barbers,
-            start__date__gte=today,
-            start__date__lte=max_date
+            barber__in=barbers, start__date__gte=today, start__date__lte=max_date
         ):
             if exc.barber_id not in exceptions_by_barber:
                 exceptions_by_barber[exc.barber_id] = []
-            exceptions_by_barber[exc.barber_id].append({
-                "start": exc.start.isoformat(),
-                "end": exc.end.isoformat()
-            })
+            exceptions_by_barber[exc.barber_id].append(
+                {"start": exc.start.isoformat(), "end": exc.end.isoformat()}
+            )
 
         # Active appointments grouping within date range
         active_statuses = [
@@ -1335,15 +1364,17 @@ class BarbersDataAPI(LoginRequiredMixin, View):
             barber__in=barbers,
             start_time__date__gte=today,
             start_time__date__lte=max_date,
-            status__in=active_statuses
+            status__in=active_statuses,
         ):
             if apt.barber_id not in appointments_by_barber:
                 appointments_by_barber[apt.barber_id] = []
-            appointments_by_barber[apt.barber_id].append({
-                "id": apt.pk,
-                "start": apt.start_time.isoformat(),
-                "end": apt.end_time.isoformat()
-            })
+            appointments_by_barber[apt.barber_id].append(
+                {
+                    "id": apt.pk,
+                    "start": apt.start_time.isoformat(),
+                    "end": apt.end_time.isoformat(),
+                }
+            )
 
         barbers_data = []
         for b in barbers:
@@ -1354,7 +1385,9 @@ class BarbersDataAPI(LoginRequiredMixin, View):
                     "name": str(b),
                     "intervalo_apertura_dias": days_ahead,
                     "buffer_minutes": b.buffer_minutes,
-                    "lunch_start": b.lunch_start.strftime("%H:%M") if b.lunch_start else None,
+                    "lunch_start": b.lunch_start.strftime("%H:%M")
+                    if b.lunch_start
+                    else None,
                     "lunch_end": b.lunch_end.strftime("%H:%M") if b.lunch_end else None,
                     "work_schedules": work_schedules_by_barber.get(b.pk, []),
                     "exceptions": exceptions_by_barber.get(b.pk, []),

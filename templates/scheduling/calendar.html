@@ -17,6 +17,8 @@
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/confirmDate/confirmDate.js"></script>
+<!-- SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 {% endblock %}
 
 {% block extra_css %}
@@ -366,7 +368,7 @@
             
             <!-- Reschedule section (hidden by default) -->
             <div id="reschedule-section" class="hidden space-y-3 pt-2 border-t border-neutral-700">
-                <h4 class="text-sm font-semibold text-white">Modificar Horario de Atención</h4>
+                <h4 class="text-neutral-400 text-xs uppercase tracking-wide font-semibold">Modificar Horario de Atención</h4>
                 <div>
                     <label class="block text-xs text-neutral-400 mb-1 font-medium">Nueva fecha</label>
                     <input type="text" id="reschedule-date" placeholder="Selecciona una fecha"
@@ -547,6 +549,32 @@ document.addEventListener('DOMContentLoaded', function() {
         return confirmDatePlugin({ confirmText: 'Aceptar', showAlways: true });
     };
 
+    // ── Clipboard helper ──
+    window.copyToClipboard = function(text, btnId) {
+        if (!text) return;
+        navigator.clipboard.writeText(text).then(() => {
+            const btn = document.getElementById(btnId);
+            const tip = document.getElementById(`${btnId}-tip`);
+            if (btn) {
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = `<svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>`;
+                btn.classList.add('border-green-600', 'bg-green-950/20');
+                let originalTipText = '';
+                if (tip) {
+                    originalTipText = tip.textContent;
+                    tip.textContent = 'Copiado';
+                }
+                setTimeout(() => {
+                    btn.innerHTML = originalHTML;
+                    btn.classList.remove('border-green-600', 'bg-green-950/20');
+                    if (tip) tip.textContent = originalTipText;
+                }, 2000);
+            }
+        }).catch(err => {
+            console.error('Error copying text: ', err);
+        });
+    };
+
     // ── FullCalendar ──
     const calendar = new FullCalendar.Calendar(calendarEl, {
         locale: 'es',
@@ -598,6 +626,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         eventClick: function(info) {
             const props = info.event.extendedProps;
+            const startTime = info.event.start;
+            const endTime = info.event.end;
+            const aptId = info.event.id;
             document.getElementById('modal-title').textContent = info.event.title;
 
             // Store current event data globally for dynamic updates
@@ -605,6 +636,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 servicesTotal: parseFloat(props.total_price || 0),
                 intervencionEstado: props.intervencion_estado,
                 intervencionProductos: props.intervencion_productos || [],
+                notes: props.notes || '',
             };
             // Build deleted product names map for readonly rows
             window._deletedProductNames = {};
@@ -638,7 +670,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 servicesHtml = `
                     <div class="space-y-1">
                         <div class="flex items-center">
-                            <span class="text-neutral-400 text-xs uppercase tracking-wide">Servicios</span>
+                            <span class="text-neutral-400 text-xs uppercase tracking-wide font-semibold">Servicios</span>
                             ${tooltipIcon('Estos precios son históricos, registrados al momento de crear la cita.')}
                         </div>
                         ${props.services_detail.map(s => `
@@ -658,7 +690,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 productsHtml = `
                     <div class="space-y-1" id="cal-productos-display">
                         <div class="flex items-center">
-                            <span class="text-neutral-400 text-xs uppercase tracking-wide">Productos utilizados</span>
+                            <span class="text-neutral-400 text-xs uppercase tracking-wide font-semibold">Productos utilizados</span>
                             ${tooltipIcon('Estos precios son históricos, registrados al momento de completar el servicio.')}
                         </div>
                         ${props.intervencion_productos.map(p => {
@@ -702,12 +734,16 @@ document.addEventListener('DOMContentLoaded', function() {
             if (props.status !== 'cancelled') {
                 productConsumptionHtml = `
                     <div class="space-y-2">
-                        <span class="text-neutral-400 text-xs uppercase tracking-wide">Consumo de productos</span>
+                        <span class="text-neutral-400 text-xs uppercase tracking-wide font-semibold">Consumo de productos</span>
                         <div id="cal-productos-container" class="space-y-2 pr-1"></div>
                         <button type="button" onclick="calAddProductRow()"
                                 class="text-xs text-brand hover:text-white border border-neutral-700 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                             Agregar producto
+                        </button>
+                        <button type="button" id="cal-save-products-btn" onclick="saveAppointmentProducts(${aptId})"
+                                class="hidden w-full btn-action-primary border border-brand px-4 py-2 rounded-lg text-sm text-[#ff2301] font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span>Confirmar cambio</span>
                         </button>
                     </div>`;
             }
@@ -719,11 +755,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 0);
             const grandTotal = parseFloat(props.total_price || 0) + productsTotal;
 
-            // Start / end time
-            const startTime = info.event.start;
-            const endTime = info.event.end;
-            const aptId = info.event.id;
-
             // Pre-fill reschedule inputs
             window._currentRescheduleAptId = aptId;
             window._currentBarberId = props.barber_id;
@@ -731,30 +762,126 @@ document.addEventListener('DOMContentLoaded', function() {
             const padZ = (n) => n < 10 ? '0'+n : n;
             window._currentRescheduleDateStr = `${startTime.getFullYear()}-${padZ(startTime.getMonth()+1)}-${padZ(startTime.getDate())}`;
             window._currentRescheduleTimeStr = `${padZ(startTime.getHours())}:${padZ(startTime.getMinutes())}`;
-            
+
+            // Messaging buttons (conditional on verification) and copy buttons
+            let emailButtonsHtml = '';
+            if (props.client_email) {
+                const mailtoHtml = props.client_email_verified
+                    ? `<div class="relative group/tip">
+                        <a href="mailto:${encodeURIComponent(props.client_email)}" class="p-1.5 bg-neutral-800 text-blue-400 rounded-md border border-neutral-600 hover:text-white hover:border-blue-400 hover:scale-105 transition-all duration-150 shadow-sm flex items-center justify-center">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 00-2-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                        </a>
+                        <span class="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-neutral-800 border border-neutral-600 rounded text-[10px] text-neutral-300 opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-200 pointer-events-none z-50 shadow-xl text-center leading-relaxed">Enviar correo</span>
+                      </div>`
+                    : '';
+                const copyHtml = `
+                    <div class="relative group/tip">
+                        <button type="button" id="copy-email-btn" onclick="copyToClipboard('${(props.client_email || '').replace(/'/g, "\\'")}', 'copy-email-btn')" class="p-1.5 bg-neutral-800 text-neutral-400 rounded-md border border-neutral-600 hover:text-white hover:border-neutral-400 hover:scale-105 transition-all duration-150 shadow-sm flex items-center justify-center">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+                        </button>
+                        <span id="copy-email-btn-tip" class="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-neutral-800 border border-neutral-600 rounded text-[10px] text-neutral-300 opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-200 pointer-events-none z-50 shadow-xl text-center leading-relaxed">Copiar correo</span>
+                    </div>`;
+                emailButtonsHtml = `<div class="flex items-center gap-1.5 flex-shrink-0">${copyHtml}${mailtoHtml}</div>`;
+            }
+
+            let phoneButtonsHtml = '';
+            if (props.client_phone) {
+                const waHtml = props.client_phone_verified && props.client_country_code
+                    ? `<div class="relative group/tip">
+                        <a href="https://api.whatsapp.com/send?phone=${encodeURIComponent(props.client_country_code + props.client_phone.replace(/\D/g, ''))}" target="_blank" rel="noopener noreferrer" class="p-1.5 bg-neutral-800 text-green-400 rounded-md border border-neutral-600 hover:text-white hover:border-green-400 hover:scale-105 transition-all duration-150 shadow-sm flex items-center justify-center">
+                            <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.521.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.521-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                        </a>
+                        <span class="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-neutral-800 border border-neutral-600 rounded text-[10px] text-neutral-300 opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-200 pointer-events-none z-50 shadow-xl text-center leading-relaxed">Enviar WhatsApp</span>
+                      </div>`
+                    : '';
+                const copyHtml = `
+                    <div class="relative group/tip">
+                        <button type="button" id="copy-phone-btn" onclick="copyToClipboard('${(props.client_phone || '').replace(/'/g, "\\'")}', 'copy-phone-btn')" class="p-1.5 bg-neutral-800 text-neutral-400 rounded-md border border-neutral-600 hover:text-white hover:border-neutral-400 hover:scale-105 transition-all duration-150 shadow-sm flex items-center justify-center">
+                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+                        </button>
+                        <span id="copy-phone-btn-tip" class="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-neutral-800 border border-neutral-600 rounded text-[10px] text-neutral-300 opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-200 pointer-events-none z-50 shadow-xl text-center leading-relaxed">Copiar teléfono</span>
+                    </div>`;
+                phoneButtonsHtml = `<div class="flex items-center gap-1.5 flex-shrink-0">${copyHtml}${waHtml}</div>`;
+            }
+
+            const rescheduleBtnHtml = props.status === 'pending'
+                ? `<div class="relative group/tip flex-shrink-0">
+                    <button onclick="toggleRescheduleSection(true)" type="button" class="p-1.5 bg-neutral-800 text-blue-400 rounded-md border border-neutral-600 hover:text-white hover:border-blue-400 hover:scale-105 transition-all duration-150 shadow-sm flex items-center justify-center">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </button>
+                    <span class="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-neutral-800 border border-neutral-600 rounded text-[10px] text-neutral-300 opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-200 pointer-events-none z-50 shadow-xl text-center leading-relaxed">Modificar horario</span>
+                  </div>`
+                : '';
+
             document.getElementById('modal-body-top').innerHTML = `
-                <div class="grid grid-cols-2 gap-2">
-                    <div><span class="text-neutral-400">Cliente:</span> ${props.client_name}</div>
-                    <div><span class="text-neutral-400">Tel&eacute;fono:</span> ${props.client_phone || '&mdash;'}</div>
-                    <div><span class="text-neutral-400">Email:</span> ${props.client_email || '&mdash;'}</div>
-                    <div><span class="text-neutral-400">Barbero:</span> ${props.barber_name}</div>
-                    <div class="col-span-2 flex justify-between items-center mt-1">
-                        <div class="flex flex-wrap gap-x-4 gap-y-1">
-                            <div><span class="text-neutral-400 text-sm">Inicio:</span> <span class="font-medium text-white">${fmtTime(startTime)}</span></div>
-                            <div><span class="text-neutral-400 text-sm">Fin estimado:</span> <span class="font-medium text-white">${fmtTime(endTime)}</span></div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="flex flex-col">
+                        <label class="block text-xs text-neutral-400 mb-1 font-medium">Cliente</label>
+                        <div class="text-sm text-white font-medium truncate">${props.client_name}</div>
+                    </div>
+                    <div class="flex flex-col">
+                        <label class="block text-xs text-neutral-400 mb-1 font-medium">Barbero</label>
+                        <div class="text-sm text-white font-medium truncate">${props.barber_name}</div>
+                    </div>
+                    <div class="flex flex-col">
+                        <label class="block text-xs text-neutral-400 mb-1 font-medium">Email</label>
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-sm text-neutral-300 truncate font-medium" title="${props.client_email || ''}">${props.client_email || '—'}</span>
+                            ${emailButtonsHtml}
                         </div>
-                        ${props.status === 'pending' ? `
-                        <div class="relative group/resh m-2">
-                            <button onclick="toggleRescheduleSection(true)" type="button" class="p-1.5 bg-blue-600/10 text-blue-400 rounded-md border border-blue-500/20 hover:bg-blue-600 hover:text-white transition-colors shadow-sm">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                            </button>
-                            <span class="absolute bottom-full right-0 mb-1 w-max px-2 py-1 bg-neutral-800 border border-neutral-600 rounded text-xs text-neutral-300 opacity-0 invisible group-hover/resh:opacity-100 group-hover/resh:visible transition-all z-[100] shadow-xl pointer-events-none">Modificar horario</span>
-                        </div>` : ''}
+                    </div>
+                    <div class="flex flex-col">
+                        <label class="block text-xs text-neutral-400 mb-1 font-medium">Teléfono</label>
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-sm text-neutral-300 truncate font-medium" title="${props.client_phone || ''}">${props.client_phone || '—'}</span>
+                            ${phoneButtonsHtml}
+                        </div>
+                    </div>
+                    <div class="flex flex-col">
+                        <label class="block text-xs text-neutral-400 mb-1 font-medium">Inicio</label>
+                        <div class="text-sm text-white font-medium truncate">${fmtTime(startTime)}</div>
+                    </div>
+                    <div class="flex flex-col">
+                        <label class="block text-xs text-neutral-400 mb-1 font-medium">Fin estimado</label>
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-sm text-white font-medium truncate">${fmtTime(endTime)}</span>
+                            ${rescheduleBtnHtml}
+                        </div>
                     </div>
                 </div>
                 ${intervencionHtml}
             `;
             
+            // Notes section with edit capability (appointment notes, not intervention notes)
+            const notesSectionHtml = `
+                <div id="cal-notes-section" class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-neutral-400 text-xs uppercase tracking-wide font-semibold">Notas de la cita</span>
+                        <div class="relative group/tip">
+                            <button type="button" onclick="toggleEditNotes(${aptId})"
+                                    id="cal-edit-notes-btn"
+                                    class="p-1.5 bg-neutral-800 text-neutral-400 rounded-md border border-neutral-600 hover:text-white hover:border-neutral-400 hover:scale-105 transition-all duration-150 shadow-sm flex items-center justify-center">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                            </button>
+                            <span class="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-neutral-800 border border-neutral-600 rounded text-[10px] text-neutral-300 opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-200 pointer-events-none z-50 shadow-xl text-center leading-relaxed">Editar notas</span>
+                        </div>
+                    </div>
+                    <div id="cal-notes-display" class="text-sm text-neutral-300 italic min-h-[1.5em]">${props.notes ? props.notes.replace(/\n/g, '<br>') : '<span class="text-neutral-500 italic text-xs">Sin notas</span>'}</div>
+                    <div id="cal-notes-edit" class="hidden space-y-2">
+                        <textarea id="cal-notes-textarea" rows="3" class="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3 py-2.5 focus:ring-brand focus:border-brand transition-colors resize-none">${props.notes || ''}</textarea>
+                        <div class="flex gap-2">
+                            <button type="button" id="cal-save-notes-btn" onclick="saveAppointmentNotes(${aptId})" disabled
+                                    class="flex-1 btn-action-primary border border-brand px-4 py-2 rounded-lg text-sm text-[#ff2301] font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed pointer-events-none">
+                                <span>Confirmar cambio</span>
+                            </button>
+                            <button type="button" onclick="toggleEditNotes(${aptId})"
+                                    class="border border-neutral-700 px-4 py-2 rounded-lg text-sm text-neutral-300 font-medium hover:bg-neutral-800 transition-colors">
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>`;
+
             document.getElementById('modal-body-bottom').innerHTML = `
                 ${intervencionHtml ? '<hr class="border-neutral-800">' : ''}
                 ${servicesHtml}
@@ -763,25 +890,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 ${productConsumptionHtml}
                 <hr class="border-neutral-800">
                 <div id="cal-modal-grand-total" class="text-lg font-heading font-bold text-brand">$${Math.round(grandTotal).toLocaleString('de-DE')}</div>
-                ${props.intervencion_notas ? `<div class="mt-1"><span class="text-neutral-400 text-xs">Notas:</span> <span class="italic text-neutral-400 text-sm">${props.intervencion_notas}</span></div>` : ''}
+                ${notesSectionHtml}
             `;
             //${props.notes ? `<div class="text-neutral-400 italic text-sm">${props.notes}</div>` : ''}
             // Pre-populate existing products in the consumption section
+            window._productRowsChanged = false;
             if (props.status !== 'cancelled' && props.intervencion_productos && props.intervencion_productos.length > 0) {
                 props.intervencion_productos.forEach(p => {
                     calAddProductRow(p.product_id, p.cantidad, p.auto, p.is_deleted);
                 });
             }
+            // Ensure save-products button is hidden initially
+            const saveProductsBtn = document.getElementById('cal-save-products-btn');
+            if (saveProductsBtn) saveProductsBtn.classList.add('hidden');
 
             // Modal actions – allow status changes on any non-cancelled state (including completed)
             const actionsEl = document.getElementById('modal-actions');
             let actionsHtml = '';
 
             if (props.status !== 'cancelled') {
-                // Save products button
-                actionsHtml += `<button onclick="saveAppointmentProducts(${aptId})"
-                    class="border border-brand px-4 py-2 rounded-lg text-sm flex-1 text-[#ff2301] font-medium
-                           hover:bg-[#ff2301] hover:text-white hover:border-[#ff2301] hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">Guardar productos</button>`;
                 if (props.status !== 'completed') {
                     actionsHtml += `<button onclick="appointmentAction(${aptId}, 'complete')"
                         class="border border-green-700 px-4 py-2 rounded-lg text-sm flex-1 text-green-300 font-medium
@@ -824,22 +951,49 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ── Appointment action ──
     window.appointmentAction = function(aptId, action) {
-        fetch(`/app/schedule/api/appointments/${aptId}/action/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken,
-            },
-            body: JSON.stringify({ action }),
-        })
-        .then(res => res.json())
-        .then(async data => {
-            if (action === 'cancel') {
-                await refreshBarbersData();
-            }
-            closeModal();
-            calendar.refetchEvents();
-        });
+        const executeAction = () => {
+            fetch(`/app/schedule/api/appointments/${aptId}/action/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify({ action }),
+            })
+            .then(res => res.json())
+            .then(async data => {
+                if (action === 'cancel') {
+                    await refreshBarbersData();
+                }
+                closeModal();
+                calendar.refetchEvents();
+            });
+        };
+
+        if (action === 'cancel') {
+            Swal.fire({
+                title: '¿Confirmar cancelación?',
+                text: 'Se notificará inmediatamente al cliente sobre la cancelación de esta cita.',
+                icon: 'warning',
+                showCancelButton: true,
+                buttonsStyling: false,
+                confirmButtonText: '<span>Sí, cancelar cita</span>',
+                cancelButtonText: '<span>No, mantener</span>',
+                background: '#171717',
+                color: '#fff',
+                customClass: {
+                    popup: 'border border-neutral-700 rounded-2xl shadow-2xl p-6',
+                    confirmButton: 'btn-action-primary border border-brand px-4 py-2.5 rounded-lg text-sm text-[#ff2301] font-medium transition-all duration-300 mr-3 flex items-center justify-center',
+                    cancelButton: 'border border-neutral-700 px-4 py-2.5 rounded-lg text-sm text-neutral-300 font-medium hover:bg-neutral-800 transition-colors duration-200 flex items-center justify-center'
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    executeAction();
+                }
+            });
+        } else {
+            executeAction();
+        }
     };
 
     // ── Product consumption in detail modal ──
@@ -887,13 +1041,29 @@ document.addEventListener('DOMContentLoaded', function() {
         if (productoId) {
             row.querySelector('.cprod-select').value = productoId;
         }
-        // Bind change/remove events for live update
-        row.querySelector('.cprod-select').addEventListener('change', calUpdateProductsDisplay);
-        row.querySelector('.cprod-qty').addEventListener('input', calUpdateProductsDisplay);
+        // Bind change/remove events for live update and reveal save button
+        const revealSaveBtn = () => {
+            window._productRowsChanged = true;
+            const btn = document.getElementById('cal-save-products-btn');
+            if (btn) btn.classList.remove('hidden');
+        };
+        row.querySelector('.cprod-select').addEventListener('change', () => {
+            calUpdateProductsDisplay();
+            revealSaveBtn();
+        });
+        row.querySelector('.cprod-qty').addEventListener('input', () => {
+            calUpdateProductsDisplay();
+            revealSaveBtn();
+        });
         row.querySelector('.cprod-remove-btn').addEventListener('click', function() {
             row.remove();
             calUpdateProductsDisplay();
+            revealSaveBtn();
         });
+        // If this is a new empty row (no productoId), reveal save button immediately
+        if (!productoId) {
+            revealSaveBtn();
+        }
     };
 
     // ── Live update of "Productos utilizados" and grand total ──
@@ -1029,6 +1199,97 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         })
         .catch(() => alert('Error de conexión'));
+    };
+
+    // ── Notes editing in detail modal ──
+    window._originalNotesText = '';
+
+    window.toggleEditNotes = function(aptId) {
+        const displayEl = document.getElementById('cal-notes-display');
+        const editEl = document.getElementById('cal-notes-edit');
+        const editBtn = document.getElementById('cal-edit-notes-btn');
+        const textarea = document.getElementById('cal-notes-textarea');
+        const saveBtn = document.getElementById('cal-save-notes-btn');
+
+        if (editEl.classList.contains('hidden')) {
+            // Switch to edit mode
+            window._originalNotesText = (window._currentModalEvent && window._currentModalEvent.notes) || '';
+            if (textarea) textarea.value = window._originalNotesText;
+            displayEl.classList.add('hidden');
+            editEl.classList.remove('hidden');
+            editBtn.classList.add('hidden');
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.classList.add('pointer-events-none', 'opacity-50');
+            }
+            if (textarea) {
+                const inputHandler = function() {
+                    const hasChanges = textarea.value !== window._originalNotesText;
+                    if (saveBtn) {
+                        saveBtn.disabled = !hasChanges;
+                        if (hasChanges) {
+                            saveBtn.classList.remove('pointer-events-none', 'opacity-50');
+                        } else {
+                            saveBtn.classList.add('pointer-events-none', 'opacity-50');
+                        }
+                    }
+                };
+                textarea.addEventListener('input', inputHandler);
+                // Fire once immediately to sync if needed
+                inputHandler();
+            }
+        } else {
+            // Cancel / close edit mode
+            displayEl.classList.remove('hidden');
+            editEl.classList.add('hidden');
+            editBtn.classList.remove('hidden');
+        }
+    };
+
+    window.saveAppointmentNotes = function(aptId) {
+        const textarea = document.getElementById('cal-notes-textarea');
+        if (!textarea) return;
+        const notes = textarea.value;
+
+        const saveBtn = document.getElementById('cal-save-notes-btn');
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.querySelector('span').textContent = 'Guardando...';
+        }
+
+        fetch(`/app/schedule/api/appointments/${aptId}/notes/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+            },
+            body: JSON.stringify({ notes }),
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+            } else {
+                // Update display and close edit mode
+                const displayEl = document.getElementById('cal-notes-display');
+                const editEl = document.getElementById('cal-notes-edit');
+                const editBtn = document.getElementById('cal-edit-notes-btn');
+                if (displayEl) {
+                    displayEl.innerHTML = notes ? notes.replace(/\n/g, '<br>') : '<span class="text-neutral-500 italic text-xs">Sin notas</span>';
+                }
+                if (editEl) editEl.classList.add('hidden');
+                if (displayEl) displayEl.classList.remove('hidden');
+                if (editBtn) editBtn.classList.remove('hidden');
+                // Update original text so future comparisons work if reopened
+                window._originalNotesText = notes;
+                if (window._currentModalEvent) window._currentModalEvent.notes = notes;
+            }
+            if (saveBtn) saveBtn.querySelector('span').textContent = 'Confirmar cambio';
+        })
+        .catch(() => {
+            alert('Error de conexión');
+            if (saveBtn) saveBtn.querySelector('span').textContent = 'Confirmar cambio';
+        });
     };
 
     // ═══════════════════════════════════════════
