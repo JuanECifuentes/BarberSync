@@ -841,6 +841,19 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
         with transaction.atomic():
             _restore_stock(intervencion, request.user)
 
+            try:
+                print("intentando actualizar")
+                appointment = intervencion.appointment
+                if appointment:
+                    print("Actualizando cita")
+                    appointment.client = client
+                    appointment.updated_by = request.user
+                    appointment.save(
+                        update_fields=["client", "updated_by", "updated_at"]
+                    )
+            except Exception:
+                pass
+
             intervencion.barbershop = target_barbershop
             intervencion.barber = barber
             if client:
