@@ -841,7 +841,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="grid grid-cols-2 gap-4">
                     <div class="flex flex-col">
                         <label class="block text-xs text-neutral-400 mb-1 font-medium">Cliente</label>
-                        <div class="text-sm text-white font-medium truncate">${props.client_name}</div>
+                        <div class="flex items-center gap-2">
+                            <div class="text-sm text-white font-medium truncate">${props.client_name || '<span class="text-neutral-500 italic">Sin Registrar</span>'}</div>
+                            ${!props.client_id && props.status !== 'cancelled' ? `
+                            <div class="relative group/tip flex-shrink-0">
+                                <button onclick="openAssignClientModal(${aptId})" type="button" class="p-1.5 bg-neutral-800 text-neutral-400 rounded-md border border-neutral-600 hover:text-white hover:border-neutral-400 hover:scale-105 transition-all duration-150 shadow-sm flex items-center justify-center">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                </button>
+                                <span class="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-neutral-800 border border-neutral-600 rounded text-[10px] text-neutral-300 opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-200 pointer-events-none z-50 shadow-xl text-center leading-relaxed">Asignar cliente</span>
+                            </div>` : ''}
+                        </div>
                     </div>
                     <div class="flex flex-col">
                         <label class="block text-xs text-neutral-400 mb-1 font-medium">Barbero</label>
@@ -1018,6 +1027,153 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             executeAction();
         }
+    };
+
+    // ── Assign client to appointment ──
+    window.openAssignClientModal = function(aptId) {
+        const modalBody = document.getElementById('modal-body-top');
+        const clientCell = modalBody.querySelector('.flex.flex-col:first-child');
+        if (!clientCell) return;
+
+        clientCell.innerHTML = `
+            <label class="block text-xs text-neutral-400 mb-1 font-medium">Cliente</label>
+            <div id="assign-client-container" class="relative" @click.outside="document.getElementById('assign-client-dropdown').classList.add('hidden')">
+                <button type="button" id="assign-client-trigger" class="w-full flex items-center justify-between px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-neutral-400 transition-colors focus:ring-2 focus:ring-brand focus:border-brand">
+                    <span id="assign-client-display" class="truncate flex-1 text-left">Seleccionar cliente...</span>
+                    <svg class="w-4 h-4 text-neutral-400 shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div id="assign-client-dropdown" class="hidden absolute z-[110] w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-2xl flex flex-col" style="max-height:280px;">
+                    <div class="p-2 border-b border-neutral-700 shrink-0">
+                        <input type="text" id="assign-client-search" placeholder="Buscar cliente..."
+                               class="w-full px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-md text-white text-sm placeholder-neutral-500 focus:ring-1 focus:ring-brand focus:border-brand transition-colors">
+                    </div>
+                    <div id="assign-client-list" class="flex-1 overflow-y-auto p-1" style="scrollbar-width:thin;scrollbar-color:#4a4a4f #1a1a1c;"></div>
+                </div>
+                <input type="hidden" id="assign-client-id" value="">
+            </div>
+            <div class="flex gap-2 mt-2">
+                <button type="button" id="assign-client-confirm" onclick="confirmAssignClient(${aptId})" disabled
+                        class="flex-1 btn-action-primary border border-brand px-3 py-2 rounded-lg text-sm text-[#ff2301] font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span>Asignar</span>
+                </button>
+                <button type="button" onclick="calendar.refetchEvents(); closeModal();"
+                        class="border border-neutral-700 px-3 py-2 rounded-lg text-sm text-neutral-300 font-medium hover:bg-neutral-800 transition-colors">
+                    Cancelar
+                </button>
+            </div>
+        `;
+
+        const trigger = document.getElementById('assign-client-trigger');
+        const dropdown = document.getElementById('assign-client-dropdown');
+        const searchInput = document.getElementById('assign-client-search');
+        const list = document.getElementById('assign-client-list');
+        const hiddenInput = document.getElementById('assign-client-id');
+        const display = document.getElementById('assign-client-display');
+        const confirmBtn = document.getElementById('assign-client-confirm');
+        let acPage = 1, acHasMore = true, acLoading = false, acSearchTimer = null;
+
+        trigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            dropdown.classList.toggle('hidden');
+            if (!dropdown.classList.contains('hidden')) {
+                acPage = 1; acHasMore = true;
+                list.innerHTML = '';
+                searchInput.value = '';
+                fetchAssignClients(false);
+                setTimeout(() => searchInput.focus(), 50);
+            }
+        });
+
+        searchInput.addEventListener('click', (e) => e.stopPropagation());
+        dropdown.addEventListener('click', (e) => e.stopPropagation());
+
+        searchInput.addEventListener('input', function() {
+            clearTimeout(acSearchTimer);
+            const q = this.value.trim();
+            acPage = 1; acHasMore = false;
+            acSearchTimer = setTimeout(() => fetchAssignClients(false, q), 300);
+        });
+
+        function fetchAssignClients(append, query) {
+            if (acLoading || (!acHasMore && !query)) return;
+            acLoading = true;
+            const params = new URLSearchParams({ q: query || '', page: acPage, limit: 30 });
+            fetch(`/app/clients/api/search/?${params}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (!append) list.innerHTML = '';
+                    data.forEach(c => {
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = 'w-full text-left px-3 py-2 rounded-md text-sm text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors flex flex-col gap-0.5';
+                        const contact = [c.email, c.phone].filter(Boolean).join(' • ');
+                        btn.innerHTML = `<span class="font-medium text-white">${c.name}</span><span class="text-xs text-neutral-400">${contact}</span>`;
+                        btn.addEventListener('click', () => {
+                            hiddenInput.value = c.id;
+                            display.textContent = c.name;
+                            display.classList.remove('text-neutral-400');
+                            display.classList.add('text-white');
+                            dropdown.classList.add('hidden');
+                            confirmBtn.disabled = false;
+                        });
+                        list.appendChild(btn);
+                    });
+                    acHasMore = data.length === 30;
+                    acPage++;
+                    acLoading = false;
+                })
+                .catch(() => { acLoading = false; });
+        }
+    };
+
+    window.confirmAssignClient = function(aptId) {
+        const clientId = document.getElementById('assign-client-id').value;
+        if (!clientId) return;
+        const confirmBtn = document.getElementById('assign-client-confirm');
+        confirmBtn.disabled = true;
+        confirmBtn.querySelector('span').textContent = 'Asignando...';
+
+        fetch(`/app/schedule/api/appointments/${aptId}/assign-client/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+            },
+            body: JSON.stringify({ client_id: parseInt(clientId) }),
+        })
+        .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+        .then(async ({ ok, data }) => {
+            if (ok) {
+                await refreshBarbersData();
+                closeModal();
+                calendar.refetchEvents();
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Cliente asignado',
+                    text: 'Se ha notificado al cliente automáticamente.',
+                    background: '#171717',
+                    color: '#fff',
+                    timer: 3000,
+                    showConfirmButton: false,
+                    customClass: { popup: 'border border-neutral-700 rounded-2xl shadow-2xl' }
+                });
+            } else {
+                confirmBtn.disabled = false;
+                confirmBtn.querySelector('span').textContent = 'Asignar';
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: data.error || 'No se pudo asignar el cliente',
+                    background: '#171717',
+                    color: '#fff',
+                    customClass: { popup: 'border border-neutral-700 rounded-2xl shadow-2xl' }
+                });
+            }
+        })
+        .catch(() => {
+            confirmBtn.disabled = false;
+            confirmBtn.querySelector('span').textContent = 'Asignar';
+        });
     };
 
     // ── Product consumption in detail modal ──
@@ -1766,7 +1922,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const timeVal = document.getElementById('new-apt-time').value;
         const notes = document.getElementById('new-apt-notes').value;
 
-        if (!clientId) { showNewAptError('Selecciona un cliente'); return false; }
+        if (!clientId) { /* client is optional */ }
         if (!barberId) { showNewAptError('Selecciona un barbero'); return false; }
         if (newAptSelectedServices.length === 0) { showNewAptError('Selecciona al menos un servicio'); return false; }
         if (!dateVal || !timeVal) { showNewAptError('Selecciona fecha y hora'); return false; }
@@ -1784,7 +1940,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 'X-CSRFToken': csrfToken,
             },
             body: JSON.stringify({
-                client_id: parseInt(clientId),
+                client_id: clientId ? parseInt(clientId) : null,
                 barber_id: parseInt(barberId),
                 start_time: startTime,
                 service_ids: newAptSelectedServices.map(s => s.id),

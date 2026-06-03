@@ -64,7 +64,7 @@ def _build_sms_message(context: dict, notif_type: str) -> str:
         "reminder_1h": f"{barbershop}: Tu cita es en 1 hora ({fmt_time}).",
         "barber_reminder": f"{barbershop}: Cita en 1 hora con {client_name} ({fmt_time}).",
         "cancellation": f"{barbershop}: Tu cita del {fmt_time} ha sido cancelada.",
-        "confirmation": f"{barbershop}: Cita confirmada para el {fmt_time}.",
+        "confirmation": f"{barbershop}: Cita confirmada para el {fmt_time} con {barber_name}.",
         "reschedule_client": f"{barbershop}: Tu cita fue reprogramada al {fmt_time} con {barber_name}.",
         "reschedule_barber": f"{barbershop}: Tu cita con {client_name} fue reprogramada al {fmt_time} por administracion.",
     }
@@ -356,6 +356,9 @@ def _send_reminder_task(appointment_id: int, notif_type: str, recipient_type: st
         return
 
     if appointment.status in ("cancelled", "no_show"):
+        return
+
+    if not appointment.client:
         return
 
     service_names = ", ".join(

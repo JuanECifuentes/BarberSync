@@ -74,6 +74,11 @@ urlpatterns = [
         name="api_appointment_notes",
     ),
     path(
+        "api/appointments/<int:pk>/assign-client/",
+        views.AppointmentAssignClientAPI.as_view(),
+        name="api_appointment_assign_client",
+    ),
+    path(
         "api/barber-services/<int:barber_id>/",
         views.BarberServicesAPI.as_view(),
         name="api_barber_services",

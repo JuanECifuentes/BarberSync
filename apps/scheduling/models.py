@@ -356,7 +356,9 @@ class Appointment(TenantModel):
 
     client = models.ForeignKey(
         "clients.Client",
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="appointments",
     )
     barber = models.ForeignKey(
@@ -398,7 +400,8 @@ class Appointment(TenantModel):
         ]
 
     def __str__(self):
-        return f"Cita #{self.pk} – {self.client} con {self.barber} @ {self.start_time:%d/%m %H:%M}"
+        client_name = self.client.name if self.client else "Sin cliente"
+        return f"Cita #{self.pk} – {client_name} con {self.barber} @ {self.start_time:%d/%m %H:%M}"
 
     @property
     def total_price(self):
@@ -475,7 +478,9 @@ class Intervencion(TenantModel):
     )
     client = models.ForeignKey(
         "clients.Client",
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="intervenciones",
     )
     estado = models.CharField(
@@ -500,7 +505,8 @@ class Intervencion(TenantModel):
         ]
 
     def __str__(self):
-        return f"Intervención #{self.pk} – {self.client} con {self.barber} @ {self.fecha:%d/%m %H:%M}"
+        client_name = self.client.name if self.client else "Sin cliente"
+        return f"Intervención #{self.pk} – {client_name} con {self.barber} @ {self.fecha:%d/%m %H:%M}"
 
     @property
     def total_precio(self):

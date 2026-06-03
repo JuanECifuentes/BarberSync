@@ -13,7 +13,14 @@ from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.db.models import (
-    Count, DecimalField, F, Q, Sum, Value, Subquery, OuterRef,
+    Count,
+    DecimalField,
+    F,
+    Q,
+    Sum,
+    Value,
+    Subquery,
+    OuterRef,
 )
 from django.db.models.functions import Coalesce
 from django.http import FileResponse, JsonResponse
@@ -24,7 +31,11 @@ from django.views.generic import TemplateView
 
 from apps.accounts.models import Barbershop
 from apps.core.mixins import OrganizationViewMixin, RoleRequiredMixin
-from apps.scheduling.models import Intervencion, IntervencionServicio, IntervencionProducto
+from apps.scheduling.models import (
+    Intervencion,
+    IntervencionServicio,
+    IntervencionProducto,
+)
 
 from .models import Client, FichaClinica
 
@@ -59,19 +70,16 @@ class ClientListView(LoginRequiredMixin, TemplateView):
 
         ctx["total_visitas"] = Intervencion.objects.filter(
             realizada_filter,
-            client__organization=org,
-            client__is_active=True,
+            barbershop__organization=org,
         ).count()
 
         svc_total = IntervencionServicio.objects.filter(
-            intervencion__client__organization=org,
-            intervencion__client__is_active=True,
+            intervencion__barbershop__organization=org,
             intervencion__estado=Intervencion.Estado.REALIZADA,
         ).aggregate(total=Coalesce(Sum("precio_cobrado"), Value(Decimal("0"))))["total"]
 
         prod_total = IntervencionProducto.objects.filter(
-            intervencion__client__organization=org,
-            intervencion__client__is_active=True,
+            intervencion__barbershop__organization=org,
             intervencion__estado=Intervencion.Estado.REALIZADA,
         ).aggregate(
             total=Coalesce(
@@ -118,18 +126,24 @@ class ClientGridAPI(LoginRequiredMixin, View):
             IntervencionServicio.objects.filter(
                 intervencion__client=OuterRef("pk"),
                 intervencion__estado=Intervencion.Estado.REALIZADA,
-            ).values("intervencion__client").annotate(
+            )
+            .values("intervencion__client")
+            .annotate(
                 total=Sum("precio_cobrado"),
-            ).values("total")[:1],
+            )
+            .values("total")[:1],
             output_field=DecimalField(),
         )
         prod_subquery = Subquery(
             IntervencionProducto.objects.filter(
                 intervencion__client=OuterRef("pk"),
                 intervencion__estado=Intervencion.Estado.REALIZADA,
-            ).values("intervencion__client").annotate(
+            )
+            .values("intervencion__client")
+            .annotate(
                 total=Sum(F("cantidad") * F("precio_unitario")),
-            ).values("total")[:1],
+            )
+            .values("total")[:1],
             output_field=DecimalField(),
         )
         qs = qs.annotate(
@@ -241,18 +255,20 @@ class ClientGridAPI(LoginRequiredMixin, View):
 
         rows = []
         for c in page:
-            rows.append({
-                "id": c.pk,
-                "nombre": c.name,
-                "email": c.email,
-                "telefono": c.phone,
-                "visitas": c.visitas,
-                "gastos": str(c.gastos),
-                "gastos_fmt": f"${_format_money(c.gastos)}",
-                "tiene_ficha": c.pk in fichas_exist,
-                "notas": c.notes,
-                "source": c.source,
-            })
+            rows.append(
+                {
+                    "id": c.pk,
+                    "nombre": c.name,
+                    "email": c.email,
+                    "telefono": c.phone,
+                    "visitas": c.visitas,
+                    "gastos": str(c.gastos),
+                    "gastos_fmt": f"${_format_money(c.gastos)}",
+                    "tiene_ficha": c.pk in fichas_exist,
+                    "notas": c.notes,
+                    "source": c.source,
+                }
+            )
 
         last_row = total_count if end_row >= total_count else -1
 
@@ -266,15 +282,17 @@ class ClientGridAPI(LoginRequiredMixin, View):
         kpi_visitas = kpi_agg["kpi_total_visitas"] or 0
         kpi_gastos = kpi_agg["kpi_total_gastos"] or Decimal("0")
 
-        return JsonResponse({
-            "rows": rows,
-            "lastRow": last_row,
-            "kpis": {
-                "total_clientes": kpi_clientes,
-                "total_visitas": kpi_visitas,
-                "total_ingresos": f"${_format_money(kpi_gastos)}",
-            },
-        })
+        return JsonResponse(
+            {
+                "rows": rows,
+                "lastRow": last_row,
+                "kpis": {
+                    "total_clientes": kpi_clientes,
+                    "total_visitas": kpi_visitas,
+                    "total_ingresos": f"${_format_money(kpi_gastos)}",
+                },
+            }
+        )
 
 
 # ─────────────────────────────────────────────
@@ -307,7 +325,10 @@ class ClientCreateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
             client.save()
         except Exception as e:
             if "unique" in str(e).lower():
-                return JsonResponse({"error": "Ya existe un cliente con ese email o teléfono."}, status=400)
+                return JsonResponse(
+                    {"error": "Ya existe un cliente con ese email o teléfono."},
+                    status=400,
+                )
             raise
         return JsonResponse({"id": client.pk, "name": client.name})
 
@@ -336,7 +357,10 @@ class ClientUpdateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
             client.save()
         except Exception as e:
             if "unique" in str(e).lower():
-                return JsonResponse({"error": "Ya existe un cliente con ese email o teléfono."}, status=400)
+                return JsonResponse(
+                    {"error": "Ya existe un cliente con ese email o teléfono."},
+                    status=400,
+                )
             raise
         return JsonResponse({"id": client.pk, "name": client.name})
 
@@ -359,15 +383,17 @@ class ClientDetailAPI(LoginRequiredMixin, View):
     def get(self, request, pk):
         org = request.organization
         client = get_object_or_404(Client, pk=pk, organization=org, is_active=True)
-        return JsonResponse({
-            "id": client.pk,
-            "name": client.name,
-            "email": client.email,
-            "phone": client.phone,
-            "notes": client.notes,
-            "source": client.source,
-            "created_at": client.created_at.strftime("%d/%m/%Y"),
-        })
+        return JsonResponse(
+            {
+                "id": client.pk,
+                "name": client.name,
+                "email": client.email,
+                "phone": client.phone,
+                "notes": client.notes,
+                "source": client.source,
+                "created_at": client.created_at.strftime("%d/%m/%Y"),
+            }
+        )
 
 
 class ClientNotesUpdateAPI(LoginRequiredMixin, View):
@@ -394,6 +420,7 @@ class ClientInterventionHistoryAPI(LoginRequiredMixin, View):
     Paginated intervention history for a client.
     IntersectionObserver-based infinite scroll, 30 per page.
     """
+
     PAGE_SIZE = 30
 
     def get(self, request, pk):
@@ -406,15 +433,21 @@ class ClientInterventionHistoryAPI(LoginRequiredMixin, View):
             page = 1
 
         offset = (page - 1) * self.PAGE_SIZE
-        qs = Intervencion.objects.filter(client=client).select_related(
-            "barber__membership__user", "barbershop",
-        ).prefetch_related(
-            "servicios__servicio",
-            "productos_usados__producto",
-        ).order_by("-fecha")
+        qs = (
+            Intervencion.objects.filter(client=client)
+            .select_related(
+                "barber__membership__user",
+                "barbershop",
+            )
+            .prefetch_related(
+                "servicios__servicio",
+                "productos_usados__producto",
+            )
+            .order_by("-fecha")
+        )
 
         total = qs.count()
-        items = qs[offset:offset + self.PAGE_SIZE]
+        items = qs[offset : offset + self.PAGE_SIZE]
 
         results = []
         for inv in items:
@@ -425,22 +458,28 @@ class ClientInterventionHistoryAPI(LoginRequiredMixin, View):
             total_inv = total_svc + total_prod
             fecha_local = timezone.localtime(inv.fecha) if inv.fecha else None
 
-            results.append({
-                "id": inv.pk,
-                "fecha": fecha_local.strftime("%d/%m/%Y %H:%M") if fecha_local else "",
-                "servicios": [s.servicio.name for s in servicios],
-                "sucursal": str(inv.barbershop) if inv.barbershop else "",
-                "gastos_fmt": f"${_format_money(total_inv)}",
-                "estado": inv.estado,
-                "estado_display": inv.get_estado_display(),
-            })
+            results.append(
+                {
+                    "id": inv.pk,
+                    "fecha": fecha_local.strftime("%d/%m/%Y %H:%M")
+                    if fecha_local
+                    else "",
+                    "servicios": [s.servicio.name for s in servicios],
+                    "sucursal": str(inv.barbershop) if inv.barbershop else "",
+                    "gastos_fmt": f"${_format_money(total_inv)}",
+                    "estado": inv.estado,
+                    "estado_display": inv.get_estado_display(),
+                }
+            )
 
         has_next = (offset + self.PAGE_SIZE) < total
-        return JsonResponse({
-            "results": results,
-            "page": page,
-            "has_next": has_next,
-        })
+        return JsonResponse(
+            {
+                "results": results,
+                "page": page,
+                "has_next": has_next,
+            }
+        )
 
 
 # ─────────────────────────────────────────────
@@ -455,16 +494,18 @@ class FichaClinicaAPI(LoginRequiredMixin, View):
         ficha = client.fichas_clinicas.first()
         if not ficha:
             return JsonResponse({"exists": False})
-        return JsonResponse({
-            "exists": True,
-            "id": ficha.pk,
-            "historia_clinica": ficha.historia_clinica,
-            "recomendaciones": ficha.recomendaciones,
-            "notas_medicas": ficha.notas_medicas,
-            "datos_extra": ficha.datos_extra,
-            "created_at": ficha.created_at.strftime("%d/%m/%Y %H:%M"),
-            "updated_at": ficha.updated_at.strftime("%d/%m/%Y %H:%M"),
-        })
+        return JsonResponse(
+            {
+                "exists": True,
+                "id": ficha.pk,
+                "historia_clinica": ficha.historia_clinica,
+                "recomendaciones": ficha.recomendaciones,
+                "notas_medicas": ficha.notas_medicas,
+                "datos_extra": ficha.datos_extra,
+                "created_at": ficha.created_at.strftime("%d/%m/%Y %H:%M"),
+                "updated_at": ficha.updated_at.strftime("%d/%m/%Y %H:%M"),
+            }
+        )
 
     def post(self, request, pk):
         org = request.organization
@@ -535,8 +576,8 @@ class FichaClinicaPDFView(LoginRequiredMixin, View):
     <h1>Ficha Clínica – BarberSync</h1>
     <div class="client-info">
         <p><strong>Cliente:</strong> {client.name}</p>
-        <p><strong>Email:</strong> {client.email or '—'}</p>
-        <p><strong>Teléfono:</strong> {client.phone or '—'}</p>
+        <p><strong>Email:</strong> {client.email or "—"}</p>
+        <p><strong>Teléfono:</strong> {client.phone or "—"}</p>
         <p><strong>Fecha de generación:</strong> {fecha}</p>
     </div>
     <div class="section">
@@ -559,6 +600,7 @@ class FichaClinicaPDFView(LoginRequiredMixin, View):
 
     def _pdf_weasyprint(self, html_content, client):
         from weasyprint import HTML
+
         pdf_bytes = HTML(string=html_content).write_pdf()
         buffer = io.BytesIO(pdf_bytes)
         safe_name = client.name.replace(" ", "_")[:30]
@@ -580,21 +622,36 @@ class FichaClinicaPDFView(LoginRequiredMixin, View):
         styles = getSampleStyleSheet()
         brand_color = HexColor("#ff2301")
 
-        title_style = ParagraphStyle("Title", parent=styles["Title"], textColor=brand_color, fontSize=20)
-        heading_style = ParagraphStyle("H2", parent=styles["Heading2"], textColor=HexColor("#555555"), fontSize=14)
-        body_style = ParagraphStyle("Body", parent=styles["Normal"], fontSize=12, leading=16)
+        title_style = ParagraphStyle(
+            "Title", parent=styles["Title"], textColor=brand_color, fontSize=20
+        )
+        heading_style = ParagraphStyle(
+            "H2", parent=styles["Heading2"], textColor=HexColor("#555555"), fontSize=14
+        )
+        body_style = ParagraphStyle(
+            "Body", parent=styles["Normal"], fontSize=12, leading=16
+        )
 
         elements = []
         elements.append(Paragraph(f"Ficha Clínica – {client.name}", title_style))
         elements.append(Spacer(1, 12))
-        elements.append(Paragraph(f"<b>Email:</b> {client.email or '—'} | <b>Teléfono:</b> {client.phone or '—'}", body_style))
+        elements.append(
+            Paragraph(
+                f"<b>Email:</b> {client.email or '—'} | <b>Teléfono:</b> {client.phone or '—'}",
+                body_style,
+            )
+        )
         elements.append(Spacer(1, 20))
 
         historia = ficha.historia_clinica if ficha else "Sin información"
         recomendaciones = ficha.recomendaciones if ficha else "Sin información"
         notas = ficha.notas_medicas if ficha else "Sin información"
 
-        for title, content in [("Historia Clínica", historia), ("Recomendaciones", recomendaciones), ("Notas Médicas / Estéticas", notas)]:
+        for title, content in [
+            ("Historia Clínica", historia),
+            ("Recomendaciones", recomendaciones),
+            ("Notas Médicas / Estéticas", notas),
+        ]:
             elements.append(Paragraph(title, heading_style))
             elements.append(Spacer(1, 6))
             elements.append(Paragraph(content.replace("\n", "<br/>"), body_style))
@@ -626,20 +683,25 @@ class ClientSearchAPI(View):
             return JsonResponse([], safe=False)
 
         q = request.GET.get("q", "").strip()
-        
+
         try:
             page = int(request.GET.get("page", 1))
             limit = int(request.GET.get("limit", 30))
         except (ValueError, TypeError):
             page = 1
             limit = 30
-            
+
         offset = (page - 1) * limit
 
-        clients = Client.objects.filter(organization=org, is_active=True).select_related("user").order_by("name")
-        
+        clients = (
+            Client.objects.filter(organization=org, is_active=True)
+            .select_related("user")
+            .order_by("name")
+        )
+
         if q:
             from django.db.models.functions import Concat
+
             q_clean = q.replace("+", "").strip()
             clients = clients.annotate(
                 user_combined_phone=Concat(
@@ -647,45 +709,42 @@ class ClientSearchAPI(View):
                     Coalesce("user__phone", Value("")),
                 )
             ).filter(
-                Q(name__icontains=q) |
-                Q(email__icontains=q) |
-                Q(phone__icontains=q) |
-                Q(user__email__icontains=q) |
-                Q(user__phone__icontains=q) |
-                Q(user_combined_phone__icontains=q_clean)
+                Q(name__icontains=q)
+                | Q(email__icontains=q)
+                | Q(phone__icontains=q)
+                | Q(user__email__icontains=q)
+                | Q(user__phone__icontains=q)
+                | Q(user_combined_phone__icontains=q_clean)
             )
 
-        clients_page = clients[offset:offset + limit]
+        clients_page = clients[offset : offset + limit]
 
         data = []
         for c in clients_page:
             # Email: search first in the user account email, otherwise use client email
             email = c.user.email if (c.user_id and c.user.email) else c.email
-            
+
             # Phone: combination of user phone and country_code, otherwise use client phone
             phone = ""
             if c.user_id and c.user.phone:
                 user_phone = c.user.phone.strip()
                 user_cc = c.user.country_code.strip() if c.user.country_code else ""
-                
+
                 # Clean '+' prefix from both to combine them cleanly, then prepend '+'
                 clean_phone = user_phone.lstrip("+")
                 clean_cc = user_cc.lstrip("+")
-                
+
                 if clean_cc:
                     if clean_phone.startswith(clean_cc):
                         phone = f"+{clean_phone}"
                     else:
                         phone = f"+{clean_cc}{clean_phone}"
                 else:
-                    phone = user_phone if user_phone.startswith("+") else f"+{user_phone}"
+                    phone = (
+                        user_phone if user_phone.startswith("+") else f"+{user_phone}"
+                    )
             else:
                 phone = c.phone
-                
-            data.append({
-                "id": c.pk,
-                "name": c.name,
-                "email": email,
-                "phone": phone
-            })
+
+            data.append({"id": c.pk, "name": c.name, "email": email, "phone": phone})
         return JsonResponse(data, safe=False)
