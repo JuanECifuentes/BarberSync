@@ -120,7 +120,7 @@ function intervencionForm() {
         error: '',
 
         get canSubmit() {
-            return this.barberId && this.selectedClient && this.selectedServices.length > 0;
+            return this.barberId && this.selectedServices.length > 0;
         },
 
         init() {},
@@ -161,7 +161,7 @@ function intervencionForm() {
                     },
                     body: JSON.stringify({
                         barber_id: parseInt(this.barberId),
-                        client_id: this.selectedClient.id,
+                        client_id: this.selectedClient ? this.selectedClient.id : null,
                         service_ids: this.selectedServices,
                         fecha: this.fecha,
                         notas: this.notas,

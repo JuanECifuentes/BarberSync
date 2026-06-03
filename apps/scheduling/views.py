@@ -265,7 +265,7 @@ class AppointmentCreateAPI(LoginRequiredMixin, View):
         service_ids = data.get("service_ids", [])
         notes = data.get("notes", "")
 
-        if not all([barber_id, client_id, start_time_str, service_ids]):
+        if not all([barber_id, start_time_str, service_ids]):
             return JsonResponse({"error": "Faltan campos requeridos"}, status=400)
 
         barber = BarberProfile.objects.filter(
@@ -277,12 +277,14 @@ class AppointmentCreateAPI(LoginRequiredMixin, View):
 
         from apps.clients.models import Client
 
-        client = Client.objects.filter(
-            pk=client_id,
-            organization=barbershop.organization,
-        ).first()
-        if not client:
-            return JsonResponse({"error": "Cliente no encontrado"}, status=404)
+        client = None
+        if client_id:
+            client = Client.objects.filter(
+                pk=client_id,
+                organization=barbershop.organization,
+            ).first()
+            if not client:
+                return JsonResponse({"error": "Cliente no encontrado"}, status=404)
 
         try:
             start_time = datetime.fromisoformat(start_time_str)
@@ -1217,28 +1219,29 @@ class AppointmentRescheduleAPI(LoginRequiredMixin, View):
             appointment.services.values_list("service__name", flat=True)
         )
 
-        client_channels = ["email"]
-        if appointment.client.phone:
-            client_channels.append("sms")
+        if appointment.client:
+            client_channels = ["email"]
+            if appointment.client.phone:
+                client_channels.append("sms")
 
-        send_notification(
-            recipient={
-                "email": appointment.client.email,
-                "phone": appointment.client.phone,
-                "name": appointment.client.name,
-            },
-            notif_type="reschedule_client",
-            context={
-                "recipient_name": appointment.client.name,
-                "barbershop_name": appointment.barbershop.name,
-                "barber_name": str(appointment.barber),
-                "service_names": service_names,
-                "start_time": appointment.start_time,
-                "new_start_time": new_start.strftime("%d/%m/%Y %H:%M"),
-            },
-            channels=client_channels,
-            appointment_id=appointment.pk,
-        )
+            send_notification(
+                recipient={
+                    "email": appointment.client.email,
+                    "phone": appointment.client.phone,
+                    "name": appointment.client.name,
+                },
+                notif_type="reschedule_client",
+                context={
+                    "recipient_name": appointment.client.name,
+                    "barbershop_name": appointment.barbershop.name,
+                    "barber_name": str(appointment.barber),
+                    "service_names": service_names,
+                    "start_time": appointment.start_time,
+                    "new_start_time": new_start.strftime("%d/%m/%Y %H:%M"),
+                },
+                channels=client_channels,
+                appointment_id=appointment.pk,
+            )
 
         # Notify barber if the change was made by an admin (not the barber themselves)
         if is_admin and not is_assigned_barber:
@@ -1257,7 +1260,9 @@ class AppointmentRescheduleAPI(LoginRequiredMixin, View):
                 context={
                     "recipient_name": str(appointment.barber),
                     "barbershop_name": appointment.barbershop.name,
-                    "client_name": appointment.client.name,
+                    "client_name": appointment.client.name
+                    if appointment.client
+                    else "Sin cliente",
                     "service_names": service_names,
                     "start_time": appointment.start_time,
                     "new_start_time": new_start.strftime("%d/%m/%Y %H:%M"),
@@ -1395,6 +1400,103 @@ class BarbersDataAPI(LoginRequiredMixin, View):
                 }
             )
         return JsonResponse(barbers_data, safe=False)
+
+
+# ─────────────────────────────────────────────
+# Assign client to appointment (immutable, one-time)
+# ─────────────────────────────────────────────
+class AppointmentAssignClientAPI(LoginRequiredMixin, View):
+    """
+    Assign a client to an appointment that was created without one.
+    Immutable: once a client is assigned, it cannot be changed.
+    Fires async confirmation notification to the newly assigned client.
+    """
+
+    def post(self, request, pk):
+        barbershop = request.barbershop
+        if not barbershop:
+            return JsonResponse({"error": "Sin barbería asignada"}, status=403)
+
+        appointment = (
+            Appointment.objects.filter(pk=pk, barbershop=barbershop)
+            .select_related("client", "barber__membership__user", "barbershop")
+            .first()
+        )
+        if not appointment:
+            return JsonResponse({"error": "Cita no encontrada"}, status=404)
+
+        if appointment.client_id is not None:
+            return JsonResponse(
+                {
+                    "error": "Esta cita ya tiene un cliente asignado. No se puede modificar."
+                },
+                status=400,
+            )
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "JSON inválido"}, status=400)
+
+        client_id = data.get("client_id")
+        if not client_id:
+            return JsonResponse({"error": "client_id es requerido"}, status=400)
+
+        from apps.clients.models import Client
+
+        client = Client.objects.filter(
+            pk=client_id,
+            organization=barbershop.organization,
+        ).first()
+        if not client:
+            return JsonResponse({"error": "Cliente no encontrado"}, status=404)
+
+        with transaction.atomic():
+            appointment.client = client
+            appointment.updated_by = request.user
+            appointment.save(update_fields=["client", "updated_by", "updated_at"])
+
+            try:
+                intervencion = appointment.intervencion
+                intervencion.client = client
+                intervencion.updated_by = request.user
+                intervencion.save(update_fields=["client", "updated_by", "updated_at"])
+            except Intervencion.DoesNotExist:
+                pass
+
+        service_names = ", ".join(
+            appointment.services.values_list("service__name", flat=True)
+        )
+
+        client_channels = ["email", "sms"]
+
+        send_notification(
+            recipient={
+                "email": client.email,
+                "phone": client.phone,
+                "name": client.name,
+            },
+            notif_type="confirmation",
+            context={
+                "recipient_name": client.name,
+                "barbershop_name": appointment.barbershop.name,
+                "barber_name": str(appointment.barber),
+                "service_names": service_names,
+                "start_time": appointment.start_time,
+            },
+            channels=client_channels,
+            appointment_id=appointment.pk,
+        )
+
+        svc.schedule_appointment_reminders(appointment.pk)
+
+        return JsonResponse(
+            {
+                "message": "Cliente asignado exitosamente",
+                "client_name": client.name,
+                "client_id": client.pk,
+            }
+        )
 
 
 # ─────────────────────────────────────────────

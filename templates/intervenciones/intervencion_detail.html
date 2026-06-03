@@ -52,7 +52,7 @@
         <div class="grid grid-cols-2 gap-3 text-sm">
             <div>
                 <span class="text-neutral-400">Cliente</span>
-                <p class="text-white font-medium">{{ intervencion.client.name }}</p>
+                <p class="text-white font-medium">{% if intervencion.client %}{{ intervencion.client.name }}{% else %}<span class="text-neutral-500 italic">Sin Registrar</span>{% endif %}</p>
             </div>
             <div>
                 <span class="text-neutral-400">Barbero</span>

@@ -198,7 +198,7 @@ def get_available_dates(
 def create_appointment(
     barbershop: Barbershop,
     barber: BarberProfile,
-    client: Client,
+    client: Client | None,
     start_time: datetime,
     service_ids: list[int],
     notes: str = "",
@@ -508,26 +508,27 @@ def get_calendar_events(
         events.append(
             {
                 "id": apt.pk,
-                "title": f"{apt.client.name} – {service_names}",
+                "title": f"{apt.client.name if apt.client else 'Sin cliente'} – {service_names}",
                 "start": apt.start_time.isoformat(),
                 "end": apt.end_time.isoformat(),
                 "color": _status_color(apt.status),
                 "extendedProps": {
-                    "client_name": apt.client.name,
-                    "client_phone": apt.client.phone,
-                    "client_email": apt.client.email,
+                    "client_name": apt.client.name if apt.client else "",
+                    "client_id": apt.client_id,
+                    "client_phone": apt.client.phone if apt.client else "",
+                    "client_email": apt.client.email if apt.client else "",
                     "client_country_code": getattr(apt.client.user, "country_code", "")
-                    if apt.client.user
+                    if apt.client and apt.client.user
                     else "",
                     "client_phone_verified": getattr(
                         apt.client.user, "phone_verification", False
                     )
-                    if apt.client.user
+                    if apt.client and apt.client.user
                     else False,
                     "client_email_verified": getattr(
                         apt.client.user, "email_verification", False
                     )
-                    if apt.client.user
+                    if apt.client and apt.client.user
                     else False,
                     "barber_name": str(apt.barber),
                     "barber_id": apt.barber_id,

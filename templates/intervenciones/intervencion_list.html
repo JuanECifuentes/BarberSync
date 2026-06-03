@@ -666,49 +666,60 @@
                     </div>
 
                     <!-- Cliente (autocomplete) -->
-                    <!-- Cliente (autocomplete estilo select) -->
                     <div class="w-full max-w-full">
                         <label class="block text-sm font-medium text-neutral-300 mb-1 truncate">Cliente</label>
                         
-                        <div class="relative w-full max-w-full" @click.outside="clientDropdownOpen = false">
-                            <!-- Trigger button -->
-                            <button type="button" @click="toggleClientDropdown()"
-                                    class="w-full flex items-center justify-between px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-brand focus:border-brand"
-                                    :class="!form.selectedClient ? 'text-neutral-400' : 'text-white'">
-                                <span class="truncate flex-1 text-left" x-text="form.selectedClient ? form.selectedClient.name : 'Seleccionar cliente...'"></span>
-                                <svg class="w-4 h-4 text-neutral-400 shrink-0 ml-2" :class="clientDropdownOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="transition: transform 0.2s"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                            </button>
+                        <template x-if="editingId && form.selectedClient">
+                            <div class="flex items-center gap-2 px-4 py-3 bg-neutral-800/50 border border-neutral-700 rounded-lg">
+                                <span class="text-white text-sm font-medium truncate flex-1" x-text="form.selectedClient.name"></span>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-neutral-700 text-neutral-300 border border-neutral-600">Asignado</span>
+                            </div>
+                        </template>
 
-                            <!-- Dropdown panel -->
-                            <div x-show="clientDropdownOpen" x-transition
-                                 class="absolute z-[110] w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-2xl flex flex-col"
-                                 style="max-height: 320px;">
-                                
-                                <!-- Search inside dropdown -->
-                                <div class="p-2 border-b border-neutral-700 shrink-0 bg-neutral-800">
-                                    <input type="text" x-model="clientSearch" @input.debounce.300ms="searchClients()" x-ref="clientSearchInput"
-                                           placeholder="Buscar por nombre, correo o teléfono..."
-                                           class="w-full px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-md text-white text-sm placeholder-neutral-500 focus:ring-1 focus:ring-brand focus:border-brand transition-colors">
-                                </div>
-                                
-                                <!-- Options list with infinite scroll -->
-                                <div class="flex-1 overflow-y-auto p-1 custom-scrollbar bg-neutral-800" @scroll="onClientScroll($event)">
-                                    <template x-for="c in clientResults" :key="c.id">
-                                        <button @click="selectClient(c)" type="button"
-                                                class="w-full text-left px-3 py-2 rounded-md text-sm text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors flex flex-col gap-0.5">
-                                            <span x-text="c.name" class="font-medium text-white"></span>
-                                            <div class="flex items-center gap-2 text-xs text-neutral-400">
-                                                <span x-show="c.email" x-text="c.email" class="truncate"></span>
-                                                <span x-show="c.email && c.phone" class="text-neutral-600">•</span>
-                                                <span x-show="c.phone" x-text="c.phone" class="truncate"></span>
-                                            </div>
-                                        </button>
-                                    </template>
-                                    <div x-show="clientLoading" class="py-3 text-center text-xs text-neutral-500">Cargando...</div>
-                                    <div x-show="!clientLoading && clientResults.length === 0" class="py-3 text-center text-xs text-neutral-500">No se encontraron clientes</div>
+                        <template x-if="!editingId || !form.selectedClient">
+                            <div class="relative w-full max-w-full" @click.outside="clientDropdownOpen = false">
+                                <button type="button" @click="toggleClientDropdown()"
+                                        class="w-full flex items-center justify-between px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-sm transition-colors focus:ring-2 focus:ring-brand focus:border-brand"
+                                        :class="!form.selectedClient ? 'text-neutral-400' : 'text-white'">
+                                    <span class="truncate flex-1 text-left" x-text="form.selectedClient ? form.selectedClient.name : (editingId ? 'Asignar cliente...' : 'Seleccionar cliente...')"></span>
+                                    <svg class="w-4 h-4 text-neutral-400 shrink-0 ml-2" :class="clientDropdownOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="transition: transform 0.2s"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+
+                                <div x-show="clientDropdownOpen" x-transition
+                                     class="absolute z-[110] w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-2xl flex flex-col"
+                                     style="max-height: 320px;">
+                                    
+                                    <div class="p-2 border-b border-neutral-700 shrink-0 bg-neutral-800">
+                                        <input type="text" x-model="clientSearch" @input.debounce.300ms="searchClients()" x-ref="clientSearchInput"
+                                               placeholder="Buscar por nombre, correo o teléfono..."
+                                               class="w-full px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-md text-white text-sm placeholder-neutral-500 focus:ring-1 focus:ring-brand focus:border-brand transition-colors">
+                                    </div>
+                                    
+                                    <div class="flex-1 overflow-y-auto p-1 custom-scrollbar bg-neutral-800" @scroll="onClientScroll($event)">
+                                        <template x-for="c in clientResults" :key="c.id">
+                                            <button @click="selectClient(c)" type="button"
+                                                    class="w-full text-left px-3 py-2 rounded-md text-sm text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors flex flex-col gap-0.5">
+                                                <span x-text="c.name" class="font-medium text-white"></span>
+                                                <div class="flex items-center gap-2 text-xs text-neutral-400">
+                                                    <span x-show="c.email" x-text="c.email" class="truncate"></span>
+                                                    <span x-show="c.email && c.phone" class="text-neutral-600">•</span>
+                                                    <span x-show="c.phone" x-text="c.phone" class="truncate"></span>
+                                                </div>
+                                            </button>
+                                        </template>
+                                        <div x-show="clientLoading" class="py-3 text-center text-xs text-neutral-500">Cargando...</div>
+                                        <div x-show="!clientLoading && clientResults.length === 0" class="py-3 text-center text-xs text-neutral-500">No se encontraron clientes</div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        </template>
+
+                        <template x-if="editingId && !form.selectedClient && form.clientJustAssigned">
+                            <div class="mt-1 text-xs text-green-400 flex items-center gap-1">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span>Cliente asignado. Se guardará al confirmar los cambios.</span>
+                            </div>
+                        </template>
                     </div>
 
                     <!-- Servicios (acordeones por categoría) — requiere seleccionar barbero primero -->
@@ -1050,8 +1061,8 @@ function clienteBarberoCellRenderer(params) {
     const wrapper = document.createElement('div');
     wrapper.className = 'flex flex-col justify-center w-full h-full py-1';
     const cliente = document.createElement('span');
-    cliente.className = 'text-white text-sm font-medium truncate';
-    cliente.textContent = params.data.cliente || '—';
+    cliente.className = params.data.cliente_id ? 'text-white text-sm font-medium truncate' : 'text-neutral-500 text-sm font-medium truncate italic';
+    cliente.textContent = params.data.cliente || 'Sin Registrar';
     const barbero = document.createElement('span');
     barbero.className = 'text-neutral-400 text-xs truncate';
     barbero.textContent = params.data.barbero || '';
@@ -1459,7 +1470,7 @@ function buildMobileCardHTML(row) {
         </div>
         <!-- Body -->
         <div>
-            <p class="text-white font-medium text-sm">${escapeHtml(row.cliente || '—')}</p>
+            <p class="${row.cliente_id ? 'text-white' : 'text-neutral-500 italic'} font-medium text-sm">${escapeHtml(row.cliente || 'Sin Registrar')}</p>
             <p class="text-neutral-400 text-xs">${escapeHtml(row.barbero || '')}</p>
         </div>
         <!-- Summary -->
@@ -1621,7 +1632,7 @@ function intervencionesApp() {
         },
 
         get canSubmit() {
-            return this.form.can_edit && this.form.barber_id && this.form.selectedClient && (this.form.service_ids.length > 0 || this.form.productCount > 0);
+            return this.form.can_edit && this.form.barber_id && (this.form.service_ids.length > 0 || this.form.productCount > 0);
         },
 
         get hasActiveFilters() {
@@ -1721,6 +1732,7 @@ function intervencionesApp() {
                 sucursal_id: '{{ current_barbershop_id }}',
                 productCount: 0,
                 can_edit: true,
+                clientJustAssigned: false,
             };
             this.formError = '';
             this.clientSearch = '';
@@ -1759,8 +1771,8 @@ function intervencionesApp() {
             this.editingId = data.id;
             try {
                 this.form.barber_id = data.barbero_id ? data.barbero_id.toString() : '';
-                this.form.client_id = data.cliente_id;
-                this.form.selectedClient = { id: data.cliente_id, name: data.cliente };
+                this.form.client_id = data.cliente_id || '';
+                this.form.selectedClient = data.cliente_id ? { id: data.cliente_id, name: data.cliente } : null;
                 this.form.fecha = data.fecha_iso;
                 this.form.notas = data.notas || '';
                 this.form.estado = data.estado || 'pendiente';
@@ -2326,6 +2338,9 @@ function intervencionesApp() {
             this.form.selectedClient = c;
             this.form.client_id = c.id;
             this.clientDropdownOpen = false;
+            if (this.editingId) {
+                this.form.clientJustAssigned = true;
+            }
         },
 
         async submitForm() {
@@ -2345,7 +2360,7 @@ function intervencionesApp() {
                     },
                     body: JSON.stringify({
                         barber_id: parseInt(this.form.barber_id),
-                        client_id: this.form.selectedClient.id,
+                        client_id: this.form.selectedClient ? this.form.selectedClient.id : null,
                         service_ids: this.form.service_ids,
                         productos: this.getProductRows(),
                         fecha: this.form.fecha,

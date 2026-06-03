@@ -375,7 +375,9 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
                 pct_barbero = 0
 
             fecha_local = timezone.localtime(inv.fecha) if inv.fecha else None
-            can_edit = is_admin or (barber_profile and inv.barber_id == barber_profile.id)
+            can_edit = is_admin or (
+                barber_profile and inv.barber_id == barber_profile.id
+            )
 
             rows.append(
                 {
@@ -385,7 +387,7 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
                     if fecha_local
                     else "",
                     "fecha_iso": fecha_local.isoformat() if fecha_local else "",
-                    "cliente": inv.client.name if inv.client else "",
+                    "cliente": inv.client.name if inv.client else "Sin Registrar",
                     "cliente_id": inv.client_id,
                     "barbero": str(inv.barber) if inv.barber else "",
                     "barbero_id": inv.barber_id,
@@ -395,7 +397,7 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
                         {
                             "id": s.servicio.id,
                             "nombre": s.servicio.name,
-                            "precio": str(s.precio_cobrado)
+                            "precio": str(s.precio_cobrado),
                         }
                         for s in servicios
                     ],
@@ -408,7 +410,9 @@ class IntervencionGridAPI(LoginRequiredMixin, View):
                             "incluido": p.incluido_en_precio,
                             "auto": p.intervencion_servicio_id is not None,
                             "is_deleted": not p.producto.is_active,
-                            "servicio_id": p.intervencion_servicio.servicio_id if p.intervencion_servicio else None
+                            "servicio_id": p.intervencion_servicio.servicio_id
+                            if p.intervencion_servicio
+                            else None,
                         }
                         for p in productos
                     ],
@@ -567,8 +571,7 @@ class IntervencionCreateView(LoginRequiredMixin, View):
         sucursal_id = data.get("sucursal_id")
         print("sucursal_id", sucursal_id)
 
-        # Venta directa: allow no services if at least one product
-        if not barber_id or not client_id:
+        if not barber_id:
             return JsonResponse({"error": "Faltan campos requeridos"}, status=400)
         if not service_ids and not producto_items:
             return JsonResponse(
@@ -596,12 +599,14 @@ class IntervencionCreateView(LoginRequiredMixin, View):
         if not barber:
             return JsonResponse({"error": "Barbero no encontrado"}, status=404)
 
-        client = Client.objects.filter(
-            pk=client_id,
-            organization=barbershop.organization,
-        ).first()
-        if not client:
-            return JsonResponse({"error": "Cliente no encontrado"}, status=404)
+        client = None
+        if client_id:
+            client = Client.objects.filter(
+                pk=client_id,
+                organization=barbershop.organization,
+            ).first()
+            if not client:
+                return JsonResponse({"error": "Cliente no encontrado"}, status=404)
 
         try:
             fecha = datetime.fromisoformat(fecha_str) if fecha_str else timezone.now()
@@ -734,7 +739,9 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
         membership = request.user.membership
         is_admin = membership.role in ["owner", "admin"]
         barber_profile = getattr(membership, "barber_profile", None)
-        if not is_admin and (not barber_profile or intervencion.barber != barber_profile):
+        if not is_admin and (
+            not barber_profile or intervencion.barber != barber_profile
+        ):
             return JsonResponse(
                 {"error": "No tienes permiso para modificar esta intervención."},
                 status=403,
@@ -753,7 +760,7 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
         estado = data.get("estado")
         sucursal_id = data.get("sucursal_id")
 
-        if not barber_id or not client_id:
+        if not barber_id:
             return JsonResponse({"error": "Faltan campos requeridos"}, status=400)
         if not service_ids and not producto_items:
             return JsonResponse(
@@ -777,12 +784,14 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
         if not barber:
             return JsonResponse({"error": "Barbero no encontrado"}, status=404)
 
-        client = Client.objects.filter(
-            pk=client_id,
-            organization=org,
-        ).first()
-        if not client:
-            return JsonResponse({"error": "Cliente no encontrado"}, status=404)
+        client = None
+        if client_id:
+            client = Client.objects.filter(
+                pk=client_id,
+                organization=org,
+            ).first()
+            if not client:
+                return JsonResponse({"error": "Cliente no encontrado"}, status=404)
 
         try:
             fecha = (
@@ -815,13 +824,40 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
             fecha + timedelta(minutes=total_duration) if total_duration else fecha
         )
 
+        client_newly_assigned = intervencion.client_id is None and client is not None
+
+        if (
+            intervencion.client_id is not None
+            and client
+            and client.pk != intervencion.client_id
+        ):
+            return JsonResponse(
+                {
+                    "error": "Esta intervención ya tiene un cliente asignado. No se puede modificar."
+                },
+                status=400,
+            )
+
         with transaction.atomic():
-            # Restore stock from previous products before replacing
             _restore_stock(intervencion, request.user)
+
+            try:
+                print("intentando actualizar")
+                appointment = intervencion.appointment
+                if appointment:
+                    print("Actualizando cita")
+                    appointment.client = client
+                    appointment.updated_by = request.user
+                    appointment.save(
+                        update_fields=["client", "updated_by", "updated_at"]
+                    )
+            except Exception:
+                pass
 
             intervencion.barbershop = target_barbershop
             intervencion.barber = barber
-            intervencion.client = client
+            if client:
+                intervencion.client = client
             intervencion.fecha = fecha
             intervencion.fecha_fin = fecha_fin
             intervencion.notas = notas
@@ -889,6 +925,45 @@ class IntervencionUpdateView(LoginRequiredMixin, View):
                     updated_by=request.user,
                 ).save()
 
+        if client_newly_assigned and client:
+            should_notify = False
+            linked_appointment = None
+            try:
+                from .models import Appointment as AppointmentModel
+
+                linked_appointment = intervencion.appointment
+                if (
+                    linked_appointment.status == AppointmentModel.Status.PENDING
+                    and linked_appointment.start_time > timezone.now()
+                ):
+                    should_notify = True
+            except Exception:
+                pass
+
+            if should_notify and linked_appointment:
+                from apps.notifications.notifications import send_notification
+
+                service_names = ", ".join(
+                    linked_appointment.services.values_list("service__name", flat=True)
+                )
+                send_notification(
+                    recipient={
+                        "email": client.email,
+                        "phone": client.phone,
+                        "name": client.name,
+                    },
+                    notif_type="confirmation",
+                    context={
+                        "recipient_name": client.name,
+                        "barbershop_name": linked_appointment.barbershop.name,
+                        "barber_name": str(linked_appointment.barber),
+                        "service_names": service_names,
+                        "start_time": linked_appointment.start_time,
+                    },
+                    channels=["email", "sms"],
+                    appointment_id=linked_appointment.pk,
+                )
+
         return JsonResponse(
             {"message": "Intervención actualizada", "id": intervencion.pk}
         )
@@ -910,7 +985,9 @@ class IntervencionDeleteView(LoginRequiredMixin, View):
         membership = request.user.membership
         is_admin = membership.role in ["owner", "admin"]
         barber_profile = getattr(membership, "barber_profile", None)
-        if not is_admin and (not barber_profile or intervencion.barber != barber_profile):
+        if not is_admin and (
+            not barber_profile or intervencion.barber != barber_profile
+        ):
             return JsonResponse(
                 {"error": "No tienes permiso para modificar esta intervención."},
                 status=403,
@@ -937,7 +1014,9 @@ class IntervencionChangeStatusAPI(LoginRequiredMixin, View):
         membership = request.user.membership
         is_admin = membership.role in ["owner", "admin"]
         barber_profile = getattr(membership, "barber_profile", None)
-        if not is_admin and (not barber_profile or intervencion.barber != barber_profile):
+        if not is_admin and (
+            not barber_profile or intervencion.barber != barber_profile
+        ):
             return JsonResponse(
                 {"error": "No tienes permiso para modificar esta intervención."},
                 status=403,
@@ -1044,7 +1123,9 @@ class IntervencionDetailAPI(LoginRequiredMixin, View):
                 "barber_id": intervencion.barber_id,
                 "barbero": str(intervencion.barber),
                 "client_id": intervencion.client_id,
-                "cliente": intervencion.client.name,
+                "cliente": intervencion.client.name
+                if intervencion.client
+                else "Sin Registrar",
                 "fecha": timezone.localtime(intervencion.fecha).strftime(
                     "%Y-%m-%dT%H:%M"
                 )
@@ -1074,5 +1155,125 @@ class IntervencionDetailAPI(LoginRequiredMixin, View):
                     }
                     for p in productos
                 ],
+            }
+        )
+
+
+# ─────────────────────────────────────────────
+# Assign client to intervencion (immutable, one-time)
+# ─────────────────────────────────────────────
+class IntervencionAssignClientAPI(LoginRequiredMixin, View):
+    """
+    Assign a client to an intervencion that was created without one.
+    Immutable: once a client is assigned, it cannot be changed.
+    Conditional notification: only sends notification if there's a linked
+    appointment in 'pendiente' state scheduled for a future date.
+    """
+
+    def post(self, request, pk):
+        barbershop = request.barbershop
+        org = barbershop.organization
+        intervencion = get_object_or_404(
+            Intervencion,
+            pk=pk,
+            barbershop__organization=org,
+        )
+
+        membership = request.user.membership
+        is_admin = membership.role in ["owner", "admin"]
+        barber_profile = getattr(membership, "barber_profile", None)
+        if not is_admin and (
+            not barber_profile or intervencion.barber != barber_profile
+        ):
+            return JsonResponse(
+                {"error": "No tienes permiso para modificar esta intervención."},
+                status=403,
+            )
+
+        if intervencion.client_id is not None:
+            return JsonResponse(
+                {
+                    "error": "Esta intervención ya tiene un cliente asignado. No se puede modificar."
+                },
+                status=400,
+            )
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "JSON inválido"}, status=400)
+
+        client_id = data.get("client_id")
+        if not client_id:
+            return JsonResponse({"error": "client_id es requerido"}, status=400)
+
+        client = Client.objects.filter(
+            pk=client_id,
+            organization=org,
+        ).first()
+        if not client:
+            return JsonResponse({"error": "Cliente no encontrado"}, status=404)
+
+        with transaction.atomic():
+            intervencion.client = client
+            intervencion.updated_by = request.user
+            intervencion.save(update_fields=["client", "updated_by", "updated_at"])
+
+            try:
+                appointment = intervencion.appointment
+                if appointment.client_id is None:
+                    appointment.client = client
+                    appointment.updated_by = request.user
+                    appointment.save(
+                        update_fields=["client", "updated_by", "updated_at"]
+                    )
+            except Exception:
+                pass
+
+        should_notify = False
+        appointment = None
+        try:
+            from .models import Appointment as AppointmentModel
+
+            appointment = intervencion.appointment
+            if (
+                appointment.status == AppointmentModel.Status.PENDING
+                and appointment.start_time > timezone.now()
+            ):
+                should_notify = True
+        except Exception:
+            pass
+
+        if should_notify and appointment and client:
+            from apps.notifications.notifications import send_notification
+
+            service_names = ", ".join(
+                appointment.services.values_list("service__name", flat=True)
+            )
+            client_channels = ["email", "sms"]
+
+            send_notification(
+                recipient={
+                    "email": client.email,
+                    "phone": client.phone,
+                    "name": client.name,
+                },
+                notif_type="confirmation",
+                context={
+                    "recipient_name": client.name,
+                    "barbershop_name": appointment.barbershop.name,
+                    "barber_name": str(appointment.barber),
+                    "service_names": service_names,
+                    "start_time": appointment.start_time,
+                },
+                channels=client_channels,
+                appointment_id=appointment.pk,
+            )
+
+        return JsonResponse(
+            {
+                "message": "Cliente asignado exitosamente",
+                "client_name": client.name,
+                "client_id": client.pk,
             }
         )
