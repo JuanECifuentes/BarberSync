@@ -35,6 +35,13 @@ class User(AbstractUser):
     phone = models.CharField(
         "teléfono", max_length=20, blank=True, validators=[phone_validator]
     )
+    country_code = models.CharField(
+        "código de país",
+        max_length=5,
+        help_text="Código de país para el número telefónico (ej. 57 para Colombia).",
+    )
+    phone_verification = models.BooleanField("teléfono verificado", default=False)
+    email_verification = models.BooleanField("correo verificado", default=False)
     avatar = models.ImageField(upload_to="avatars/", blank=True)
 
     USERNAME_FIELD = "email"
