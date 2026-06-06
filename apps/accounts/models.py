@@ -162,6 +162,18 @@ class Barbershop(models.Model):
     )
     open_hour = models.PositiveSmallIntegerField("hora de apertura", default=8)
     close_hour = models.PositiveSmallIntegerField("hora de cierre", default=20)
+    hora_apertura = models.TimeField(
+        "hora de apertura (TimeField)",
+        null=True,
+        blank=True,
+        help_text="Hora exacta de apertura de la sucursal.",
+    )
+    hora_cierre = models.TimeField(
+        "hora de cierre (TimeField)",
+        null=True,
+        blank=True,
+        help_text="Hora exacta de cierre de la sucursal.",
+    )
     closed_days = models.JSONField(
         "días cerrados",
         default=list,

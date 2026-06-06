@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 from django.conf import settings
@@ -45,11 +46,24 @@ def _generate_unique_slug(model_class, name, exclude_pk=None, **filter_kwargs):
 class ConfirmEmailView(View):
     """
     Consumes a one-time cryptographic token to verify the user's email.
+    Completely session-agnostic: works regardless of whether the clicking
+    user is logged in, logged in as a different user, or anonymous.
     """
 
     def get(self, request, token):
-        user = EmailVerificationToken.consume_token(token)
-        if user is None:
+        from django.core import signing as django_signing
+
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        token_obj = (
+            EmailVerificationToken.objects.filter(
+                token_hash=token_hash,
+                is_consumed=False,
+            )
+            .select_related("user")
+            .first()
+        )
+
+        if token_obj is None:
             return render(
                 request,
                 "accounts/email_verification_result.html",
@@ -59,8 +73,36 @@ class ConfirmEmailView(View):
                 },
             )
 
-        user.email_verification = True
-        user.save(update_fields=["email_verification"])
+        try:
+            django_signing.loads(
+                token, salt="barbersync-email-verification", max_age=86400
+            )
+        except django_signing.SignatureExpired:
+            return render(
+                request,
+                "accounts/email_verification_result.html",
+                {
+                    "success": False,
+                    "is_booking_page": True,
+                },
+            )
+        except django_signing.BadSignature:
+            return render(
+                request,
+                "accounts/email_verification_result.html",
+                {
+                    "success": False,
+                    "is_booking_page": True,
+                },
+            )
+
+        token_obj.is_consumed = True
+        token_obj.consumed_at = timezone.now()
+        token_obj.save(update_fields=["is_consumed", "consumed_at"])
+
+        target_user = token_obj.user
+        target_user.email_verification = True
+        target_user.save(update_fields=["email_verification"])
 
         return render(
             request,
@@ -144,6 +186,8 @@ class OnboardingView(LoginRequiredMixin, View):
                 "name": shop.name,
                 "maps_location": shop.maps_location or "",
                 "maps_instructions": shop.maps_instructions or "",
+                "hora_apertura": shop.hora_apertura or "08:00",
+                "hora_cierre": shop.hora_cierre or "20:00",
             }
             if shop
             else None,
@@ -182,6 +226,8 @@ class OnboardingStep1API(LoginRequiredMixin, View):
         shop_name = (data.get("shop_name") or "").strip()
         maps_location = (data.get("maps_location") or "").strip()
         maps_instructions = (data.get("maps_instructions") or "").strip()
+        open_time = (data.get("open_time") or "").strip()
+        close_time = (data.get("close_time") or "").strip()
 
         if not org_name:
             return JsonResponse(
@@ -190,6 +236,27 @@ class OnboardingStep1API(LoginRequiredMixin, View):
         if not shop_name:
             return JsonResponse(
                 {"error": "El nombre de la sucursal es obligatorio."}, status=400
+            )
+        if not open_time or not close_time:
+            return JsonResponse(
+                {"error": "El horario de apertura y cierre son obligatorios."},
+                status=400,
+            )
+
+        from datetime import datetime as dt
+
+        try:
+            open_h = dt.strptime(open_time, "%H:%M").hour
+            close_h = dt.strptime(close_time, "%H:%M").hour
+        except ValueError:
+            return JsonResponse(
+                {"error": "Formato de hora inválido. Use HH:MM."}, status=400
+            )
+
+        if open_time >= close_time:
+            return JsonResponse(
+                {"error": "La hora de cierre debe ser posterior a la de apertura."},
+                status=400,
             )
 
         membership = request.user.memberships.filter(is_active=True).first()
@@ -214,12 +281,20 @@ class OnboardingStep1API(LoginRequiredMixin, View):
                     )
                     shop.maps_location = maps_location
                     shop.maps_instructions = maps_instructions
+                    shop.hora_apertura = open_time
+                    shop.hora_cierre = close_time
+                    shop.open_hour = open_h
+                    shop.close_hour = close_h
                     shop.save(
                         update_fields=[
                             "name",
                             "slug",
                             "maps_location",
                             "maps_instructions",
+                            "hora_apertura",
+                            "hora_cierre",
+                            "open_hour",
+                            "close_hour",
                         ]
                     )
                 else:
@@ -231,6 +306,10 @@ class OnboardingStep1API(LoginRequiredMixin, View):
                         ),
                         maps_location=maps_location,
                         maps_instructions=maps_instructions,
+                        hora_apertura=open_time,
+                        hora_cierre=close_time,
+                        open_hour=open_h,
+                        close_hour=close_h,
                     )
             else:
                 org = Organization.objects.create(
@@ -246,6 +325,10 @@ class OnboardingStep1API(LoginRequiredMixin, View):
                     slug=_generate_unique_slug(Barbershop, shop_name, organization=org),
                     maps_location=maps_location,
                     maps_instructions=maps_instructions,
+                    hora_apertura=open_time,
+                    hora_cierre=close_time,
+                    open_hour=open_h,
+                    close_hour=close_h,
                 )
 
                 if not membership:

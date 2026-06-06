@@ -51,7 +51,13 @@ class OrganizationOnboardingForm(forms.ModelForm):
 class BarbershopOnboardingForm(forms.ModelForm):
     class Meta:
         model = Barbershop
-        fields = ["name", "maps_location", "maps_instructions"]
+        fields = [
+            "name",
+            "maps_location",
+            "maps_instructions",
+            "hora_apertura",
+            "hora_cierre",
+        ]
         widgets = {
             "name": forms.TextInput(
                 attrs={
@@ -67,9 +73,25 @@ class BarbershopOnboardingForm(forms.ModelForm):
                     "rows": 2,
                 }
             ),
+            "hora_apertura": forms.TimeInput(
+                attrs={
+                    "type": "time",
+                    "class": "w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-all",
+                    "value": "08:00",
+                }
+            ),
+            "hora_cierre": forms.TimeInput(
+                attrs={
+                    "type": "time",
+                    "class": "w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-all",
+                    "value": "20:00",
+                }
+            ),
         }
         labels = {
             "name": "Nombre de la Sucursal",
             "maps_location": "Ubicación en el mapa",
             "maps_instructions": "Indicaciones de llegada (opcional)",
+            "hora_apertura": "Hora de Apertura",
+            "hora_cierre": "Hora de Cierre",
         }
