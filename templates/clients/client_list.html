@@ -94,6 +94,11 @@
         padding: 20px 40px;
         font-family: 'Poppins', sans-serif;
     }
+    .ag-theme-alpine .ag-row-pinned {
+        background-color: #242427 !important;
+        font-weight: 600;
+        border-top: 1px solid #ff2301;
+    }
 
     /* Unified tag style */
     .unified-tag {
@@ -676,7 +681,7 @@ function gastosCellRenderer(params) {
 }
 
 function fichaCellRenderer(params) {
-    if (!params.data) return '';
+    if (!params.data || params.data.is_walk_in) return '';
     const container = document.createElement('div');
     container.style.cssText = 'display:flex;gap:6px;align-items:center;height:100%';
     const btn = document.createElement('button');
@@ -696,7 +701,7 @@ function fichaCellRenderer(params) {
 }
 
 function accionesCellRenderer(params) {
-    if (!params.data) return '';
+    if (!params.data || params.data.is_walk_in) return '';
     const container = document.createElement('div');
     container.style.cssText = 'display:flex;gap:6px;align-items:center;height:100%';
     const editBtn = document.createElement('button');
@@ -767,6 +772,9 @@ function buildDataSource() {
                 .then(r => r.json())
                 .then(data => {
                     params.successCallback(data.rows, data.lastRow >= 0 ? data.lastRow : -1);
+                    if (data.walk_in && gridApi) {
+                        gridApi.setGridOption('pinnedBottomRowData', [data.walk_in]);
+                    }
                     // Dispatch KPI update event for Alpine to pick up
                     if (data.kpis) {
                         document.dispatchEvent(new CustomEvent('kpi-update', { detail: data.kpis }));
@@ -800,7 +808,7 @@ document.addEventListener('DOMContentLoaded', () => {
         overlayNoRowsTemplate: '<div class="text-neutral-400 py-8"><p class="text-lg mb-1">No se encontraron clientes</p><p class="text-sm">Ajusta los filtros o crea uno nuevo</p></div>',
         getRowId: (params) => params.data?.id?.toString(),
         onRowClicked: (event) => {
-            if (event.data) {
+            if (event.data && !event.data.is_walk_in) {
                 document.dispatchEvent(new CustomEvent('open-profile', { detail: event.data.id }));
             }
         },

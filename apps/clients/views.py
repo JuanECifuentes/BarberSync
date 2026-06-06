@@ -272,20 +272,73 @@ class ClientGridAPI(LoginRequiredMixin, View):
 
         last_row = total_count if end_row >= total_count else -1
 
-        # ── KPIs reactivos (basados en el queryset filtrado) ──
+        # ── Walk-in calculations ──
+        name_matches_walkin = not filter_nombre or filter_nombre.lower() in "walk in"
+        has_other_client_filters = any([
+            filter_email,
+            filter_telefono,
+            filter_visitas_min,
+            filter_visitas_max,
+            filter_gastos_min,
+            filter_gastos_max,
+        ])
+
+        if has_other_client_filters or not name_matches_walkin:
+            walkin_visitas = 0
+            walkin_gastos = Decimal("0")
+        else:
+            walkins = Intervencion.objects.filter(
+                client__isnull=True,
+                estado=Intervencion.Estado.REALIZADA,
+                barbershop__organization=org,
+            )
+            if filter_fecha_desde:
+                walkins = walkins.filter(fecha__date__gte=filter_fecha_desde)
+            if filter_fecha_hasta:
+                walkins = walkins.filter(fecha__date__lte=filter_fecha_hasta)
+            if filter_sucursales:
+                ids = [int(x) for x in filter_sucursales.split(",") if x.strip().isdigit()]
+                if ids:
+                    walkins = walkins.filter(barbershop_id__in=ids)
+
+            walkin_visitas = walkins.count()
+            walkin_svc = IntervencionServicio.objects.filter(
+                intervencion__in=walkins
+            ).aggregate(total=Coalesce(Sum("precio_cobrado"), Value(Decimal("0"))))["total"]
+            walkin_prod = IntervencionProducto.objects.filter(
+                intervencion__in=walkins
+            ).aggregate(
+                total=Coalesce(
+                    Sum(F("cantidad") * F("precio_unitario")),
+                    Value(Decimal("0")),
+                )
+            )["total"]
+            walkin_gastos = walkin_svc + walkin_prod
+
+        # ── KPIs reactivos (basados en el queryset filtrado + walk-ins) ──
         kpi_agg = qs.aggregate(
             kpi_total_clientes=Count("pk", distinct=True),
             kpi_total_visitas=Sum("visitas"),
             kpi_total_gastos=Sum("gastos"),
         )
         kpi_clientes = kpi_agg["kpi_total_clientes"] or 0
-        kpi_visitas = kpi_agg["kpi_total_visitas"] or 0
-        kpi_gastos = kpi_agg["kpi_total_gastos"] or Decimal("0")
+        kpi_visitas = (kpi_agg["kpi_total_visitas"] or 0) + walkin_visitas
+        kpi_gastos = (kpi_agg["kpi_total_gastos"] or Decimal("0")) + walkin_gastos
 
         return JsonResponse(
             {
                 "rows": rows,
                 "lastRow": last_row,
+                "walk_in": {
+                    "id": "walk-in",
+                    "nombre": "Walk in",
+                    "email": "",
+                    "telefono": "",
+                    "visitas": walkin_visitas,
+                    "gastos": str(walkin_gastos),
+                    "gastos_fmt": f"${_format_money(walkin_gastos)}",
+                    "is_walk_in": True,
+                },
                 "kpis": {
                     "total_clientes": kpi_clientes,
                     "total_visitas": kpi_visitas,
