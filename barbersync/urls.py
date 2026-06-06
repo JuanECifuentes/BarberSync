@@ -18,8 +18,8 @@ urlpatterns = [
     path("", LandingPageView.as_view(), name="root"),
     path("admin/", admin.site.urls),
     # Auth (allauth handles Google OAuth + email login)
-    path("accounts/", include("allauth.urls")),
     path("accounts/", include("apps.accounts.urls")),
+    path("accounts/", include("allauth.urls")),
     # Internal app (requires login)
     path("app/schedule/", include("apps.scheduling.urls")),
     path("app/clients/", include("apps.clients.urls")),

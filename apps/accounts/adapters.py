@@ -15,13 +15,17 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
         but before the login is processed.
 
         Handles the case where a user tries to sign in with Google using an email
-        that already has a local password account. Instead of raising an error,
+        which already has a local password account. Instead of raising an error,
         we associate the social account and log the user in.
         """
         from allauth.account.models import EmailAddress
         from allauth.socialaccount.models import SocialAccount
 
-        email = sociallogin.email_addresses[0].email if sociallogin.email_addresses else None
+        email = (
+            sociallogin.email_addresses[0].email
+            if sociallogin.email_addresses
+            else None
+        )
         if not email:
             return
 
@@ -34,6 +38,9 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             # Already exists - let allauth handle it normally
             sociallogin.account = existing_social
             sociallogin.user = existing_social.user
+            if not sociallogin.user.email_verification:
+                sociallogin.user.email_verification = True
+                sociallogin.user.save(update_fields=["email_verification"])
             return
         except SocialAccount.DoesNotExist:
             pass
@@ -41,15 +48,19 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
         # Check if a local user with this email exists
         existing_email = EmailAddress.objects.filter(email__iexact=email).first()
         user = existing_email.user if (existing_email and existing_email.user) else None
-        
+
         if not user:
             from django.contrib.auth import get_user_model
+
             User = get_user_model()
             user = User.objects.filter(email__iexact=email).first()
 
-        # If the user is already authenticated and matches the found user, 
+        # If the user is already authenticated and matches the found user,
         # they are just connecting their account, so we should allow it.
         if user and request.user.is_authenticated and request.user == user:
+            if not user.email_verification:
+                user.email_verification = True
+                user.save(update_fields=["email_verification"])
             return
 
         if user:
@@ -58,17 +69,20 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
                 # Do not auto-link. Show a conflict page.
                 from django.shortcuts import render
                 from allauth.core.exceptions import ImmediateHttpResponse
+
                 response = render(
                     request,
                     "socialaccount/email_conflict.html",
-                    {"email": email, "provider": sociallogin.account.provider}
+                    {"email": email, "provider": sociallogin.account.provider},
                 )
                 raise ImmediateHttpResponse(response)
             else:
                 # User exists but without a password (maybe another social account)
                 # Connect the social account to the existing user
                 sociallogin.user = user
-                # The social account will be saved by allauth after this
+                if not user.email_verification:
+                    user.email_verification = True
+                    user.save(update_fields=["email_verification"])
 
     def is_auto_signup_allowed(self, request, sociallogin):
         """
@@ -91,9 +105,10 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
         we redirect to a styled error page instead of the generic allauth template.
         """
         from allauth.socialaccount.providers.base import AuthError
+
         if error == AuthError.CANCELLED:
             raise ImmediateHttpResponse(
-                HttpResponseRedirect(reverse('socialaccount_login_cancelled'))
+                HttpResponseRedirect(reverse("socialaccount_login_cancelled"))
             )
 
         # For other errors, let allauth render its authentication_error template

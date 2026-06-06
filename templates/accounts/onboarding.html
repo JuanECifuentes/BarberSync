@@ -1,27 +1,30 @@
 {% extends "base.html" %}
+{% load static %}
 
-{% block title %}Configurar Organización - BarberSync{% endblock %}
+{% block title %}Configurar tu Barbería - BarberSync{% endblock %}
+
+{% block extra_head %}
+{% if google_maps_api_key %}
+<script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&callback=initMap" async defer></script>
+{% endif %}
+{% endblock %}
 
 {% block public_content %}
-<div class="min-h-screen bg-neutral-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-    <div class="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <!-- Logo placeholder -->
-        <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand/10 mb-4 shadow-lg shadow-brand/20">
-            <svg class="w-8 h-8 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-            </svg>
+<div class="min-h-screen bg-neutral-950 flex flex-col py-8 pb-20 sm:px-6 lg:px-8">
+    <div class="sm:mx-auto sm:w-full sm:max-w-2xl">
+        <div class="text-center mb-6">
+            <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand/10 mb-3 shadow-lg shadow-brand/20">
+                <svg class="w-7 h-7 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+            </div>
+            <h2 class="text-2xl font-heading font-bold tracking-tight text-white">Configura tu Barbería</h2>
+            <p class="mt-1 text-sm text-neutral-400">Completa los pasos para empezar a usar BarberSync.</p>
         </div>
-        <h2 class="text-3xl font-heading font-bold tracking-tight text-white">Configura tu Barbería</h2>
-        <p class="mt-2 text-sm text-neutral-400">
-            Ingresa los datos principales para empezar a usar BarberSync.
-        </p>
-    </div>
 
-    <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div class="card p-8 shadow-xl">
-            <form method="post" class="space-y-6">
-                {% csrf_token %}
-                
+        <!-- STEP 1 -->
+        <div id="step-1" class="{% if current_step == 2 %}hidden{% endif %}">
+            <div class="card p-6 shadow-xl space-y-6">
                 <div>
                     <h3 class="text-lg font-medium text-white mb-4 border-b border-neutral-800 pb-2 flex items-center gap-2">
                         <svg class="w-5 h-5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -29,22 +32,14 @@
                         </svg>
                         Datos de la Organización
                     </h3>
-                    <div class="space-y-4">
-                        {% for field in org_form %}
-                        <div>
-                            <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-neutral-300 mb-1">
-                                {{ field.label }}
-                            </label>
-                            {{ field }}
-                            {% if field.errors %}
-                            <p class="mt-1 text-sm text-red-400">{{ field.errors.0 }}</p>
-                            {% endif %}
-                        </div>
-                        {% endfor %}
+                    <div>
+                        <label for="id_org-name" class="block text-sm font-medium text-neutral-300 mb-1">Nombre de la Organización</label>
+                        {{ org_form.name }}
+                        {% if org_form.name.errors %}<p class="mt-1 text-sm text-red-400">{{ org_form.name.errors.0 }}</p>{% endif %}
                     </div>
                 </div>
 
-                <div class="pt-4">
+                <div>
                     <h3 class="text-lg font-medium text-white mb-4 border-b border-neutral-800 pb-2 flex items-center gap-2">
                         <svg class="w-5 h-5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.243-4.243a8 8 0 1111.314 0z" />
@@ -53,30 +48,932 @@
                         Tu Primera Sucursal
                     </h3>
                     <div class="space-y-4">
-                        {% for field in shop_form %}
                         <div>
-                            <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-neutral-300 mb-1">
-                                {{ field.label }}
-                            </label>
-                            {{ field }}
-                            {% if field.errors %}
-                            <p class="mt-1 text-sm text-red-400">{{ field.errors.0 }}</p>
-                            {% endif %}
+                            <label for="id_shop-name" class="block text-sm font-medium text-neutral-300 mb-1">Nombre de la Sucursal</label>
+                            {{ shop_form.name }}
+                            {% if shop_form.name.errors %}<p class="mt-1 text-sm text-red-400">{{ shop_form.name.errors.0 }}</p>{% endif %}
                         </div>
-                        {% endfor %}
+
+                        <div>
+                            <label class="block text-sm font-medium text-neutral-300 mb-1">Ubicación en el mapa</label>
+                            <div id="map-container" class="w-full h-64 bg-neutral-800 rounded-xl border border-neutral-700 overflow-hidden relative">
+                                <div id="map" class="w-full h-full"></div>
+                                <div id="map-placeholder" class="absolute inset-0 flex items-center justify-center text-neutral-500 text-sm">
+                                    <div class="text-center">
+                                        <svg class="w-8 h-8 mx-auto mb-2 text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.243-4.243a8 8 0 1111.314 0z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        </svg>
+                                        <span>Cargando mapa...</span>
+                                    </div>
+                                </div>
+                            </div>
+                            {{ shop_form.maps_location }}
+                            <p class="mt-1 text-xs text-neutral-500">Arrastra el marcador o haz clic en el mapa para definir la ubicación.</p>
+                        </div>
+
+                        <div>
+                            <label for="id_shop-maps_instructions" class="block text-sm font-medium text-neutral-300 mb-1">Indicaciones de llegada (opcional)</label>
+                            {{ shop_form.maps_instructions }}
+                        </div>
                     </div>
                 </div>
 
+                <div>
+                    <h3 class="text-lg font-medium text-white mb-4 border-b border-neutral-800 pb-2 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Horario de Servicio
+                    </h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="id_shop-hora_apertura" class="block text-sm font-medium text-neutral-300 mb-1">Hora de Apertura</label>
+                            {{ shop_form.hora_apertura }}
+                        </div>
+                        <div>
+                            <label for="id_shop-hora_cierre" class="block text-sm font-medium text-neutral-300 mb-1">Hora de Cierre</label>
+                            {{ shop_form.hora_cierre }}
+                        </div>
+                    </div>
+                </div>
+
+                <div id="step1-error" class="hidden p-3 bg-red-900/40 border border-red-800 rounded-lg text-sm text-red-300"></div>
+
                 <div class="pt-2">
-                    <button type="submit" class="btn-action-primary btn-primary font-semibold w-full text-sm flex items-center justify-center gap-3 border border-neutral-700 px-4 py-3 rounded-lg transition-all shadow-sm">
-                        <span>Comenzar a usar BarberSync</span>
+                    <button type="button" id="btn-step1-next" class="btn-action-primary btn-primary font-semibold w-full text-sm flex items-center justify-center gap-3 border border-neutral-700 px-4 py-3 rounded-lg transition-all shadow-sm">
+                        <span>Siguiente</span>
                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
                         </svg>
                     </button>
                 </div>
-            </form>
+            </div>
+        </div>
+
+        <!-- STEP 2 -->
+        <div id="step-2" class="{% if current_step != 2 %}hidden{% endif %}">
+            <div class="card p-6 shadow-xl space-y-6">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-medium text-white flex items-center gap-2">
+                        <svg class="w-5 h-5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                        Catálogo de Servicios
+                    </h3>
+                    <button type="button" id="btn-back-to-step1" class="text-xs text-neutral-400 hover:text-white hover:bg-neutral-800 px-3 py-1.5 rounded-lg transition-all duration-300 cursor-pointer flex items-center gap-1 active:scale-95">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                        Volver
+                    </button>
+                </div>
+
+                <!-- Sub-step A: Selection -->
+                <div id="sub-a" class="">
+                    <p class="text-sm text-neutral-400 mb-4">Selecciona los servicios que ofrecerás. Puedes elegir prefabricados o crear los tuyos.</p>
+
+                    <div class="flex gap-2 mb-4">
+                        <button type="button" id="btn-add-category" class="text-xs px-3 py-1.5 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-300 hover:bg-neutral-700 transition-all duration-300 cursor-pointer flex items-center gap-1 active:scale-95">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                            Nueva categoría
+                        </button>
+                        <button type="button" id="btn-add-service" class="text-xs px-3 py-1.5 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-300 hover:bg-neutral-700 transition-all duration-300 cursor-pointer flex items-center gap-1 active:scale-95">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                            Nuevo servicio
+                        </button>
+                    </div>
+
+                    <div id="categories-container" class="space-y-3 max-h-80 overflow-y-auto pr-1"></div>
+
+                    <div id="sub-a-error" class="hidden mt-3 p-3 bg-red-900/40 border border-red-800 rounded-lg text-sm text-red-300"></div>
+
+                    <div class="pt-4">
+                        <button type="button" id="btn-sub-a-next" class="btn-action-primary btn-primary font-semibold w-full text-sm flex items-center justify-center gap-3 border border-neutral-700 px-4 py-3 rounded-lg transition-all shadow-sm opacity-50 cursor-not-allowed" disabled>
+                            <span>Siguiente</span>
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                        </button>
+                        <p id="selection-hint" class="text-xs text-neutral-500 mt-2 text-center">Selecciona al menos 1 servicio para continuar.</p>
+                    </div>
+                </div>
+
+                <!-- Sub-step B: Duration -->
+                <div id="sub-b" class="hidden">
+                    <p class="text-sm text-neutral-400 mb-4">Ajusta la duración de cada servicio (en minutos).</p>
+                    <div id="duration-container" class="space-y-3 max-h-80 overflow-y-auto pr-1"></div>
+                    <div class="pt-4 flex gap-3">
+                        <button type="button" id="btn-sub-b-back" class="bg-neutral-800 text-neutral-300 hover:bg-neutral-700 hover:text-white text-sm flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-neutral-700 transition-all duration-300 cursor-pointer active:scale-[0.98]">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                            Atrás
+                        </button>
+                        <button type="button" id="btn-sub-b-next" class="btn-action-primary btn-primary font-semibold flex-1 text-sm flex items-center justify-center gap-3 border border-neutral-700 px-4 py-3 rounded-lg transition-all shadow-sm">
+                            <span>Siguiente</span>
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sub-step C: Pricing -->
+                <div id="sub-c" class="hidden">
+                    <p class="text-sm text-neutral-400 mb-4">Define el precio de cada servicio.</p>
+                    <div id="pricing-container" class="space-y-3 max-h-80 overflow-y-auto pr-1"></div>
+                    <div id="sub-c-error" class="hidden mt-3 p-3 bg-red-900/40 border border-red-800 rounded-lg text-sm text-red-300"></div>
+                    <div class="pt-4 flex gap-3">
+                        <button type="button" id="btn-sub-c-back" class="bg-neutral-800 text-neutral-300 hover:bg-neutral-700 hover:text-white text-sm flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-neutral-700 transition-all duration-300 cursor-pointer active:scale-[0.98]">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                            Atrás
+                        </button>
+                        <button type="button" id="btn-finish" class="btn-action-primary btn-primary font-semibold flex-1 text-sm flex items-center justify-center gap-3 border border-neutral-700 px-4 py-3 rounded-lg transition-all shadow-sm">
+                            <span>Finalizar</span>
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
+
+<!-- Sticky Progress Bar -->
+<div class="fixed bottom-0 left-0 w-full z-50 bg-neutral-950/80 backdrop-blur-sm border-t border-neutral-800/60 px-4 py-3 sm:px-6">
+    <div class="max-w-2xl mx-auto">
+        <div class="flex items-center justify-between text-xs text-neutral-400 mb-1.5">
+            <span id="step-label">Paso 1 de 2</span>
+            <span id="progress-percent">0%</span>
+        </div>
+        <div class="w-full bg-neutral-800 rounded-full h-2 overflow-hidden">
+            <div id="progress-bar" class="h-full bg-brand rounded-full transition-all duration-500 ease-out" style="width: 0%"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Add Category -->
+<div id="modal-category" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 w-full max-w-sm mx-4 shadow-2xl">
+        <h3 class="text-lg font-heading font-bold text-white mb-4">Nueva categoría</h3>
+        <input type="text" id="input-new-category" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-white text-sm placeholder-neutral-500 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand" placeholder="Nombre de la categoría">
+        <div class="flex gap-3 mt-4">
+            <button type="button" onclick="document.getElementById('modal-category').classList.add('hidden')" class="bg-neutral-800 text-neutral-300 hover:bg-neutral-700 hover:text-white text-sm flex-1 py-2.5 rounded-lg border border-neutral-700 transition-all duration-300 cursor-pointer">Cancelar</button>
+            <button type="button" id="btn-confirm-category" class="btn-action-primary btn-primary text-sm flex-1 py-2.5 rounded-lg font-semibold"><span>Crear</span></button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Add Service -->
+<div id="modal-service" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 w-full max-w-sm mx-4 shadow-2xl">
+        <h3 class="text-lg font-heading font-bold text-white mb-4">Nuevo servicio</h3>
+        <div class="space-y-3">
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">Categoría</label>
+                <select id="select-service-category" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"></select>
+            </div>
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1">Nombre del servicio</label>
+                <input type="text" id="input-new-service" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-white text-sm placeholder-neutral-500 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand" placeholder="Ej. Degradado premium">
+            </div>
+        </div>
+        <div class="flex gap-3 mt-4">
+            <button type="button" onclick="document.getElementById('modal-service').classList.add('hidden')" class="bg-neutral-800 text-neutral-300 hover:bg-neutral-700 hover:text-white text-sm flex-1 py-2.5 rounded-lg border border-neutral-700 transition-all duration-300 cursor-pointer">Cancelar</button>
+            <button type="button" id="btn-confirm-service" class="btn-action-primary btn-primary text-sm flex-1 py-2.5 rounded-lg font-semibold"><span>Crear</span></button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF_TOKEN = '{{ csrf_token }}';
+const CURRENT_STEP = {{ current_step }};
+const PREFAB_SERVICES = {
+    "Cortes": [
+        {name: "Corte Normal", duration: 30},
+        {name: "Degradado", duration: 35},
+        {name: "Corte + Barba", duration: 45},
+    ],
+    "Tratamientos": [
+        {name: "Exfoliación", duration: 20},
+        {name: "Limpieza facial", duration: 25},
+    ],
+    "Barba": [
+        {name: "Barba", duration: 20},
+    ],
+    "Estética": [
+        {name: "Cejas", duration: 15},
+        {name: "Maquillaje", duration: 30},
+        {name: "Uñas", duration: 25},
+    ],
+};
+
+const STEP1_BTN_HTML = '<span>Siguiente</span><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>';
+const FINISH_BTN_HTML = '<span>Finalizar</span><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>';
+const SPINNER_HTML = '<svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg><span>Guardando...</span>';
+
+let map = null;
+let marker = null;
+let leafletMap = null;
+let leafletMarker = null;
+let selectedServices = [];
+let categoriesData = {};
+
+const COLOMBIA_CENTER = {lat: 4.570868, lng: -74.297333};
+
+function setMapCenter(lat, lng) {
+    const locInput = document.getElementById('id_shop-maps_location');
+    const center = {lat: lat, lng: lng};
+    if (map) {
+        map.setCenter(center);
+        if (marker) marker.setPosition(center);
+    }
+    if (leafletMap) {
+        leafletMap.setView([lat, lng], leafletMap.getZoom());
+        if (leafletMarker) leafletMarker.setLatLng([lat, lng]);
+    }
+    if (locInput) locInput.value = lat + ',' + lng;
+}
+
+function tryIpGeolocation() {
+    fetch('https://ipapi.co/json/')
+        .then(r => r.json())
+        .then(data => {
+            if (data && data.latitude && data.longitude) {
+                setMapCenter(parseFloat(data.latitude), parseFloat(data.longitude));
+            } else {
+                setMapCenter(COLOMBIA_CENTER.lat, COLOMBIA_CENTER.lng);
+            }
+        })
+        .catch(() => {
+            setMapCenter(COLOMBIA_CENTER.lat, COLOMBIA_CENTER.lng);
+        });
+}
+
+function initMap() {
+    const placeholder = document.getElementById('map-placeholder');
+    const locInput = document.getElementById('id_shop-maps_location');
+    let center = COLOMBIA_CENTER;
+
+    if (locInput && locInput.value) {
+        const parts = locInput.value.split(',');
+        if (parts.length === 2) {
+            center = {lat: parseFloat(parts[0]), lng: parseFloat(parts[1])};
+        }
+    }
+
+    map = new google.maps.Map(document.getElementById('map'), {
+        zoom: 15,
+        center: center,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        styles: [
+            {elementType: "geometry", stylers: [{visibility: "on"}]},
+            {featureType: "poi", stylers: [{visibility: "off"}]},
+        ]
+    });
+
+    marker = new google.maps.Marker({
+        position: center,
+        map: map,
+        draggable: true,
+        animation: google.maps.Animation.DROP,
+    });
+
+    if (locInput && !locInput.value) {
+        locInput.value = center.lat + ',' + center.lng;
+    }
+
+    google.maps.event.addListener(marker, 'dragend', function() {
+        const pos = marker.getPosition();
+        if (locInput) locInput.value = pos.lat() + ',' + pos.lng();
+    });
+
+    map.addListener('click', function(e) {
+        marker.setPosition(e.latLng);
+        if (locInput) locInput.value = e.latLng.lat() + ',' + e.latLng.lng();
+    });
+
+    if (placeholder) placeholder.classList.add('hidden');
+
+    if (locInput && !locInput.value) {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                function(pos) {
+                    setMapCenter(pos.coords.latitude, pos.coords.longitude);
+                },
+                function() {
+                    tryIpGeolocation();
+                },
+                {timeout: 5000}
+            );
+        } else {
+            tryIpGeolocation();
+        }
+    }
+}
+
+function initMapFallback() {
+    const placeholder = document.getElementById('map-placeholder');
+    const locInput = document.getElementById('id_shop-maps_location');
+    let center = COLOMBIA_CENTER;
+
+    if (locInput && locInput.value) {
+        const parts = locInput.value.split(',');
+        if (parts.length === 2) {
+            center = {lat: parseFloat(parts[0]), lng: parseFloat(parts[1])};
+        }
+    }
+
+    // Load Leaflet CSS dynamically if not already loaded
+    if (!document.getElementById('leaflet-css')) {
+        const link = document.createElement('link');
+        link.id = 'leaflet-css';
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        document.head.appendChild(link);
+    }
+
+    // Load Leaflet JS dynamically if not already loaded
+    if (typeof L === 'undefined') {
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+        script.onload = function() {
+            startLeafletSetup(center, locInput, placeholder);
+        };
+        script.onerror = function() {
+            renderFallbackMapError();
+        };
+        document.head.appendChild(script);
+    } else {
+        startLeafletSetup(center, locInput, placeholder);
+    }
+}
+
+function startLeafletSetup(center, locInput, placeholder) {
+    if (locInput && !locInput.value) {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                function(pos) {
+                    const coords = {lat: pos.coords.latitude, lng: pos.coords.longitude};
+                    locInput.value = coords.lat + ',' + coords.lng;
+                    setupLeafletMap(coords, locInput, placeholder);
+                },
+                function() {
+                    tryLeafletIpGeolocation(locInput, placeholder);
+                },
+                {timeout: 5000}
+            );
+        } else {
+            tryLeafletIpGeolocation(locInput, placeholder);
+        }
+    } else {
+        setupLeafletMap(center, locInput, placeholder);
+    }
+}
+
+function tryLeafletIpGeolocation(locInput, placeholder) {
+    fetch('https://ipapi.co/json/')
+        .then(r => r.json())
+        .then(data => {
+            let coords = COLOMBIA_CENTER;
+            if (data && data.latitude && data.longitude) {
+                coords = {lat: parseFloat(data.latitude), lng: parseFloat(data.longitude)};
+            }
+            if (locInput) locInput.value = coords.lat + ',' + coords.lng;
+            setupLeafletMap(coords, locInput, placeholder);
+        })
+        .catch(() => {
+            let coords = COLOMBIA_CENTER;
+            if (locInput) locInput.value = coords.lat + ',' + coords.lng;
+            setupLeafletMap(coords, locInput, placeholder);
+        });
+}
+
+function setupLeafletMap(coords, locInput, placeholder) {
+    if (leafletMap) return;
+
+    if (placeholder) placeholder.classList.add('hidden');
+
+    const mapElement = document.getElementById('map');
+    if (mapElement) {
+        mapElement.innerHTML = '';
+    }
+
+    const centerArr = [coords.lat, coords.lng];
+
+    leafletMap = L.map('map', {
+        zoomControl: true,
+        attributionControl: true
+    }).setView(centerArr, 15);
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 20
+    }).addTo(leafletMap);
+
+    const brandPinSVG = `
+    <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2C8.13 2 5 5.13 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13 15.87 2 12 2ZM12 11.5C10.62 11.5 9.5 10.38 9.5 9C9.5 7.62 10.62 6.5 12 6.5C13.38 6.5 14.5 7.62 14.5 9C14.5 10.38 13.38 11.5 12 11.5Z" fill="#ff2301" stroke="#ffffff" stroke-width="1.5"/>
+    </svg>
+    `;
+
+    const brandIcon = L.divIcon({
+        html: brandPinSVG,
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
+        className: 'custom-brand-marker-icon'
+    });
+
+    leafletMarker = L.marker(centerArr, {
+        draggable: true,
+        icon: brandIcon
+    }).addTo(leafletMap);
+
+    leafletMarker.on('dragend', function() {
+        const position = leafletMarker.getLatLng();
+        if (locInput) {
+            locInput.value = position.lat.toFixed(6) + ',' + position.lng.toFixed(6);
+        }
+    });
+
+    leafletMap.on('click', function(e) {
+        leafletMarker.setLatLng(e.latlng);
+        if (locInput) {
+            locInput.value = e.latlng.lat.toFixed(6) + ',' + e.latlng.lng.toFixed(6);
+        }
+    });
+}
+
+function renderFallbackMapError() {
+    const placeholder = document.getElementById('map-placeholder');
+    const locInput = document.getElementById('id_shop-maps_location');
+    if (placeholder) {
+        placeholder.classList.remove('hidden');
+        placeholder.innerHTML = '<div class="text-center"><p class="text-neutral-500 text-sm">Mapa no disponible.</p><p class="text-xs text-neutral-600 mt-1">Coordenadas: ' + (locInput ? locInput.value : 'N/A') + '</p></div>';
+    }
+}
+
+function setProgress(percent) {
+    document.getElementById('progress-bar').style.width = percent + '%';
+    document.getElementById('progress-percent').textContent = percent + '%';
+    if (percent <= 50) {
+        document.getElementById('step-label').textContent = 'Paso 1 de 2';
+    } else {
+        document.getElementById('step-label').textContent = 'Paso 2 de 2';
+    }
+}
+
+function resetStep1Button() {
+    const btn = document.getElementById('btn-step1-next');
+    btn.disabled = false;
+    btn.innerHTML = STEP1_BTN_HTML;
+}
+
+function formatCurrency(value) {
+    const num = typeof value === 'string' ? parseFloat(value.replace(/\./g, '').replace(',', '.')) : value;
+    if (isNaN(num) || num < 0) return '0';
+    return new Intl.NumberFormat('es-CO', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+    }).format(num);
+}
+
+function parseCurrencyInput(str) {
+    if (!str) return 0;
+    const cleaned = str.replace(/\./g, '').replace(',', '.');
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? 0 : num;
+}
+
+function applyCurrencyMask(input) {
+    input.addEventListener('input', function(e) {
+        let raw = this.value.replace(/[^0-9,.]/g, '');
+        const parts = raw.split(',');
+        if (parts.length > 2) {
+            raw = parts[0] + ',' + parts.slice(1).join('');
+        }
+        if (parts.length === 2 && parts[1].length > 2) {
+            raw = parts[0] + ',' + parts[1].substring(0, 2);
+        }
+        const intPart = parts[0].replace(/\./g, '').replace(/^0+(?=\d)/, '');
+        const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        const finalVal = parts.length === 2 ? formattedInt + ',' + (parts[1] || '') : formattedInt;
+
+        const cursorPos = this.selectionStart;
+        const prevLen = this.value.length;
+        this.value = finalVal;
+        const newLen = this.value.length;
+        const newCursor = cursorPos + (newLen - prevLen);
+        this.setSelectionRange(Math.max(0, newCursor), Math.max(0, newCursor));
+
+        this.dataset.rawValue = parseCurrencyInput(this.value).toString();
+    });
+
+    input.addEventListener('blur', function() {
+        const num = parseCurrencyInput(this.value);
+        this.value = formatCurrency(num);
+        this.dataset.rawValue = num.toString();
+    });
+
+    input.addEventListener('focus', function() {
+        if (this.value === '0') {
+            this.value = '';
+            this.dataset.rawValue = '0';
+        }
+    });
+}
+
+function buildCategories() {
+    const container = document.getElementById('categories-container');
+    container.innerHTML = '';
+
+    for (const [catName, services] of Object.entries(categoriesData)) {
+        const accordion = document.createElement('div');
+        accordion.className = 'border border-neutral-800 rounded-lg overflow-hidden';
+
+        const header = document.createElement('button');
+        header.type = 'button';
+        header.className = 'w-full flex items-center justify-between px-4 py-3 bg-neutral-800/50 hover:bg-neutral-800 transition-all duration-300 text-left cursor-pointer';
+        header.innerHTML = `
+            <span class="text-sm font-medium text-white">${catName}</span>
+            <svg class="w-4 h-4 text-neutral-400 transition-transform duration-300 accordion-chevron" style="transform: rotate(180deg)" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+        `;
+
+        const body = document.createElement('div');
+        body.className = 'px-4 py-3 bg-neutral-900/50';
+        const tagsWrap = document.createElement('div');
+        tagsWrap.className = 'flex flex-wrap gap-2';
+
+        services.forEach(svc => {
+            const isSelected = selectedServices.some(s => s.name === svc.name && s.category === catName);
+            const tag = document.createElement('button');
+            tag.type = 'button';
+            tag.className = isSelected
+                ? 'px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-300 bg-green-900/40 text-green-400 border-green-600/50 shadow-sm shadow-green-900/30'
+                : 'px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-300 bg-neutral-800 text-neutral-300 border-neutral-700 hover:border-neutral-500 hover:text-white cursor-pointer';
+            tag.textContent = svc.name;
+            tag.dataset.name = svc.name;
+            tag.dataset.category = catName;
+            tag.dataset.duration = svc.duration || 30;
+
+            tag.addEventListener('click', function() {
+                toggleService(this);
+            });
+
+            tagsWrap.appendChild(tag);
+        });
+
+        body.appendChild(tagsWrap);
+
+        header.addEventListener('click', function() {
+            body.classList.toggle('hidden');
+            const chevron = header.querySelector('.accordion-chevron');
+            chevron.style.transform = body.classList.contains('hidden') ? '' : 'rotate(180deg)';
+        });
+
+        accordion.appendChild(header);
+        accordion.appendChild(body);
+        container.appendChild(accordion);
+    }
+}
+
+function toggleService(tagEl) {
+    const name = tagEl.dataset.name;
+    const category = tagEl.dataset.category;
+    const duration = parseInt(tagEl.dataset.duration) || 30;
+
+    const idx = selectedServices.findIndex(s => s.name === name && s.category === category);
+    if (idx >= 0) {
+        selectedServices.splice(idx, 1);
+        tagEl.className = 'px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-300 bg-neutral-800 text-neutral-300 border-neutral-700 hover:border-neutral-500 hover:text-white cursor-pointer';
+    } else {
+        selectedServices.push({name, category, duration, price: 0});
+        tagEl.className = 'px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-300 bg-green-900/40 text-green-400 border-green-600/50 shadow-sm shadow-green-900/30';
+    }
+
+    updateSelectionButton();
+}
+
+function updateSelectionButton() {
+    const btn = document.getElementById('btn-sub-a-next');
+    const hint = document.getElementById('selection-hint');
+    if (selectedServices.length > 0) {
+        btn.disabled = false;
+        btn.classList.remove('opacity-50', 'cursor-not-allowed');
+        hint.textContent = `${selectedServices.length} servicio(s) seleccionado(s).`;
+        hint.className = 'text-xs text-green-400 mt-2 text-center';
+    } else {
+        btn.disabled = true;
+        btn.classList.add('opacity-50', 'cursor-not-allowed');
+        hint.textContent = 'Selecciona al menos 1 servicio para continuar.';
+        hint.className = 'text-xs text-neutral-500 mt-2 text-center';
+    }
+}
+
+function buildDurationList() {
+    const container = document.getElementById('duration-container');
+    container.innerHTML = '';
+
+    selectedServices.forEach((svc, idx) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between bg-neutral-800/50 border border-neutral-800 rounded-lg px-4 py-3';
+        row.innerHTML = `
+            <div>
+                <p class="text-sm font-medium text-white">${svc.name}</p>
+                <p class="text-xs text-neutral-500">${svc.category}</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="number" min="5" max="300" value="${svc.duration}" data-idx="${idx}" class="duration-input w-20 bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-white text-sm text-center focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand">
+                <span class="text-xs text-neutral-500">min</span>
+            </div>
+        `;
+        container.appendChild(row);
+    });
+
+    container.querySelectorAll('.duration-input').forEach(input => {
+        input.addEventListener('change', function() {
+            const i = parseInt(this.dataset.idx);
+            let val = parseInt(this.value) || 30;
+            if (val < 5) val = 5;
+            if (val > 300) val = 300;
+            this.value = val;
+            selectedServices[i].duration = val;
+        });
+    });
+}
+
+function buildPricingList() {
+    const container = document.getElementById('pricing-container');
+    container.innerHTML = '';
+
+    selectedServices.forEach((svc, idx) => {
+        const formatted = formatCurrency(svc.price);
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between bg-neutral-800/50 border border-neutral-800 rounded-lg px-4 py-3';
+        row.innerHTML = `
+            <div class="min-w-0 flex-1">
+                <p class="text-sm font-medium text-white truncate">${svc.name}</p>
+                <p class="text-xs text-neutral-500">${svc.category} · ${svc.duration} min</p>
+            </div>
+            <div class="flex items-center gap-1 ml-3 shrink-0">
+                <span class="text-xs text-neutral-500">$</span>
+                <input type="text" inputmode="decimal" value="${formatted}" data-idx="${idx}" data-raw-value="${svc.price}" class="price-input w-32 bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-white text-sm text-right focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand" placeholder="0">
+            </div>
+        `;
+        container.appendChild(row);
+    });
+
+    container.querySelectorAll('.price-input').forEach(input => {
+        applyCurrencyMask(input);
+        input.addEventListener('change', function() {
+            const i = parseInt(this.dataset.idx);
+            const val = parseCurrencyInput(this.value);
+            selectedServices[i].price = val;
+            this.dataset.rawValue = val.toString();
+        });
+    });
+}
+
+function updateCategorySelect() {
+    const select = document.getElementById('select-service-category');
+    select.innerHTML = '';
+    for (const catName of Object.keys(categoriesData)) {
+        const opt = document.createElement('option');
+        opt.value = catName;
+        opt.textContent = catName;
+        select.appendChild(opt);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    categoriesData = {};
+    for (const [cat, svcs] of Object.entries(PREFAB_SERVICES)) {
+        categoriesData[cat] = svcs.map(s => ({...s}));
+    }
+    buildCategories();
+    updateCategorySelect();
+
+    if (CURRENT_STEP === 2) {
+        setProgress(50);
+    } else {
+        setProgress(0);
+    }
+
+    const HAS_GOOGLE_KEY = {% if google_maps_api_key %}true{% else %}false{% endif %};
+    if (!HAS_GOOGLE_KEY) {
+        initMapFallback();
+    } else if (typeof google === 'undefined' || typeof google.maps === 'undefined') {
+        setTimeout(function() {
+            if (typeof google === 'undefined' || typeof google.maps === 'undefined') {
+                initMapFallback();
+            }
+        }, 3500);
+    }
+
+    document.getElementById('btn-step1-next').addEventListener('click', function() {
+        const orgName = document.getElementById('id_org-name').value.trim();
+        const shopName = document.getElementById('id_shop-name').value.trim();
+        const mapsLocation = document.getElementById('id_shop-maps_location').value.trim();
+        const mapsInstructions = document.getElementById('id_shop-maps_instructions').value.trim();
+        const openTime = document.getElementById('id_shop-hora_apertura').value.trim();
+        const closeTime = document.getElementById('id_shop-hora_cierre').value.trim();
+        const errorEl = document.getElementById('step1-error');
+        errorEl.classList.add('hidden');
+
+        if (!orgName) {
+            errorEl.textContent = 'El nombre de la organización es obligatorio.';
+            errorEl.classList.remove('hidden');
+            return;
+        }
+        if (!shopName) {
+            errorEl.textContent = 'El nombre de la sucursal es obligatorio.';
+            errorEl.classList.remove('hidden');
+            return;
+        }
+        if (!openTime || !closeTime) {
+            errorEl.textContent = 'El horario de apertura y cierre son obligatorios.';
+            errorEl.classList.remove('hidden');
+            return;
+        }
+        if (openTime >= closeTime) {
+            errorEl.textContent = 'La hora de cierre debe ser posterior a la de apertura.';
+            errorEl.classList.remove('hidden');
+            return;
+        }
+
+        this.disabled = true;
+        this.innerHTML = SPINNER_HTML;
+
+        fetch('{% url "accounts:onboarding_step1_api" %}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN},
+            body: JSON.stringify({
+                org_name: orgName,
+                shop_name: shopName,
+                maps_location: mapsLocation,
+                maps_instructions: mapsInstructions,
+                open_time: openTime,
+                close_time: closeTime,
+            }),
+        })
+        .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+        .then(({ok, data}) => {
+            if (!ok) {
+                errorEl.textContent = data.error || 'Error al guardar.';
+                errorEl.classList.remove('hidden');
+                resetStep1Button();
+                return;
+            }
+            resetStep1Button();
+            setProgress(50);
+            document.getElementById('step-1').classList.add('hidden');
+            document.getElementById('step-2').classList.remove('hidden');
+            document.getElementById('step-label').textContent = 'Paso 2 de 2';
+        })
+        .catch(() => {
+            errorEl.textContent = 'Error de conexión. Intenta de nuevo.';
+            errorEl.classList.remove('hidden');
+            resetStep1Button();
+        });
+    });
+
+    document.getElementById('btn-back-to-step1').addEventListener('click', function() {
+        resetStep1Button();
+        setProgress(0);
+        document.getElementById('step-2').classList.add('hidden');
+        document.getElementById('step-1').classList.remove('hidden');
+        document.getElementById('step-label').textContent = 'Paso 1 de 2';
+    });
+
+    document.getElementById('btn-sub-a-next').addEventListener('click', function() {
+        if (selectedServices.length === 0) return;
+        buildDurationList();
+        document.getElementById('sub-a').classList.add('hidden');
+        document.getElementById('sub-b').classList.remove('hidden');
+        setProgress(65);
+    });
+
+    document.getElementById('btn-sub-b-back').addEventListener('click', function() {
+        document.getElementById('sub-b').classList.add('hidden');
+        document.getElementById('sub-a').classList.remove('hidden');
+        setProgress(50);
+    });
+
+    document.getElementById('btn-sub-b-next').addEventListener('click', function() {
+        buildPricingList();
+        document.getElementById('sub-b').classList.add('hidden');
+        document.getElementById('sub-c').classList.remove('hidden');
+        setProgress(85);
+    });
+
+    document.getElementById('btn-sub-c-back').addEventListener('click', function() {
+        document.getElementById('sub-c').classList.add('hidden');
+        document.getElementById('sub-b').classList.remove('hidden');
+        setProgress(65);
+    });
+
+    document.getElementById('btn-finish').addEventListener('click', function() {
+        const errorEl = document.getElementById('sub-c-error');
+        errorEl.classList.add('hidden');
+
+        const payload = selectedServices.map(s => ({
+            name: s.name,
+            category: s.category,
+            duration: s.duration,
+            price: s.price,
+        }));
+
+        this.disabled = true;
+        this.innerHTML = SPINNER_HTML;
+
+        fetch('{% url "accounts:onboarding_step2_api" %}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN},
+            body: JSON.stringify({services: payload}),
+        })
+        .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+        .then(({ok, data}) => {
+            if (!ok) {
+                errorEl.textContent = data.error || 'Error al guardar servicios.';
+                errorEl.classList.remove('hidden');
+                this.disabled = false;
+                this.innerHTML = FINISH_BTN_HTML;
+                return;
+            }
+            setProgress(100);
+            document.getElementById('step-label').textContent = 'Completado';
+            setTimeout(() => {
+                window.location.href = data.redirect || '/app/schedule/';
+            }, 600);
+        })
+        .catch(() => {
+            errorEl.textContent = 'Error de conexión. Intenta de nuevo.';
+            errorEl.classList.remove('hidden');
+            this.disabled = false;
+            this.innerHTML = FINISH_BTN_HTML;
+        });
+    });
+
+    document.getElementById('btn-add-category').addEventListener('click', function() {
+        document.getElementById('input-new-category').value = '';
+        document.getElementById('modal-category').classList.remove('hidden');
+        setTimeout(() => document.getElementById('input-new-category').focus(), 100);
+    });
+
+    document.getElementById('btn-confirm-category').addEventListener('click', function() {
+        const name = document.getElementById('input-new-category').value.trim();
+        if (!name) return;
+        if (categoriesData[name]) {
+            alert('Esa categoría ya existe.');
+            return;
+        }
+        categoriesData[name] = [];
+        buildCategories();
+        updateCategorySelect();
+        document.getElementById('modal-category').classList.add('hidden');
+    });
+
+    document.getElementById('btn-add-service').addEventListener('click', function() {
+        document.getElementById('input-new-service').value = '';
+        updateCategorySelect();
+        document.getElementById('modal-service').classList.remove('hidden');
+        setTimeout(() => document.getElementById('input-new-service').focus(), 100);
+    });
+
+    document.getElementById('btn-confirm-service').addEventListener('click', function() {
+        const name = document.getElementById('input-new-service').value.trim();
+        const category = document.getElementById('select-service-category').value;
+        if (!name) return;
+        if (!category) return;
+
+        if (!categoriesData[category]) {
+            categoriesData[category] = [];
+        }
+
+        const exists = categoriesData[category].some(s => s.name === name);
+        if (exists) {
+            alert('Ese servicio ya existe en esta categoría.');
+            return;
+        }
+
+        const newSvc = {name, duration: 30};
+        categoriesData[category].push(newSvc);
+        selectedServices.push({name, category, duration: 30, price: 0});
+
+        buildCategories();
+        updateSelectionButton();
+        document.getElementById('modal-service').classList.add('hidden');
+    });
+
+    document.getElementById('input-new-category').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') document.getElementById('btn-confirm-category').click();
+    });
+    document.getElementById('input-new-service').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') document.getElementById('btn-confirm-service').click();
+    });
+});
+</script>
 {% endblock %}
