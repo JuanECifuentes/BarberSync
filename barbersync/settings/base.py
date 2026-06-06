@@ -126,7 +126,7 @@ else:
             "LOCATION": REDIS_URL,
             "OPTIONS": {
                 "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            }
+            },
         }
     }
 
@@ -232,6 +232,10 @@ else:
     }
 
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@barbersync.app")
+
+SITE_URL = env("SITE_URL", default="http://127.0.0.1:8000")
+
+GOOGLE_MAPS_API_KEY = env("GOOGLE_MAPS_API_KEY", default="")
 
 # ──────────────────────────────────────────────
 # CORS (public booking API)

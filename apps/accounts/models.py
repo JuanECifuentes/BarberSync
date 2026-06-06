@@ -8,10 +8,12 @@ Organization  (top-level tenant)
 User extends AbstractUser and acts as a single identity across the platform.
 """
 
+import hashlib
 import uuid
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
+from django.core import signing
 from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
@@ -79,11 +81,24 @@ class Organization(models.Model):
         on_delete=models.PROTECT,
         related_name="owned_organizations",
     )
+
+    class OnboardingStep(models.IntegerChoices):
+        NOT_STARTED = 0, "No iniciado"
+        STEP_1 = 1, "Paso 1 – Organización y Sucursal"
+        STEP_2 = 2, "Paso 2 – Catálogo de Servicios"
+        COMPLETED = 3, "Completado"
+
     country_code = models.CharField(
         "país (ISO 3166-1 alpha-2)",
         max_length=2,
         default="CO",
         help_text="Código ISO del país. Determina la pasarela de pago por defecto.",
+    )
+    onboarding_step = models.PositiveSmallIntegerField(
+        "paso de onboarding",
+        choices=OnboardingStep.choices,
+        default=OnboardingStep.NOT_STARTED,
+        db_index=True,
     )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -127,6 +142,18 @@ class Barbershop(models.Model):
     address = models.TextField("dirección", blank=True)
     phone = models.CharField(
         "teléfono", max_length=20, blank=True, validators=[phone_validator]
+    )
+    maps_location = models.CharField(
+        "ubicación (lat,lng)",
+        max_length=100,
+        blank=True,
+        db_index=True,
+        help_text="Coordenadas del mapa en formato 'lat,lng'.",
+    )
+    maps_instructions = models.TextField(
+        "indicaciones de llegada",
+        blank=True,
+        help_text="Indicaciones opcionales para llegar a la sucursal.",
     )
     timezone = models.CharField(
         max_length=50,
@@ -319,3 +346,66 @@ class OrganizationInvitation(models.Model):
     @property
     def is_valid(self):
         return self.is_active and not self.is_used and timezone.now() < self.expires_at
+
+
+# ─────────────────────────────────────────────
+# Email Verification Token (one-time crypto)
+# ─────────────────────────────────────────────
+class EmailVerificationToken(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="email_verification_tokens",
+    )
+    token = models.CharField(max_length=255, unique=True, db_index=True)
+    token_hash = models.CharField(max_length=64, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    consumed_at = models.DateTimeField(null=True, blank=True)
+    is_consumed = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "accounts_email_verification_token"
+        verbose_name = "token de verificación de correo"
+        verbose_name_plural = "tokens de verificación de correo"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        status = "consumido" if self.is_consumed else "activo"
+        return f"Token {self.user.email} ({status})"
+
+    @classmethod
+    def generate_for_user(cls, user):
+        cls.objects.filter(user=user, is_consumed=False).update(
+            is_consumed=True, consumed_at=timezone.now()
+        )
+        raw_token = signing.dumps(
+            {"user_id": user.pk, "email": user.email},
+            salt="barbersync-email-verification",
+        )
+        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+        return cls.objects.create(
+            user=user,
+            token=raw_token,
+            token_hash=token_hash,
+        )
+
+    @classmethod
+    def consume_token(cls, raw_token):
+        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+        try:
+            obj = cls.objects.select_related("user").get(
+                token_hash=token_hash,
+                is_consumed=False,
+            )
+        except cls.DoesNotExist:
+            return None
+        try:
+            signing.loads(
+                raw_token, salt="barbersync-email-verification", max_age=86400
+            )
+        except signing.BadSignature:
+            return None
+        obj.is_consumed = True
+        obj.consumed_at = timezone.now()
+        obj.save(update_fields=["is_consumed", "consumed_at"])
+        return obj.user

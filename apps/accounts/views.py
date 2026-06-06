@@ -1,64 +1,255 @@
+import json
+
+from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
+from django.utils.text import slugify
 from django.views import View
 from django.views.generic import UpdateView
 from django.urls import reverse_lazy
 from django.contrib import messages
 from django.utils import timezone
 from django.shortcuts import render
-
-from .models import Barbershop, Membership, OrganizationInvitation
-from .forms import ProfileForm, OrganizationOnboardingForm, BarbershopOnboardingForm
 from django.db import transaction
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+
+from .models import (
+    Barbershop,
+    Membership,
+    Organization,
+    OrganizationInvitation,
+    EmailVerificationToken,
+)
+from .forms import ProfileForm, OrganizationOnboardingForm, BarbershopOnboardingForm
+
+
+def _generate_unique_slug(model_class, name, exclude_pk=None, **filter_kwargs):
+    base_slug = slugify(name)
+    if not base_slug:
+        base_slug = "item"
+    slug = base_slug
+    counter = 1
+    while True:
+        qs = model_class.objects.filter(slug=slug, **filter_kwargs)
+        if exclude_pk:
+            qs = qs.exclude(pk=exclude_pk)
+        if not qs.exists():
+            break
+        slug = f"{base_slug}-{counter}"
+        counter += 1
+    return slug
+
+
+class ConfirmEmailView(View):
+    """
+    Consumes a one-time cryptographic token to verify the user's email.
+    """
+
+    def get(self, request, token):
+        user = EmailVerificationToken.consume_token(token)
+        if user is None:
+            return render(
+                request,
+                "accounts/email_verification_result.html",
+                {
+                    "success": False,
+                    "is_booking_page": True,
+                },
+            )
+
+        user.email_verification = True
+        user.save(update_fields=["email_verification"])
+
+        return render(
+            request,
+            "accounts/email_verification_result.html",
+            {
+                "success": True,
+                "is_booking_page": True,
+            },
+        )
+
+
+class ResendVerificationEmailView(LoginRequiredMixin, View):
+    """
+    Re-dispatches the verification email for the authenticated user.
+    """
+
+    def post(self, request):
+        if request.user.email_verification:
+            return JsonResponse({"error": "Tu correo ya está verificado."}, status=400)
+
+        try:
+            from django_q.tasks import async_task
+
+            async_task(
+                "apps.accounts.tasks.send_verification_email_task",
+                request.user.pk,
+            )
+        except ImportError:
+            from .tasks import send_verification_email_task
+
+            send_verification_email_task(request.user.pk)
+
+        return JsonResponse(
+            {"ok": True, "message": "Correo de verificación reenviado."}
+        )
 
 
 class OnboardingView(LoginRequiredMixin, View):
     template_name = "accounts/onboarding.html"
 
-    def get(self, request):
+    def _get_onboarding_state(self, request):
         membership = request.user.memberships.filter(is_active=True).first()
-        if membership and membership.organization:
-            org = membership.organization
+        org = membership.organization if membership else None
+        shop = None
+        has_services = False
+        current_step = 1
+
+        if org:
+            shop = org.barbershops.filter(is_active=True).first()
+            from apps.scheduling.models import Service
+
+            has_services = Service.objects.filter(barbershop__organization=org).exists()
+
+            if has_services:
+                return None, None, None, None, None
+
+            if org.onboarding_step >= Organization.OnboardingStep.STEP_2:
+                current_step = 2
+            else:
+                current_step = 1
+
+        return membership, org, shop, has_services, current_step
+
+    def get(self, request):
+        membership, org, shop, has_services, current_step = self._get_onboarding_state(
+            request
+        )
+
+        if membership and org and has_services:
             if org.has_active_subscription:
                 return redirect("/app/schedule/")
             return redirect("/?expired=true#planes")
 
-        org_form = OrganizationOnboardingForm(prefix="org")
-        shop_form = BarbershopOnboardingForm(prefix="shop")
+        org_form = OrganizationOnboardingForm(
+            prefix="org",
+            initial={"name": org.name} if org else None,
+        )
+        shop_form = BarbershopOnboardingForm(
+            prefix="shop",
+            initial={
+                "name": shop.name,
+                "maps_location": shop.maps_location or "",
+                "maps_instructions": shop.maps_instructions or "",
+            }
+            if shop
+            else None,
+        )
+
+        google_maps_api_key = getattr(settings, "GOOGLE_MAPS_API_KEY", "")
+
         return render(
             request,
             self.template_name,
             {
                 "org_form": org_form,
                 "shop_form": shop_form,
+                "current_step": current_step,
+                "org": org,
+                "shop": shop,
+                "google_maps_api_key": google_maps_api_key,
                 "is_booking_page": True,
             },
         )
 
+
+class OnboardingStep1API(LoginRequiredMixin, View):
+    """
+    Saves Step 1: Organization + First Branch.
+    Creates or updates existing records. Sets onboarding_step = 2.
+    """
+
     def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({"error": "JSON inválido."}, status=400)
+
+        org_name = (data.get("org_name") or "").strip()
+        shop_name = (data.get("shop_name") or "").strip()
+        maps_location = (data.get("maps_location") or "").strip()
+        maps_instructions = (data.get("maps_instructions") or "").strip()
+
+        if not org_name:
+            return JsonResponse(
+                {"error": "El nombre de la organización es obligatorio."}, status=400
+            )
+        if not shop_name:
+            return JsonResponse(
+                {"error": "El nombre de la sucursal es obligatorio."}, status=400
+            )
+
         membership = request.user.memberships.filter(is_active=True).first()
-        if membership and membership.organization:
-            org = membership.organization
-            if org.has_active_subscription:
-                return redirect("/app/schedule/")
-            return redirect("/?expired=true#planes")
 
-        org_form = OrganizationOnboardingForm(request.POST, prefix="org")
-        shop_form = BarbershopOnboardingForm(request.POST, prefix="shop")
+        with transaction.atomic():
+            if membership and membership.organization:
+                org = membership.organization
+                if org.owner_id != request.user.pk:
+                    return JsonResponse({"error": "Sin permisos."}, status=403)
+                org.name = org_name
+                org.slug = _generate_unique_slug(
+                    Organization, org_name, exclude_pk=org.pk
+                )
+                org.onboarding_step = Organization.OnboardingStep.STEP_2
+                org.save(update_fields=["name", "slug", "onboarding_step"])
 
-        if org_form.is_valid() and shop_form.is_valid():
-            with transaction.atomic():
-                org = org_form.save(commit=False)
-                org.owner = request.user
-                org.save()
+                shop = org.barbershops.filter(is_active=True).first()
+                if shop:
+                    shop.name = shop_name
+                    shop.slug = _generate_unique_slug(
+                        Barbershop, shop_name, exclude_pk=shop.pk, organization=org
+                    )
+                    shop.maps_location = maps_location
+                    shop.maps_instructions = maps_instructions
+                    shop.save(
+                        update_fields=[
+                            "name",
+                            "slug",
+                            "maps_location",
+                            "maps_instructions",
+                        ]
+                    )
+                else:
+                    shop = Barbershop.objects.create(
+                        organization=org,
+                        name=shop_name,
+                        slug=_generate_unique_slug(
+                            Barbershop, shop_name, organization=org
+                        ),
+                        maps_location=maps_location,
+                        maps_instructions=maps_instructions,
+                    )
+            else:
+                org = Organization.objects.create(
+                    name=org_name,
+                    slug=_generate_unique_slug(Organization, org_name),
+                    owner=request.user,
+                    onboarding_step=Organization.OnboardingStep.STEP_2,
+                )
 
-                shop = shop_form.save(commit=False)
-                shop.organization = org
-                shop.save()
+                shop = Barbershop.objects.create(
+                    organization=org,
+                    name=shop_name,
+                    slug=_generate_unique_slug(Barbershop, shop_name, organization=org),
+                    maps_location=maps_location,
+                    maps_instructions=maps_instructions,
+                )
 
                 if not membership:
-                    membership = Membership.objects.create(
+                    Membership.objects.create(
                         user=request.user,
                         organization=org,
                         role=Membership.Role.OWNER,
@@ -68,7 +259,6 @@ class OnboardingView(LoginRequiredMixin, View):
                     membership.organization = org
                     membership.save(update_fields=["organization"])
 
-                # Update orphaned subscriptions and invoices
                 from apps.billing.models import Subscription, Invoice
 
                 Subscription.objects.filter(
@@ -77,30 +267,135 @@ class OnboardingView(LoginRequiredMixin, View):
                 Invoice.objects.filter(
                     user=request.user, organization__isnull=True
                 ).update(organization=org)
-                # Also link Wompi subscriptions created before user was assigned
                 Subscription.objects.filter(
                     organization__isnull=True,
                     user__isnull=True,
                 ).update(organization=org, user=request.user)
 
-                if hasattr(request.user, "_membership_cache"):
-                    del request.user._membership_cache
+            if hasattr(request.user, "_membership_cache"):
+                del request.user._membership_cache
 
-                messages.success(
-                    request,
-                    "¡Organización creada exitosamente! Bienvenido a BarberSync.",
-                )
-                return redirect("/app/schedule/")
-
-        return render(
-            request,
-            self.template_name,
+        return JsonResponse(
             {
-                "org_form": org_form,
-                "shop_form": shop_form,
-                "is_booking_page": True,
-            },
+                "ok": True,
+                "org_id": org.pk,
+                "shop_id": shop.pk,
+                "org_name": org.name,
+                "shop_name": shop.name,
+            }
         )
+
+
+class OnboardingStep2API(LoginRequiredMixin, View):
+    """
+    Saves Step 2: Service catalog.
+    Creates categories and services in bulk. Sets onboarding_step = COMPLETED.
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({"error": "JSON inválido."}, status=400)
+
+        services_data = data.get("services", [])
+        if not services_data:
+            return JsonResponse(
+                {"error": "Debes seleccionar al menos 1 servicio."}, status=400
+            )
+
+        membership = request.user.memberships.filter(is_active=True).first()
+        if not membership or not membership.organization:
+            return JsonResponse({"error": "Sin organización."}, status=403)
+
+        org = membership.organization
+        if org.owner_id != request.user.pk:
+            return JsonResponse({"error": "Sin permisos."}, status=403)
+
+        shop = org.barbershops.filter(is_active=True).first()
+        if not shop:
+            return JsonResponse({"error": "Sin sucursal."}, status=400)
+
+        from apps.scheduling.models import CategoriaServicio, Service
+
+        with transaction.atomic():
+            category_cache = {}
+            created_services = []
+
+            for svc in services_data:
+                cat_name = (svc.get("category") or "General").strip()
+                svc_name = (svc.get("name") or "").strip()
+                duration = int(svc.get("duration", 30))
+                price = float(svc.get("price", 0))
+
+                if not svc_name:
+                    continue
+                if duration < 5:
+                    duration = 5
+
+                if cat_name not in category_cache:
+                    cat, _ = CategoriaServicio.objects.get_or_create(
+                        barbershop=shop,
+                        name=cat_name,
+                        defaults={"is_active": True},
+                    )
+                    category_cache[cat_name] = cat
+
+                category = category_cache[cat_name]
+
+                service = Service.objects.create(
+                    barbershop=shop,
+                    category=category,
+                    name=svc_name,
+                    duration_minutes=duration,
+                    price=price,
+                    is_active=True,
+                )
+                created_services.append(service.pk)
+
+            org.onboarding_step = Organization.OnboardingStep.COMPLETED
+            org.save(update_fields=["onboarding_step"])
+
+        return JsonResponse(
+            {
+                "ok": True,
+                "services_created": len(created_services),
+                "redirect": "/app/schedule/",
+            }
+        )
+
+
+class OnboardingServicesAPI(LoginRequiredMixin, View):
+    """
+    Returns existing services for the organization (for step 2 resume).
+    """
+
+    def get(self, request):
+        membership = request.user.memberships.filter(is_active=True).first()
+        if not membership or not membership.organization:
+            return JsonResponse({"error": "Sin organización."}, status=403)
+
+        org = membership.organization
+        from apps.scheduling.models import Service, CategoriaServicio
+
+        shop = org.barbershops.filter(is_active=True).first()
+        if not shop:
+            return JsonResponse({"services": []})
+
+        services = Service.objects.filter(barbershop=shop).select_related("category")
+        result = []
+        for svc in services:
+            result.append(
+                {
+                    "id": svc.pk,
+                    "name": svc.name,
+                    "category": svc.category.name if svc.category else "General",
+                    "duration": svc.duration_minutes,
+                    "price": str(svc.price),
+                }
+            )
+
+        return JsonResponse({"services": result})
 
 
 class ProfileView(LoginRequiredMixin, UpdateView):
@@ -179,12 +474,17 @@ class AcceptInvitationView(View):
         current_active_org_name = ""
         has_blocking_subscription = False
         if request.user.is_authenticated:
-            active_membership = request.user.memberships.filter(
-                is_active=True
-            ).exclude(organization=invitation.organization).first()
+            active_membership = (
+                request.user.memberships.filter(is_active=True)
+                .exclude(organization=invitation.organization)
+                .first()
+            )
             if active_membership and active_membership.organization:
                 current_active_org_name = active_membership.organization.name
-                if active_membership.role == "owner" and active_membership.organization.has_active_subscription:
+                if (
+                    active_membership.role == "owner"
+                    and active_membership.organization.has_active_subscription
+                ):
                     has_blocking_subscription = True
 
         context = {
@@ -217,14 +517,22 @@ class AcceptInvitationView(View):
             if request.user.email.lower() != invitation.email.lower():
                 return JsonResponse({"error": "El correo no coincide."}, status=403)
 
-            active_membership = request.user.memberships.filter(
-                is_active=True
-            ).exclude(organization=invitation.organization).first()
+            active_membership = (
+                request.user.memberships.filter(is_active=True)
+                .exclude(organization=invitation.organization)
+                .first()
+            )
             if active_membership and active_membership.organization:
-                if active_membership.role == "owner" and active_membership.organization.has_active_subscription:
-                    return JsonResponse({
-                        "error": "No se pudo completar la operación debido a que cuentas con una suscripción activa como propietario. Debes cancelarla primero antes de aceptar la invitación."
-                    }, status=400)
+                if (
+                    active_membership.role == "owner"
+                    and active_membership.organization.has_active_subscription
+                ):
+                    return JsonResponse(
+                        {
+                            "error": "No se pudo completar la operación debido a que cuentas con una suscripción activa como propietario. Debes cancelarla primero antes de aceptar la invitación."
+                        },
+                        status=400,
+                    )
 
             self.process_invitation(request.user, invitation)
             if "invitation_token" in request.session:
