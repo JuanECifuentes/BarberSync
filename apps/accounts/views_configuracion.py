@@ -11,7 +11,13 @@ from django.views import View
 from django.views.generic import TemplateView
 
 from apps.core.mixins import RoleRequiredMixin
-from .models import Barbershop, Organization, Membership, OrganizationInvitation, BarberProfile
+from .models import (
+    Barbershop,
+    Organization,
+    Membership,
+    OrganizationInvitation,
+    BarberProfile,
+)
 from apps.scheduling.models import Appointment, Intervencion
 from apps.accounts.views_barberos import _get_available_barbers_data
 from django.db import transaction
@@ -34,15 +40,29 @@ class ConfiguracionIndexView(LoginRequiredMixin, RoleRequiredMixin, TemplateView
         ctx["sucursales_inactivas"] = Barbershop.objects.filter(
             organization=org, is_active=False
         ).order_by("name")
-        
-        ctx["memberships"] = Membership.objects.filter(
-            organization=org, is_active=True
-        ).select_related("user").prefetch_related("sucursales").order_by("-role", "user__email")
-        
-        ctx["invitations"] = OrganizationInvitation.objects.filter(
-            organization=org, is_active=True, is_used=False, expires_at__gt=timezone.now()
-        ).prefetch_related("sucursales").order_by("-created_at")
-        
+
+        ctx["memberships"] = (
+            Membership.objects.filter(organization=org, is_active=True)
+            .select_related("user")
+            .prefetch_related("sucursales")
+            .order_by("-role", "user__email")
+        )
+
+        ctx["invitations"] = (
+            OrganizationInvitation.objects.filter(
+                organization=org,
+                is_active=True,
+                is_used=False,
+                expires_at__gt=timezone.now(),
+            )
+            .prefetch_related("sucursales")
+            .order_by("-created_at")
+        )
+
+        from django.conf import settings
+
+        ctx["google_maps_api_key"] = getattr(settings, "GOOGLE_MAPS_API_KEY", "")
+
         return ctx
 
 
@@ -61,11 +81,6 @@ class OrganizacionUpdateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
             return JsonResponse({"error": "El nombre es requerido"}, status=400)
 
         org.name = name
-        if "slug" in data and data["slug"].strip():
-            new_slug = data["slug"].strip().lower()
-            if Organization.objects.filter(slug=new_slug).exclude(pk=org.pk).exists():
-                return JsonResponse({"error": "Ese slug ya está en uso"}, status=400)
-            org.slug = new_slug
         org.save()
         return JsonResponse({"ok": True, "name": org.name, "slug": org.slug})
 
@@ -98,6 +113,7 @@ class SucursalCreateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
             return JsonResponse({"error": "El nombre es requerido"}, status=400)
 
         from django.utils.text import slugify
+
         slug = slugify(name)
         base_slug = slug
         counter = 1
@@ -111,15 +127,32 @@ class SucursalCreateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
             slug=slug,
             address=data.get("address", ""),
             phone=data.get("phone", ""),
-            open_hour=int(data.get("open_hour", 8)),
-            close_hour=int(data.get("close_hour", 20)),
+            maps_location=data.get("maps_location", ""),
+            maps_instructions=data.get("maps_instructions", ""),
+            hora_apertura=data.get("hora_apertura", "08:00"),
+            hora_cierre=data.get("hora_cierre", "20:00"),
         )
-        return JsonResponse({
-            "ok": True,
-            "id": barbershop.pk,
-            "name": barbershop.name,
-            "slug": barbershop.slug,
-        })
+
+        try:
+            parts = (data.get("hora_apertura") or "08:00").split(":")
+            barbershop.open_hour = int(parts[0])
+        except (ValueError, IndexError, AttributeError):
+            barbershop.open_hour = 8
+        try:
+            parts = (data.get("hora_cierre") or "20:00").split(":")
+            barbershop.close_hour = int(parts[0])
+        except (ValueError, IndexError, AttributeError):
+            barbershop.close_hour = 20
+        barbershop.save(update_fields=["open_hour", "close_hour"])
+
+        return JsonResponse(
+            {
+                "ok": True,
+                "id": barbershop.pk,
+                "name": barbershop.name,
+                "slug": barbershop.slug,
+            }
+        )
 
 
 class SucursalUpdateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
@@ -144,14 +177,36 @@ class SucursalUpdateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
         barbershop.name = name
         barbershop.address = data.get("address", barbershop.address)
         barbershop.phone = data.get("phone", barbershop.phone)
-        barbershop.open_hour = int(data.get("open_hour", barbershop.open_hour))
-        barbershop.close_hour = int(data.get("close_hour", barbershop.close_hour))
+        barbershop.maps_instructions = data.get(
+            "maps_instructions", barbershop.maps_instructions
+        )
+        barbershop.maps_location = data.get("maps_location", barbershop.maps_location)
+
+        hora_apertura = data.get("hora_apertura")
+        if hora_apertura:
+            barbershop.hora_apertura = hora_apertura
+            try:
+                parts = hora_apertura.split(":")
+                barbershop.open_hour = int(parts[0])
+            except (ValueError, IndexError):
+                pass
+
+        hora_cierre = data.get("hora_cierre")
+        if hora_cierre:
+            barbershop.hora_cierre = hora_cierre
+            try:
+                parts = hora_cierre.split(":")
+                barbershop.close_hour = int(parts[0])
+            except (ValueError, IndexError):
+                pass
+
         barbershop.save()
         return JsonResponse({"ok": True})
 
 
 class SucursalDeactivateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
     """Soft delete: sets is_active=False instead of deleting."""
+
     allowed_roles = ["owner", "admin"]
 
     def post(self, request, pk):
@@ -168,12 +223,15 @@ class SucursalDeactivateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
 
 class SucursalReactivateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
     """Re-activate a soft-deleted barbershop."""
+
     allowed_roles = ["owner", "admin"]
 
     def post(self, request, pk):
         org = request.organization
         try:
-            barbershop = Barbershop.objects.get(pk=pk, organization=org, is_active=False)
+            barbershop = Barbershop.objects.get(
+                pk=pk, organization=org, is_active=False
+            )
         except Barbershop.DoesNotExist:
             return JsonResponse({"error": "Sucursal no encontrada"}, status=404)
 
@@ -185,6 +243,7 @@ class SucursalReactivateAPI(LoginRequiredMixin, RoleRequiredMixin, View):
 # ─────────────────────────────────────────────
 # Invitations APIs
 # ─────────────────────────────────────────────
+
 
 class SendInvitationAPI(LoginRequiredMixin, RoleRequiredMixin, View):
     allowed_roles = ["owner", "admin"]
@@ -201,13 +260,18 @@ class SendInvitationAPI(LoginRequiredMixin, RoleRequiredMixin, View):
         sucursales_ids = data.get("sucursales", [])
 
         if not email or not role:
-            return JsonResponse({"error": "El email y el rol son obligatorios"}, status=400)
+            return JsonResponse(
+                {"error": "El email y el rol son obligatorios"}, status=400
+            )
 
         # Validate email format
         try:
             validate_email(email)
         except ValidationError:
-            return JsonResponse({"error": "El correo electrónico no tiene un formato válido"}, status=400)
+            return JsonResponse(
+                {"error": "El correo electrónico no tiene un formato válido"},
+                status=400,
+            )
 
         valid_roles = [r[0] for r in Membership.Role.choices]
         if role not in valid_roles:
@@ -215,16 +279,31 @@ class SendInvitationAPI(LoginRequiredMixin, RoleRequiredMixin, View):
 
         # Check if already has an active invitation
         if OrganizationInvitation.objects.filter(
-            email__iexact=email, organization=org, is_active=True, is_used=False, expires_at__gt=timezone.now()
+            email__iexact=email,
+            organization=org,
+            is_active=True,
+            is_used=False,
+            expires_at__gt=timezone.now(),
         ).exists():
-            return JsonResponse({"error": "Ya existe una invitación activa para este correo"}, status=400)
+            return JsonResponse(
+                {"error": "Ya existe una invitación activa para este correo"},
+                status=400,
+            )
 
         # Check if user is already a member
         from django.contrib.auth import get_user_model
+
         User = get_user_model()
         user = User.objects.filter(email__iexact=email).first()
-        if user and Membership.objects.filter(user=user, organization=org, is_active=True).exists():
-            return JsonResponse({"error": "Este usuario ya es miembro de la organización"}, status=400)
+        if (
+            user
+            and Membership.objects.filter(
+                user=user, organization=org, is_active=True
+            ).exists()
+        ):
+            return JsonResponse(
+                {"error": "Este usuario ya es miembro de la organización"}, status=400
+            )
 
         # Create invitation
         invitation = OrganizationInvitation.objects.create(
@@ -235,16 +314,20 @@ class SendInvitationAPI(LoginRequiredMixin, RoleRequiredMixin, View):
 
         if sucursales_ids:
             # Validate branches belong to organization
-            sucursales = Barbershop.objects.filter(id__in=sucursales_ids, organization=org)
+            sucursales = Barbershop.objects.filter(
+                id__in=sucursales_ids, organization=org
+            )
             invitation.sucursales.set(sucursales)
 
         # Enqueue email task
         try:
             from django_q.tasks import async_task
+
             async_task("apps.accounts.tasks.send_invitation_email_task", invitation.id)
         except ImportError:
             # fallback if django_q is not available during dev
             from apps.accounts.tasks import send_invitation_email_task
+
             send_invitation_email_task(invitation.id)
 
         return JsonResponse({"ok": True, "id": invitation.id})
@@ -256,7 +339,9 @@ class CancelInvitationAPI(LoginRequiredMixin, RoleRequiredMixin, View):
     def post(self, request, pk):
         org = request.organization
         try:
-            invitation = OrganizationInvitation.objects.get(pk=pk, organization=org, is_active=True)
+            invitation = OrganizationInvitation.objects.get(
+                pk=pk, organization=org, is_active=True
+            )
             invitation.is_active = False
             invitation.save(update_fields=["is_active"])
             return JsonResponse({"ok": True})
@@ -280,20 +365,25 @@ class ResendInvitationAPI(LoginRequiredMixin, RoleRequiredMixin, View):
 
         # Create new
         from .models import get_default_expiration
+
         new_invitation = OrganizationInvitation.objects.create(
             email=old_invitation.email,
             organization=org,
             role=old_invitation.role,
-            expires_at=get_default_expiration()
+            expires_at=get_default_expiration(),
         )
         new_invitation.sucursales.set(old_invitation.sucursales.all())
 
         # Enqueue email task
         try:
             from django_q.tasks import async_task
-            async_task("apps.accounts.tasks.send_invitation_email_task", new_invitation.id)
+
+            async_task(
+                "apps.accounts.tasks.send_invitation_email_task", new_invitation.id
+            )
         except ImportError:
             from apps.accounts.tasks import send_invitation_email_task
+
             send_invitation_email_task(new_invitation.id)
 
         return JsonResponse({"ok": True})
@@ -302,6 +392,7 @@ class ResendInvitationAPI(LoginRequiredMixin, RoleRequiredMixin, View):
 # ─────────────────────────────────────────────
 # Users & Memberships APIs
 # ─────────────────────────────────────────────
+
 
 class UpdateMembershipAPI(LoginRequiredMixin, RoleRequiredMixin, View):
     allowed_roles = ["owner", "admin"]
@@ -315,7 +406,9 @@ class UpdateMembershipAPI(LoginRequiredMixin, RoleRequiredMixin, View):
 
         # Don't allow modifying owner unless it's the same user? Or just restrict owner role changes.
         if membership.role == Membership.Role.OWNER and membership.user != request.user:
-            return JsonResponse({"error": "No puedes modificar al propietario"}, status=403)
+            return JsonResponse(
+                {"error": "No puedes modificar al propietario"}, status=403
+            )
 
         try:
             data = json.loads(request.body)
@@ -330,13 +423,20 @@ class UpdateMembershipAPI(LoginRequiredMixin, RoleRequiredMixin, View):
 
         # Don't allow changing one's own role
         if membership.user == request.user and role != membership.role:
-            return JsonResponse({"error": "No puedes cambiar tu propio rol"}, status=400)
+            return JsonResponse(
+                {"error": "No puedes cambiar tu propio rol"}, status=400
+            )
 
         # If they are modifying the role of an owner to something else, protect it if it's the last owner
         if membership.role == Membership.Role.OWNER and role != Membership.Role.OWNER:
-            owner_count = Membership.objects.filter(organization=org, role=Membership.Role.OWNER, is_active=True).count()
+            owner_count = Membership.objects.filter(
+                organization=org, role=Membership.Role.OWNER, is_active=True
+            ).count()
             if owner_count <= 1:
-                return JsonResponse({"error": "Debe haber al menos un propietario en la organización"}, status=400)
+                return JsonResponse(
+                    {"error": "Debe haber al menos un propietario en la organización"},
+                    status=400,
+                )
 
         membership.role = role
         membership.save(update_fields=["role"])
@@ -348,6 +448,7 @@ class UpdateMembershipAPI(LoginRequiredMixin, RoleRequiredMixin, View):
         # If barber, update BarberProfile
         if role == Membership.Role.BARBER:
             from .models import BarberProfile
+
             profile, _ = BarberProfile.objects.get_or_create(membership=membership)
             profile.sucursales.set(sucursales)
 
@@ -365,9 +466,16 @@ class DeactivateMembershipAPI(LoginRequiredMixin, RoleRequiredMixin, View):
             return JsonResponse({"error": "Miembro no encontrado"}, status=404)
 
         if membership.role == Membership.Role.OWNER:
-            owner_count = Membership.objects.filter(organization=org, role=Membership.Role.OWNER, is_active=True).count()
+            owner_count = Membership.objects.filter(
+                organization=org, role=Membership.Role.OWNER, is_active=True
+            ).count()
             if owner_count <= 1:
-                return JsonResponse({"error": "No puedes eliminar al único propietario de la organización"}, status=400)
+                return JsonResponse(
+                    {
+                        "error": "No puedes eliminar al único propietario de la organización"
+                    },
+                    status=400,
+                )
 
         # Check if membership acts as a Barber and has future appointments
         try:
@@ -382,31 +490,39 @@ class DeactivateMembershipAPI(LoginRequiredMixin, RoleRequiredMixin, View):
                 data = {}
 
             now = timezone.now()
-            future_appointments_qs = Appointment.objects.filter(
-                barber=barber, start_time__gte=now
-            ).exclude(status__in=["cancelled", "no_show"]).order_by("start_time")
+            future_appointments_qs = (
+                Appointment.objects.filter(barber=barber, start_time__gte=now)
+                .exclude(status__in=["cancelled", "no_show"])
+                .order_by("start_time")
+            )
 
             if "reassignments" not in data:
                 if future_appointments_qs.exists():
                     appointments_data = []
                     for app in future_appointments_qs:
-                        services_str = ", ".join([s.service.name for s in app.services.all()])
-                        appointments_data.append({
-                            "id": app.pk,
-                            "date": app.start_time.strftime("%d/%m/%Y"),
-                            "time": app.start_time.strftime("%I:%M %p"),
-                            "start_time_iso": app.start_time.isoformat(),
-                            "client_name": app.client.name.strip(),
-                            "services": services_str,
-                            "total_duration": app.total_duration,
-                        })
-                    
-                    return JsonResponse({
-                        "requires_reassignment": True,
-                        "appointments": appointments_data,
-                        "available_barbers": _get_available_barbers_data(org)
-                    })
-                
+                        services_str = ", ".join(
+                            [s.service.name for s in app.services.all()]
+                        )
+                        appointments_data.append(
+                            {
+                                "id": app.pk,
+                                "date": app.start_time.strftime("%d/%m/%Y"),
+                                "time": app.start_time.strftime("%I:%M %p"),
+                                "start_time_iso": app.start_time.isoformat(),
+                                "client_name": app.client.name.strip(),
+                                "services": services_str,
+                                "total_duration": app.total_duration,
+                            }
+                        )
+
+                    return JsonResponse(
+                        {
+                            "requires_reassignment": True,
+                            "appointments": appointments_data,
+                            "available_barbers": _get_available_barbers_data(org),
+                        }
+                    )
+
                 # If no future appointments, we can proceed to deactivate
 
             else:
@@ -418,24 +534,39 @@ class DeactivateMembershipAPI(LoginRequiredMixin, RoleRequiredMixin, View):
                     for app in future_appointments_qs:
                         action_data = reassign_map.get(app.pk)
                         if not action_data:
-                            return JsonResponse({"error": f"Falta resolver la cita #{app.pk}"}, status=400)
-                        
+                            return JsonResponse(
+                                {"error": f"Falta resolver la cita #{app.pk}"},
+                                status=400,
+                            )
+
                         action = action_data.get("accion")
                         if action == "cancelar":
                             app.status = "cancelled"
                             app.cancelled_reason = "Cancelada por el sistema debido a desactivación del barbero"
                             app.save(update_fields=["status", "cancelled_reason"])
-                            Intervencion.objects.filter(appointment=app).update(estado="cancelada")
+                            Intervencion.objects.filter(appointment=app).update(
+                                estado="cancelada"
+                            )
                         elif action == "reasignar":
                             new_barber_id = action_data.get("nuevo_barbero_id")
                             if not new_barber_id:
-                                raise ValueError(f"Falta ID del nuevo barbero para la cita #{app.pk}")
-                            new_barber = BarberProfile.objects.get(pk=new_barber_id, is_active=True, membership__organization=org)
+                                raise ValueError(
+                                    f"Falta ID del nuevo barbero para la cita #{app.pk}"
+                                )
+                            new_barber = BarberProfile.objects.get(
+                                pk=new_barber_id,
+                                is_active=True,
+                                membership__organization=org,
+                            )
                             app.barber = new_barber
                             app.save(update_fields=["barber"])
-                            Intervencion.objects.filter(appointment=app).update(barber=new_barber)
+                            Intervencion.objects.filter(appointment=app).update(
+                                barber=new_barber
+                            )
                         else:
-                            raise ValueError(f"Acción inválida para cita #{app.pk}: {action}")
+                            raise ValueError(
+                                f"Acción inválida para cita #{app.pk}: {action}"
+                            )
 
                     # Deactivate the barber profile along with membership
                     barber.is_active = False
@@ -449,4 +580,3 @@ class DeactivateMembershipAPI(LoginRequiredMixin, RoleRequiredMixin, View):
             del membership.user._membership_cache
 
         return JsonResponse({"ok": True})
-

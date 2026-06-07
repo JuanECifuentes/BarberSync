@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% if google_maps_api_key %}
-<script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&callback=initMap" async defer></script>
+<script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}" async defer></script>
 {% endif %}
 {% endblock %}
 
@@ -243,6 +243,7 @@
 {% endblock %}
 
 {% block extra_js %}
+{% include "components/_google_maps_component.html" %}
 <script>
 const CSRF_TOKEN = '{{ csrf_token }}';
 const CURRENT_STEP = {{ current_step }};
@@ -270,249 +271,8 @@ const STEP1_BTN_HTML = '<span>Siguiente</span><svg class="w-5 h-5" fill="none" v
 const FINISH_BTN_HTML = '<span>Finalizar</span><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>';
 const SPINNER_HTML = '<svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg><span>Guardando...</span>';
 
-let map = null;
-let marker = null;
-let leafletMap = null;
-let leafletMarker = null;
 let selectedServices = [];
 let categoriesData = {};
-
-const COLOMBIA_CENTER = {lat: 4.570868, lng: -74.297333};
-
-function setMapCenter(lat, lng) {
-    const locInput = document.getElementById('id_shop-maps_location');
-    const center = {lat: lat, lng: lng};
-    if (map) {
-        map.setCenter(center);
-        if (marker) marker.setPosition(center);
-    }
-    if (leafletMap) {
-        leafletMap.setView([lat, lng], leafletMap.getZoom());
-        if (leafletMarker) leafletMarker.setLatLng([lat, lng]);
-    }
-    if (locInput) locInput.value = lat + ',' + lng;
-}
-
-function tryIpGeolocation() {
-    fetch('https://ipapi.co/json/')
-        .then(r => r.json())
-        .then(data => {
-            if (data && data.latitude && data.longitude) {
-                setMapCenter(parseFloat(data.latitude), parseFloat(data.longitude));
-            } else {
-                setMapCenter(COLOMBIA_CENTER.lat, COLOMBIA_CENTER.lng);
-            }
-        })
-        .catch(() => {
-            setMapCenter(COLOMBIA_CENTER.lat, COLOMBIA_CENTER.lng);
-        });
-}
-
-function initMap() {
-    const placeholder = document.getElementById('map-placeholder');
-    const locInput = document.getElementById('id_shop-maps_location');
-    let center = COLOMBIA_CENTER;
-
-    if (locInput && locInput.value) {
-        const parts = locInput.value.split(',');
-        if (parts.length === 2) {
-            center = {lat: parseFloat(parts[0]), lng: parseFloat(parts[1])};
-        }
-    }
-
-    map = new google.maps.Map(document.getElementById('map'), {
-        zoom: 15,
-        center: center,
-        mapTypeControl: false,
-        streetViewControl: false,
-        fullscreenControl: false,
-        styles: [
-            {elementType: "geometry", stylers: [{visibility: "on"}]},
-            {featureType: "poi", stylers: [{visibility: "off"}]},
-        ]
-    });
-
-    marker = new google.maps.Marker({
-        position: center,
-        map: map,
-        draggable: true,
-        animation: google.maps.Animation.DROP,
-    });
-
-    if (locInput && !locInput.value) {
-        locInput.value = center.lat + ',' + center.lng;
-    }
-
-    google.maps.event.addListener(marker, 'dragend', function() {
-        const pos = marker.getPosition();
-        if (locInput) locInput.value = pos.lat() + ',' + pos.lng();
-    });
-
-    map.addListener('click', function(e) {
-        marker.setPosition(e.latLng);
-        if (locInput) locInput.value = e.latLng.lat() + ',' + e.latLng.lng();
-    });
-
-    if (placeholder) placeholder.classList.add('hidden');
-
-    if (locInput && !locInput.value) {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                function(pos) {
-                    setMapCenter(pos.coords.latitude, pos.coords.longitude);
-                },
-                function() {
-                    tryIpGeolocation();
-                },
-                {timeout: 5000}
-            );
-        } else {
-            tryIpGeolocation();
-        }
-    }
-}
-
-function initMapFallback() {
-    const placeholder = document.getElementById('map-placeholder');
-    const locInput = document.getElementById('id_shop-maps_location');
-    let center = COLOMBIA_CENTER;
-
-    if (locInput && locInput.value) {
-        const parts = locInput.value.split(',');
-        if (parts.length === 2) {
-            center = {lat: parseFloat(parts[0]), lng: parseFloat(parts[1])};
-        }
-    }
-
-    // Load Leaflet CSS dynamically if not already loaded
-    if (!document.getElementById('leaflet-css')) {
-        const link = document.createElement('link');
-        link.id = 'leaflet-css';
-        link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-        document.head.appendChild(link);
-    }
-
-    // Load Leaflet JS dynamically if not already loaded
-    if (typeof L === 'undefined') {
-        const script = document.createElement('script');
-        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-        script.onload = function() {
-            startLeafletSetup(center, locInput, placeholder);
-        };
-        script.onerror = function() {
-            renderFallbackMapError();
-        };
-        document.head.appendChild(script);
-    } else {
-        startLeafletSetup(center, locInput, placeholder);
-    }
-}
-
-function startLeafletSetup(center, locInput, placeholder) {
-    if (locInput && !locInput.value) {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                function(pos) {
-                    const coords = {lat: pos.coords.latitude, lng: pos.coords.longitude};
-                    locInput.value = coords.lat + ',' + coords.lng;
-                    setupLeafletMap(coords, locInput, placeholder);
-                },
-                function() {
-                    tryLeafletIpGeolocation(locInput, placeholder);
-                },
-                {timeout: 5000}
-            );
-        } else {
-            tryLeafletIpGeolocation(locInput, placeholder);
-        }
-    } else {
-        setupLeafletMap(center, locInput, placeholder);
-    }
-}
-
-function tryLeafletIpGeolocation(locInput, placeholder) {
-    fetch('https://ipapi.co/json/')
-        .then(r => r.json())
-        .then(data => {
-            let coords = COLOMBIA_CENTER;
-            if (data && data.latitude && data.longitude) {
-                coords = {lat: parseFloat(data.latitude), lng: parseFloat(data.longitude)};
-            }
-            if (locInput) locInput.value = coords.lat + ',' + coords.lng;
-            setupLeafletMap(coords, locInput, placeholder);
-        })
-        .catch(() => {
-            let coords = COLOMBIA_CENTER;
-            if (locInput) locInput.value = coords.lat + ',' + coords.lng;
-            setupLeafletMap(coords, locInput, placeholder);
-        });
-}
-
-function setupLeafletMap(coords, locInput, placeholder) {
-    if (leafletMap) return;
-
-    if (placeholder) placeholder.classList.add('hidden');
-
-    const mapElement = document.getElementById('map');
-    if (mapElement) {
-        mapElement.innerHTML = '';
-    }
-
-    const centerArr = [coords.lat, coords.lng];
-
-    leafletMap = L.map('map', {
-        zoomControl: true,
-        attributionControl: true
-    }).setView(centerArr, 15);
-
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: 'abcd',
-        maxZoom: 20
-    }).addTo(leafletMap);
-
-    const brandPinSVG = `
-    <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 2C8.13 2 5 5.13 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13 15.87 2 12 2ZM12 11.5C10.62 11.5 9.5 10.38 9.5 9C9.5 7.62 10.62 6.5 12 6.5C13.38 6.5 14.5 7.62 14.5 9C14.5 10.38 13.38 11.5 12 11.5Z" fill="#ff2301" stroke="#ffffff" stroke-width="1.5"/>
-    </svg>
-    `;
-
-    const brandIcon = L.divIcon({
-        html: brandPinSVG,
-        iconSize: [32, 32],
-        iconAnchor: [16, 32],
-        className: 'custom-brand-marker-icon'
-    });
-
-    leafletMarker = L.marker(centerArr, {
-        draggable: true,
-        icon: brandIcon
-    }).addTo(leafletMap);
-
-    leafletMarker.on('dragend', function() {
-        const position = leafletMarker.getLatLng();
-        if (locInput) {
-            locInput.value = position.lat.toFixed(6) + ',' + position.lng.toFixed(6);
-        }
-    });
-
-    leafletMap.on('click', function(e) {
-        leafletMarker.setLatLng(e.latlng);
-        if (locInput) {
-            locInput.value = e.latlng.lat.toFixed(6) + ',' + e.latlng.lng.toFixed(6);
-        }
-    });
-}
-
-function renderFallbackMapError() {
-    const placeholder = document.getElementById('map-placeholder');
-    const locInput = document.getElementById('id_shop-maps_location');
-    if (placeholder) {
-        placeholder.classList.remove('hidden');
-        placeholder.innerHTML = '<div class="text-center"><p class="text-neutral-500 text-sm">Mapa no disponible.</p><p class="text-xs text-neutral-600 mt-1">Coordenadas: ' + (locInput ? locInput.value : 'N/A') + '</p></div>';
-    }
-}
 
 function setProgress(percent) {
     document.getElementById('progress-bar').style.width = percent + '%';
@@ -763,15 +523,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const HAS_GOOGLE_KEY = {% if google_maps_api_key %}true{% else %}false{% endif %};
-    if (!HAS_GOOGLE_KEY) {
-        initMapFallback();
-    } else if (typeof google === 'undefined' || typeof google.maps === 'undefined') {
-        setTimeout(function() {
-            if (typeof google === 'undefined' || typeof google.maps === 'undefined') {
-                initMapFallback();
-            }
-        }, 3500);
-    }
+    BarberSyncMap.init({
+        mapId: 'map',
+        placeholderId: 'map-placeholder',
+        locationInputId: 'id_shop-maps_location',
+        hasGoogleKey: HAS_GOOGLE_KEY
+    });
 
     document.getElementById('btn-step1-next').addEventListener('click', function() {
         const orgName = document.getElementById('id_org-name').value.trim();

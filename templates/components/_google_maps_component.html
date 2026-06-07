@@ -1,0 +1,228 @@
+<script>
+const BarberSyncMap = (function() {
+    const COLOMBIA_CENTER = {lat: 4.570868, lng: -74.297333};
+    let _instances = {};
+
+    function _tryIpGeolocation(callback) {
+        fetch('https://ipapi.co/json/')
+            .then(r => r.json())
+            .then(data => {
+                if (data && data.latitude && data.longitude) {
+                    callback(parseFloat(data.latitude), parseFloat(data.longitude));
+                } else {
+                    callback(COLOMBIA_CENTER.lat, COLOMBIA_CENTER.lng);
+                }
+            })
+            .catch(() => callback(COLOMBIA_CENTER.lat, COLOMBIA_CENTER.lng));
+    }
+
+    function _parseLocation(inputId) {
+        const locInput = document.getElementById(inputId);
+        if (locInput && locInput.value) {
+            const parts = locInput.value.split(',');
+            if (parts.length === 2) {
+                const lat = parseFloat(parts[0]);
+                const lng = parseFloat(parts[1]);
+                if (!isNaN(lat) && !isNaN(lng)) return {lat, lng};
+            }
+        }
+        return null;
+    }
+
+    function _setLocation(inputId, lat, lng, gMap, gMarker, lMap, lMarker) {
+        const locInput = document.getElementById(inputId);
+        if (locInput) locInput.value = lat.toFixed(6) + ',' + lng.toFixed(6);
+        if (gMap) gMap.setCenter({lat, lng});
+        if (gMarker) gMarker.setPosition({lat, lng});
+        if (lMap) lMap.setView([lat, lng], lMap.getZoom());
+        if (lMarker) lMarker.setLatLng([lat, lng]);
+    }
+
+    function _initGoogleMap(mapEl, placeholderId, inputId, center) {
+        const locInput = document.getElementById(inputId);
+        const gMap = new google.maps.Map(mapEl, {
+            zoom: 15,
+            center: center,
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: false,
+            styles: [
+                {elementType: "geometry", stylers: [{visibility: "on"}]},
+                {featureType: "poi", stylers: [{visibility: "off"}]},
+            ]
+        });
+        const gMarker = new google.maps.Marker({
+            position: center,
+            map: gMap,
+            draggable: true,
+            animation: google.maps.Animation.DROP,
+        });
+        if (locInput && !locInput.value) {
+            locInput.value = center.lat + ',' + center.lng;
+        }
+        google.maps.event.addListener(gMarker, 'dragend', function() {
+            const pos = gMarker.getPosition();
+            if (locInput) locInput.value = pos.lat().toFixed(6) + ',' + pos.lng().toFixed(6);
+        });
+        gMap.addListener('click', function(e) {
+            gMarker.setPosition(e.latLng);
+            if (locInput) locInput.value = e.latLng.lat().toFixed(6) + ',' + e.latLng.lng().toFixed(6);
+        });
+        const placeholder = document.getElementById(placeholderId);
+        if (placeholder) placeholder.classList.add('hidden');
+
+        if (locInput && !locInput.value) {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function(pos) { _setLocation(inputId, pos.coords.latitude, pos.coords.longitude, gMap, gMarker, null, null); },
+                    function() { _tryIpGeolocation(function(lat, lng) { _setLocation(inputId, lat, lng, gMap, gMarker, null, null); }); },
+                    {timeout: 5000}
+                );
+            } else {
+                _tryIpGeolocation(function(lat, lng) { _setLocation(inputId, lat, lng, gMap, gMarker, null, null); });
+            }
+        }
+        return {gMap, gMarker};
+    }
+
+    function _initLeafletMap(mapEl, placeholderId, inputId, center) {
+        const locInput = document.getElementById(inputId);
+
+        function _loadLeaflet(cb) {
+            if (!document.getElementById('bs-leaflet-css')) {
+                const link = document.createElement('link');
+                link.id = 'bs-leaflet-css';
+                link.rel = 'stylesheet';
+                link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+                document.head.appendChild(link);
+            }
+            if (typeof L === 'undefined') {
+                const script = document.createElement('script');
+                script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+                script.onload = cb;
+                script.onerror = function() {
+                    const placeholder = document.getElementById(placeholderId);
+                    if (placeholder) {
+                        placeholder.classList.remove('hidden');
+                        placeholder.innerHTML = '<div class="text-center"><p class="text-neutral-500 text-sm">Mapa no disponible.</p></div>';
+                    }
+                };
+                document.head.appendChild(script);
+            } else {
+                cb();
+            }
+        }
+
+        function _setup() {
+            const placeholder = document.getElementById(placeholderId);
+            if (placeholder) placeholder.classList.add('hidden');
+            mapEl.innerHTML = '';
+
+            const lMap = L.map(mapEl, {zoomControl: true, attributionControl: true}).setView([center.lat, center.lng], 15);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap &copy; CARTO',
+                subdomains: 'abcd',
+                maxZoom: 20
+            }).addTo(lMap);
+
+            const brandPinSVG = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="32" height="32"><path d="M12 2C8.13 2 5 5.13 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13 15.87 2 12 2ZM12 11.5C10.62 11.5 9.5 10.38 9.5 9C9.5 7.62 10.62 6.5 12 6.5C13.38 6.5 14.5 7.62 14.5 9C14.5 10.38 13.38 11.5 12 11.5Z" fill="#ff2301" stroke="#ffffff" stroke-width="1.5"/></svg>';
+            const brandIcon = L.divIcon({html: brandPinSVG, iconSize: [32, 32], iconAnchor: [16, 32], className: 'custom-brand-marker-icon'});
+
+            const lMarker = L.marker([center.lat, center.lng], {draggable: true, icon: brandIcon}).addTo(lMap);
+            if (locInput && !locInput.value) {
+                locInput.value = center.lat.toFixed(6) + ',' + center.lng.toFixed(6);
+            }
+            lMarker.on('dragend', function() {
+                const pos = lMarker.getLatLng();
+                if (locInput) locInput.value = pos.lat.toFixed(6) + ',' + pos.lng.toFixed(6);
+            });
+            lMap.on('click', function(e) {
+                lMarker.setLatLng(e.latlng);
+                if (locInput) locInput.value = e.latlng.lat.toFixed(6) + ',' + e.latlng.lng.toFixed(6);
+            });
+
+            _instances[inputId] = {lMap, lMarker, gMap: null, gMarker: null};
+        }
+
+        function _geolocate() {
+            if (!locInput || !locInput.value) {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        function(pos) {
+                            center = {lat: pos.coords.latitude, lng: pos.coords.longitude};
+                            if (locInput) locInput.value = center.lat.toFixed(6) + ',' + center.lng.toFixed(6);
+                            _setup();
+                        },
+                        function() {
+                            _tryIpGeolocation(function(lat, lng) {
+                                center = {lat, lng};
+                                if (locInput) locInput.value = lat.toFixed(6) + ',' + lng.toFixed(6);
+                                _setup();
+                            });
+                        },
+                        {timeout: 5000}
+                    );
+                } else {
+                    _tryIpGeolocation(function(lat, lng) {
+                        center = {lat, lng};
+                        if (locInput) locInput.value = lat.toFixed(6) + ',' + lng.toFixed(6);
+                        _setup();
+                    });
+                }
+            } else {
+                _setup();
+            }
+        }
+
+        _loadLeaflet(_geolocate);
+    }
+
+    function init(options) {
+        const mapEl = document.getElementById(options.mapId);
+        const placeholderId = options.placeholderId;
+        const inputId = options.locationInputId;
+        const hasGoogleKey = options.hasGoogleKey || false;
+
+        if (!mapEl) return;
+
+        const existing = _parseLocation(inputId);
+        const center = existing || COLOMBIA_CENTER;
+
+        if (hasGoogleKey && typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
+            const {gMap, gMarker} = _initGoogleMap(mapEl, placeholderId, inputId, center);
+            _instances[inputId] = {gMap, gMarker, lMap: null, lMarker: null};
+            return;
+        }
+
+        if (hasGoogleKey) {
+            setTimeout(function() {
+                if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
+                    const {gMap, gMarker} = _initGoogleMap(mapEl, placeholderId, inputId, center);
+                    _instances[inputId] = {gMap, gMarker, lMap: null, lMarker: null};
+                } else {
+                    _initLeafletMap(mapEl, placeholderId, inputId, center);
+                }
+            }, 3500);
+        } else {
+            _initLeafletMap(mapEl, placeholderId, inputId, center);
+        }
+    }
+
+    function setCenter(inputId, lat, lng) {
+        const inst = _instances[inputId];
+        if (inst) {
+            _setLocation(inputId, lat, lng, inst.gMap, inst.gMarker, inst.lMap, inst.lMarker);
+        }
+    }
+
+    function destroy(inputId) {
+        const inst = _instances[inputId];
+        if (inst) {
+            if (inst.lMap) { inst.lMap.remove(); }
+            delete _instances[inputId];
+        }
+    }
+
+    return {init, setCenter, destroy, COLOMBIA_CENTER};
+})();
+</script>

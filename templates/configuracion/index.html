@@ -9,6 +9,16 @@
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
 <!-- SweetAlert2 -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<!-- Flatpickr -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+<!-- QR Code -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+{% if google_maps_api_key %}
+<script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}" async defer></script>
+{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -117,6 +127,21 @@
         width: 16px; height: 16px; border-radius: 4px;
         border: 1px solid #4a4a4f; background: #1a1a1c; accent-color: #ff2301; cursor: pointer;
     }
+
+    .flatpickr-calendar {
+        background: #2a2a2d !important;
+        border: 1px solid #4a4a4f !important;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important;
+    }
+    .flatpickr-time input,
+    .flatpickr-time .flatpickr-am-pm {
+        color: #fff !important;
+        background: #2a2a2d !important;
+    }
+    .flatpickr-time input:hover,
+    .flatpickr-time input:focus {
+        background: #3d3d41 !important;
+    }
 </style>
 
 <div x-data="configApp()" class="flex flex-col h-full">
@@ -174,12 +199,6 @@
                                class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors"
                                {% if not is_owner %}disabled{% endif %}>
                     </div>
-                    <div>
-                        <label class="text-xs text-neutral-400 mb-1 block">Slug (URL)</label>
-                        <input id="org-slug" type="text" value="{{ organization.slug }}"
-                               class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors"
-                               {% if not is_owner %}disabled{% endif %}>
-                    </div>
                 </div>
             </div>
         </section>
@@ -230,10 +249,18 @@
                     <div class="pt-4 border-t border-neutral-800 flex items-center justify-between">
                         <div class="flex items-center gap-1.5 text-xs text-neutral-400 font-medium bg-neutral-800 px-2 py-1 rounded-md">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            <span>{{ s.open_hour }}:00 – {{ s.close_hour }}:00</span>
+                            <span>{% if s.hora_apertura %}{{ s.hora_apertura|time:"H:i" }}{% else %}{{ s.open_hour }}:00{% endif %} – {% if s.hora_cierre %}{{ s.hora_cierre|time:"H:i" }}{% else %}{{ s.close_hour }}:00{% endif %}</span>
                         </div>
                         <div class="flex items-center gap-1 flex-shrink-0">
-                            <button onclick="editSucursal({{ s.pk }}, '{{ s.name|escapejs }}', '{{ s.address|escapejs }}', '{{ s.phone|escapejs }}', {{ s.open_hour }}, {{ s.close_hour }})"
+                            <button onclick="editSucursal(this)"
+                                data-id="{{ s.pk }}"
+                                data-name="{{ s.name }}"
+                                data-address="{{ s.address }}"
+                                data-phone="{{ s.phone }}"
+                                data-maps-location="{{ s.maps_location }}"
+                                data-maps-instructions="{{ s.maps_instructions }}"
+                                data-hora-apertura="{% if s.hora_apertura %}{{ s.hora_apertura|time:'H:i' }}{% else %}08:00{% endif %}"
+                                data-hora-cierre="{% if s.hora_cierre %}{{ s.hora_cierre|time:'H:i' }}{% else %}20:00{% endif %}"
                                 data-tooltip="Editar Sucursal"
                                 class="border border-neutral-700 px-3 py-1.5 rounded-lg hover:border-neutral-500 transition-all shadow-sm text-neutral-400 hover:text-white">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -523,7 +550,7 @@
 <!-- MODALES DE SUCURSALES (Conservados)         -->
 <!-- ═══════════════════════════════════════════ -->
 <div id="modal-sucursal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-    <div class="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4">
+    <div class="w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between">
             <h3 id="modal-sucursal-title" class="font-heading font-bold text-lg text-white">Nueva Sucursal</h3>
             <button onclick="closeSucursalModal()" class="text-neutral-400 hover:text-white transition-colors">
@@ -532,26 +559,52 @@
         </div>
         <input type="hidden" id="suc-edit-id" value="">
         <div class="space-y-3">
-            <input id="suc-name" type="text" placeholder="Nombre de la sucursal"
-                   class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
-            <textarea id="suc-address" rows="2" placeholder="Dirección"
-                      class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors resize-none"></textarea>
-            <input id="suc-phone" type="text" placeholder="Teléfono"
-                   class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+            <div>
+                <label class="text-xs text-neutral-400 mb-1 block">Nombre de la sucursal</label>
+                <input id="suc-name" type="text" placeholder="Nombre de la sucursal"
+                       class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+            </div>
+            <div>
+                <label class="text-xs text-neutral-400 mb-1 block">Teléfono</label>
+                <input id="suc-phone" type="text" placeholder="Teléfono"
+                       class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+            </div>
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="text-xs text-neutral-400 mb-1 block">Hora apertura</label>
-                    <input id="suc-open" type="number" min="0" max="23" value="8"
-                           class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                    <input id="suc-hora-apertura" type="text" placeholder="08:00"
+                           class="flatpickr-time-input w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                 </div>
                 <div>
                     <label class="text-xs text-neutral-400 mb-1 block">Hora cierre</label>
-                    <input id="suc-close" type="number" min="0" max="23" value="20"
-                           class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                    <input id="suc-hora-cierre" type="text" placeholder="20:00"
+                           class="flatpickr-time-input w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                 </div>
             </div>
+            <div>
+                <label class="text-xs text-neutral-400 mb-1 block">Ubicación en el mapa</label>
+                <div id="suc-map-container" class="w-full h-48 bg-neutral-800 rounded-xl border border-neutral-700 overflow-hidden relative">
+                    <div id="suc-map" class="w-full h-full"></div>
+                    <div id="suc-map-placeholder" class="absolute inset-0 flex items-center justify-center text-neutral-500 text-sm">
+                        <div class="text-center">
+                            <svg class="w-8 h-8 mx-auto mb-2 text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.243-4.243a8 8 0 1111.314 0z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            </svg>
+                            <span>Cargando mapa...</span>
+                        </div>
+                    </div>
+                </div>
+                <input type="hidden" id="suc-maps-location" value="">
+                <p class="mt-1 text-[10px] text-neutral-500">Arrastra el marcador o haz clic en el mapa para definir la ubicación.</p>
+            </div>
+            <div>
+                <label class="text-xs text-neutral-400 mb-1 block">Indicaciones (opcional)</label>
+                <textarea id="suc-maps-instructions" rows="2" placeholder="Ej. Frente al parque, entrada por la esquina."
+                          class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors resize-none"></textarea>
+            </div>
         </div>
-        <div class="flex gap-2 justify-center">
+        <div class="flex gap-2 justify-center pt-2">
             <button onclick="saveSucursal()" class="btn-action-primary btn-primary w-full border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm" id="btn-save-sucursal"><span id="btn-save-sucursal-text">Crear Sucursal</span></button>
         </div>
     </div>
@@ -584,6 +637,8 @@
 
 <!-- Modal Bulk Reassign -->
 {% include "components/bulk_reassign_modal.html" %}
+
+{% include "components/_google_maps_component.html" %}
 
 <script src="{% static 'js/bulk_reassign.js' %}"></script>
 <script>
@@ -942,7 +997,6 @@ async function saveOrganization() {
         method: 'POST', headers,
         body: JSON.stringify({
             name: document.getElementById('org-name').value,
-            slug: document.getElementById('org-slug').value,
         }),
     });
     if (res.ok) location.reload();
@@ -968,42 +1022,98 @@ async function uploadLogo(input) {
 }
 
 // ── Sucursales ──
+let sucursalFpInstances = [];
+let sucursalMapInitialized = false;
+
+function destroySucursalFlatpickrs() {
+    sucursalFpInstances.forEach(fp => fp.destroy());
+    sucursalFpInstances = [];
+}
+
+function initSucursalFlatpickrs(defaultOpen, defaultClose) {
+    destroySucursalFlatpickrs();
+    document.querySelectorAll('#modal-sucursal .flatpickr-time-input').forEach(el => {
+        const isClose = el.id === 'suc-hora-cierre';
+        const def = isClose ? (defaultClose || '20:00') : (defaultOpen || '08:00');
+        const fp = flatpickr(el, {
+            enableTime: true,
+            noCalendar: true,
+            dateFormat: 'H:i',
+            time_24hr: true,
+            defaultDate: def,
+            locale: 'es',
+        });
+        sucursalFpInstances.push(fp);
+    });
+}
+
+function initSucursalMap() {
+    if (sucursalMapInitialized) return;
+    const HAS_GOOGLE_KEY = {% if google_maps_api_key %}true{% else %}false{% endif %};
+    BarberSyncMap.init({
+        mapId: 'suc-map',
+        placeholderId: 'suc-map-placeholder',
+        locationInputId: 'suc-maps-location',
+        hasGoogleKey: HAS_GOOGLE_KEY
+    });
+    sucursalMapInitialized = true;
+}
+
 function openSucursalModal() {
     document.getElementById('suc-edit-id').value = '';
     document.getElementById('suc-name').value = '';
-    document.getElementById('suc-address').value = '';
     document.getElementById('suc-phone').value = '';
-    document.getElementById('suc-open').value = '8';
-    document.getElementById('suc-close').value = '20';
+    document.getElementById('suc-maps-location').value = '';
+    document.getElementById('suc-maps-instructions').value = '';
     document.getElementById('modal-sucursal-title').textContent = 'Nueva Sucursal';
     document.getElementById('btn-save-sucursal-text').textContent = 'Crear Sucursal';
     document.getElementById('modal-sucursal').classList.remove('hidden');
+    initSucursalFlatpickrs('08:00', '20:00');
+    setTimeout(initSucursalMap, 200);
 }
 
-function editSucursal(id, name, address, phone, open, close) {
+function editSucursal(btn) {
+    const id = btn.dataset.id;
+    const name = btn.dataset.name;
+    const phone = btn.dataset.phone;
+    const mapsLocation = btn.dataset.mapsLocation;
+    const mapsInstructions = btn.dataset.mapsInstructions;
+    const horaApertura = btn.dataset.horaApertura;
+    const horaCierre = btn.dataset.horaCierre;
+
     document.getElementById('suc-edit-id').value = id;
     document.getElementById('suc-name').value = name;
-    document.getElementById('suc-address').value = address;
     document.getElementById('suc-phone').value = phone;
-    document.getElementById('suc-open').value = open;
-    document.getElementById('suc-close').value = close;
+    document.getElementById('suc-maps-location').value = mapsLocation || '';
+    document.getElementById('suc-maps-instructions').value = mapsInstructions || '';
     document.getElementById('modal-sucursal-title').textContent = 'Editar Sucursal';
     document.getElementById('btn-save-sucursal-text').textContent = 'Guardar cambios';
     document.getElementById('modal-sucursal').classList.remove('hidden');
+
+    initSucursalFlatpickrs(horaApertura, horaCierre);
+    setTimeout(function() {
+        if (sucursalMapInitialized) {
+            BarberSyncMap.destroy('suc-maps-location');
+            sucursalMapInitialized = false;
+        }
+        initSucursalMap();
+    }, 200);
 }
 
 function closeSucursalModal() {
     document.getElementById('modal-sucursal').classList.add('hidden');
+    destroySucursalFlatpickrs();
 }
 
 async function saveSucursal() {
     const editId = document.getElementById('suc-edit-id').value;
     const payload = {
         name: document.getElementById('suc-name').value.trim(),
-        address: document.getElementById('suc-address').value,
         phone: document.getElementById('suc-phone').value,
-        open_hour: parseInt(document.getElementById('suc-open').value) || 8,
-        close_hour: parseInt(document.getElementById('suc-close').value) || 20,
+        maps_location: document.getElementById('suc-maps-location').value,
+        maps_instructions: document.getElementById('suc-maps-instructions').value,
+        hora_apertura: document.getElementById('suc-hora-apertura').value,
+        hora_cierre: document.getElementById('suc-hora-cierre').value,
     };
     const url = editId
         ? `/app/configuracion/api/sucursales/${editId}/update/`
