@@ -2,6 +2,7 @@ import hashlib
 import json
 
 from django.conf import settings
+from django.contrib.auth import get_user_model, login
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -22,6 +23,8 @@ from .models import (
     Organization,
     OrganizationInvitation,
     EmailVerificationToken,
+    SmsVerificationRequest,
+    EmailLinkVerification,
 )
 from .forms import ProfileForm, OrganizationOnboardingForm, BarbershopOnboardingForm
 
@@ -491,10 +494,24 @@ class ProfileView(LoginRequiredMixin, UpdateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # Check if Google is linked and get the account info
         context["google_account"] = self.request.user.socialaccount_set.filter(
             provider="google"
         ).first()
+        context["has_linked_email"] = bool(
+            self.request.user.email and self.request.user.email_verification
+        )
+        context["has_google"] = self.request.user.socialaccount_set.filter(
+            provider="google"
+        ).exists()
+        context["can_edit_email"] = (
+            not context["has_linked_email"] and not context["has_google"]
+        )
+        context["phone_display"] = (
+            f"+{self.request.user.country_code}{self.request.user.phone}"
+            if self.request.user.phone
+            else ""
+        )
+        context["is_phone_verified"] = self.request.user.phone_verification
         return context
 
     def form_valid(self, form):
@@ -706,3 +723,679 @@ class AcceptInvitationView(View):
             profile, _ = BarberProfile.objects.get_or_create(membership=membership)
             if invitation.sucursales.exists():
                 profile.sucursales.set(invitation.sucursales.all())
+
+
+# ─────────────────────────────────────────────
+# Phone OTP Authentication
+# ─────────────────────────────────────────────
+
+
+class SendOTPView(View):
+    """
+    Sends a 6-digit OTP code to the given phone number via SMS.
+    Supports both login (existing user) and registration (new user).
+    Rate-limited by SmsVerificationRequest.
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({"error": "JSON inválido."}, status=400)
+
+        phone = (data.get("phone") or "").strip()
+        country_code = (data.get("country_code") or "").strip()
+
+        if not phone or not country_code:
+            return JsonResponse(
+                {"error": "Número de teléfono y código de país son obligatorios."},
+                status=400,
+            )
+
+        phone = phone.replace(" ", "").replace("-", "").replace("+", "")
+        country_code = country_code.replace("+", "")
+
+        if not phone.isdigit() or len(phone) < 7 or len(phone) > 15:
+            return JsonResponse(
+                {
+                    "error": "Número de teléfono inválido. Debe contener entre 7 y 15 dígitos."
+                },
+                status=400,
+            )
+
+        purpose = data.get("purpose", "login")
+        if purpose not in ("login", "register"):
+            purpose = "login"
+
+        User = get_user_model()
+        if purpose == "login":
+            exists = User.objects.filter(
+                country_code=country_code, phone=phone, phone_verification=True
+            ).exists()
+            if not exists:
+                return JsonResponse(
+                    {"error": "No existe una cuenta con este número de teléfono."},
+                    status=404,
+                )
+
+        ip_address = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip()
+        if not ip_address:
+            ip_address = request.META.get("REMOTE_ADDR")
+
+        otp_obj, otp_code_or_error = SmsVerificationRequest.create_otp(
+            phone=phone,
+            country_code=country_code,
+            ip_address=ip_address,
+            purpose=purpose,
+        )
+
+        if otp_obj is None:
+            if otp_code_or_error == "rate_limit_hourly":
+                return JsonResponse(
+                    {
+                        "error": "Has excedido el límite de solicitudes. Intenta nuevamente en una hora.",
+                        "code": "rate_limit_hourly",
+                    },
+                    status=429,
+                )
+            elif otp_code_or_error == "cooldown_active":
+                active = (
+                    SmsVerificationRequest.objects.filter(
+                        phone=phone,
+                        country_code=country_code,
+                        expires_at__gt=timezone.now(),
+                    )
+                    .order_by("-created_at")
+                    .first()
+                )
+                remaining = 0
+                if active and active.cooldown_until:
+                    remaining = int(
+                        (active.cooldown_until - timezone.now()).total_seconds()
+                    )
+                    remaining = max(remaining, 0)
+                return JsonResponse(
+                    {
+                        "error": "Debes esperar antes de solicitar un nuevo código.",
+                        "code": "cooldown_active",
+                        "cooldown_remaining": remaining,
+                    },
+                    status=429,
+                )
+
+        full_phone = f"+{country_code}{phone}"
+        try:
+            from apps.notifications.notifications import send_notification
+
+            send_notification(
+                recipient={"email": "", "phone": full_phone, "name": phone},
+                notif_type="phone_otp",
+                context={
+                    "recipient_name": phone,
+                    "barbershop_name": "BarberSync",
+                    "start_time": timezone.now(),
+                    "otp_code": otp_code_or_error,
+                },
+                channels=["sms"],
+                subject=f"Tu código de verificación BarberSync: {otp_code_or_error}",
+                html_template="notifications/phone_otp.html",
+            )
+        except Exception:
+            pass
+
+        return JsonResponse(
+            {
+                "ok": True,
+                "message": "Código de verificación enviado.",
+                "cooldown_seconds": SmsVerificationRequest.COOLDOWN_SECONDS,
+            }
+        )
+
+
+class VerifyOTPView(View):
+    """
+    Verifies the OTP code sent to a phone number.
+    For login: authenticates an existing user.
+    For registration: creates a new user account (deferred creation).
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({"error": "JSON inválido."}, status=400)
+
+        phone = (data.get("phone") or "").strip()
+        country_code = (data.get("country_code") or "").strip()
+        otp_code = (data.get("otp_code") or "").strip()
+        purpose = data.get("purpose", "login")
+        next_url = (data.get("next") or "").strip()
+
+        if not phone or not country_code or not otp_code:
+            return JsonResponse(
+                {"error": "Teléfono, código de país y OTP son obligatorios."},
+                status=400,
+            )
+
+        phone = phone.replace(" ", "").replace("-", "").replace("+", "")
+        country_code = country_code.replace("+", "")
+
+        result, message = SmsVerificationRequest.verify_otp(
+            phone, country_code, otp_code
+        )
+
+        if result is None:
+            error_status = 400
+            if message == "max_attempts":
+                error_status = 429
+            return JsonResponse(
+                {
+                    "error": {
+                        "expired": "El código ha expirado. Solicita uno nuevo.",
+                        "invalid": "Código incorrecto. Intenta de nuevo.",
+                        "max_attempts": "Has excedido el número de intentos. Solicita un nuevo código.",
+                    }.get(message, f"Error: {message}"),
+                    "code": message,
+                },
+                status=error_status,
+            )
+
+        User = get_user_model()
+
+        if purpose == "register":
+            existing = User.objects.filter(
+                country_code=country_code, phone=phone
+            ).first()
+
+            if existing:
+                if existing.phone_verification:
+                    purpose = "login"
+                else:
+                    existing.phone_verification = True
+                    existing.save(update_fields=["phone_verification"])
+                    login(
+                        request,
+                        existing,
+                        backend="apps.accounts.auth_backends.PhoneOTPBackend",
+                    )
+                    needs_name = not existing.first_name.strip()
+                    from django.utils.http import url_has_allowed_host_and_scheme
+                    redirect_url = "/accounts/capture-name/" if needs_name else "/app/schedule/"
+                    if needs_name:
+                        if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                            redirect_url = f"{redirect_url}?next={next_url}"
+                    else:
+                        if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                            redirect_url = next_url
+                    return JsonResponse(
+                        {
+                            "ok": True,
+                            "purpose": "register",
+                            "needs_name": needs_name,
+                            "redirect": redirect_url,
+                        }
+                    )
+
+            username = f"phone_{country_code}{phone}_{User.objects.count() + 1}"
+            user = User(
+                username=username,
+                email=None,
+                country_code=country_code,
+                phone=phone,
+                phone_verification=True,
+            )
+            user.set_unusable_password()
+            user.save()
+
+            login(request, user, backend="apps.accounts.auth_backends.PhoneOTPBackend")
+
+            from django.utils.http import url_has_allowed_host_and_scheme
+            redirect_url = "/accounts/capture-name/"
+            if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                redirect_url = f"{redirect_url}?next={next_url}"
+
+            return JsonResponse(
+                {
+                    "ok": True,
+                    "purpose": "register",
+                    "needs_name": True,
+                    "redirect": redirect_url,
+                }
+            )
+
+        else:
+            try:
+                user = User.objects.get(
+                    country_code=country_code, phone=phone, phone_verification=True
+                )
+            except User.DoesNotExist:
+                return JsonResponse(
+                    {"error": "No existe una cuenta con este número de teléfono."},
+                    status=404,
+                )
+
+            login(request, user, backend="apps.accounts.auth_backends.PhoneOTPBackend")
+
+            membership = user.memberships.filter(is_active=True).first()
+            if membership and membership.organization:
+                from apps.scheduling.models import Service
+
+                has_services = Service.objects.filter(
+                    barbershop__organization=membership.organization
+                ).exists()
+                if not has_services:
+                    redirect_url = "/accounts/onboarding/"
+                elif not membership.organization.has_active_subscription:
+                    redirect_url = "/?expired=true#planes"
+                else:
+                    redirect_url = "/app/schedule/"
+            else:
+                redirect_url = "/accounts/onboarding/"
+
+            needs_name = not user.first_name.strip()
+
+            from django.utils.http import url_has_allowed_host_and_scheme
+            if needs_name:
+                redirect_url = "/accounts/capture-name/"
+                if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                    redirect_url = f"{redirect_url}?next={next_url}"
+            else:
+                if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                    redirect_url = next_url
+
+            return JsonResponse(
+                {
+                    "ok": True,
+                    "purpose": "login",
+                    "needs_name": needs_name,
+                    "redirect": redirect_url,
+                }
+            )
+
+
+class ResendOTPView(View):
+    """
+    Resends an OTP code after cooldown validation.
+    Backend-enforced cooldown prevents API abuse.
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({"error": "JSON inválido."}, status=400)
+
+        phone = (data.get("phone") or "").strip()
+        country_code = (data.get("country_code") or "").strip()
+
+        if not phone or not country_code:
+            return JsonResponse(
+                {"error": "Número de teléfono y código de país son obligatorios."},
+                status=400,
+            )
+
+        phone = phone.replace(" ", "").replace("-", "").replace("+", "")
+        country_code = country_code.replace("+", "")
+
+        allowed, remaining = SmsVerificationRequest.resend_allowed(phone, country_code)
+        if not allowed:
+            return JsonResponse(
+                {
+                    "error": "Debes esperar antes de solicitar un nuevo código.",
+                    "code": "cooldown_active",
+                    "cooldown_remaining": remaining,
+                },
+                status=429,
+            )
+
+        ip_address = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip()
+        if not ip_address:
+            ip_address = request.META.get("REMOTE_ADDR")
+
+        purpose = data.get("purpose", "login")
+        otp_obj, otp_code_or_error = SmsVerificationRequest.create_otp(
+            phone=phone,
+            country_code=country_code,
+            ip_address=ip_address,
+            purpose=purpose,
+        )
+
+        if otp_obj is None:
+            if otp_code_or_error == "rate_limit_hourly":
+                return JsonResponse(
+                    {
+                        "error": "Has excedido el límite de solicitudes. Intenta nuevamente en una hora.",
+                        "code": "rate_limit_hourly",
+                    },
+                    status=429,
+                )
+            return JsonResponse(
+                {"error": "No se pudo enviar el código.", "code": otp_code_or_error},
+                status=400,
+            )
+
+        full_phone = f"+{country_code}{phone}"
+        try:
+            from apps.notifications.notifications import send_notification
+
+            send_notification(
+                recipient={"email": "", "phone": full_phone, "name": phone},
+                notif_type="phone_otp",
+                context={
+                    "recipient_name": phone,
+                    "barbershop_name": "BarberSync",
+                    "start_time": timezone.now(),
+                    "otp_code": otp_code_or_error,
+                },
+                channels=["sms"],
+                subject=f"Tu código de verificación BarberSync: {otp_code_or_error}",
+                html_template="notifications/phone_otp.html",
+            )
+        except Exception:
+            pass
+
+        return JsonResponse(
+            {
+                "ok": True,
+                "message": "Nuevo código enviado.",
+                "cooldown_seconds": SmsVerificationRequest.COOLDOWN_SECONDS,
+            }
+        )
+
+
+class CountryCodeAPI(View):
+    """
+    Returns the detected country code based on the user's IP.
+    Used by the frontend to auto-select the phone prefix.
+    """
+
+    def get(self, request):
+        from apps.core.utils import resolve_country_code
+
+        code = resolve_country_code(request)
+
+        COUNTRY_PREFIXES = {
+            "CO": "57",
+            "US": "1",
+            "MX": "52",
+            "AR": "54",
+            "CL": "56",
+            "PE": "51",
+            "EC": "593",
+            "VE": "58",
+            "BR": "55",
+            "ES": "34",
+            "PA": "507",
+            "CR": "506",
+            "DO": "1",
+            "GT": "502",
+            "SV": "503",
+            "HN": "504",
+            "NI": "505",
+            "PY": "595",
+            "UY": "598",
+            "BO": "591",
+        }
+
+        phone_prefix = COUNTRY_PREFIXES.get(code, "57")
+        country_name_map = {
+            "CO": "Colombia",
+            "US": "Estados Unidos",
+            "MX": "México",
+            "AR": "Argentina",
+            "CL": "Chile",
+            "PE": "Perú",
+            "EC": "Ecuador",
+            "VE": "Venezuela",
+            "BR": "Brasil",
+            "ES": "España",
+        }
+        country_name = country_name_map.get(code, code)
+
+        return JsonResponse(
+            {
+                "country_code": code,
+                "phone_prefix": phone_prefix,
+                "country_name": country_name,
+            }
+        )
+
+
+class CaptureNameView(LoginRequiredMixin, View):
+    """
+    Forces recently registered phone-only users to provide their name.
+    """
+
+    template_name = "accounts/capture_name.html"
+
+    def get(self, request):
+        if request.user.first_name.strip():
+            next_url = request.GET.get("next")
+            from django.utils.http import url_has_allowed_host_and_scheme
+            if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                return redirect(next_url)
+            return redirect("/app/schedule/")
+        return render(request, self.template_name, {"is_booking_page": True})
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({"error": "JSON inválido."}, status=400)
+
+        first_name = (data.get("first_name") or "").strip()
+        last_name = (data.get("last_name") or "").strip()
+
+        if not first_name:
+            return JsonResponse(
+                {"error": "Tu nombre es obligatorio para continuar."},
+                status=400,
+            )
+
+        request.user.first_name = first_name
+        request.user.last_name = last_name
+        request.user.save(update_fields=["first_name", "last_name"])
+
+        from django.utils.http import url_has_allowed_host_and_scheme
+        next_url = request.GET.get("next") or data.get("next")
+        if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+            return JsonResponse({"ok": True, "redirect": next_url})
+
+        membership = request.user.memberships.filter(is_active=True).first()
+        if not membership or not membership.organization:
+            return JsonResponse({"ok": True, "redirect": "/accounts/onboarding/"})
+
+        org = membership.organization
+        from apps.scheduling.models import Service
+
+        has_services = Service.objects.filter(barbershop__organization=org).exists()
+        if not has_services:
+            return JsonResponse({"ok": True, "redirect": "/accounts/onboarding/"})
+
+        if not org.has_active_subscription:
+            return JsonResponse({"ok": True, "redirect": "/?expired=true#planes"})
+
+        return JsonResponse({"ok": True, "redirect": "/app/schedule/"})
+
+
+class CheckPhoneView(View):
+    """
+    Checks if a phone number is already registered.
+    Used by the frontend to determine login vs register flow.
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({"error": "JSON inválido."}, status=400)
+
+        phone = (data.get("phone") or "").strip()
+        country_code = (data.get("country_code") or "").strip()
+
+        if not phone or not country_code:
+            return JsonResponse(
+                {"error": "Número de teléfono y código de país son obligatorios."},
+                status=400,
+            )
+
+        phone = phone.replace(" ", "").replace("-", "").replace("+", "")
+        country_code = country_code.replace("+", "")
+
+        User = get_user_model()
+        exists = User.objects.filter(country_code=country_code, phone=phone).exists()
+
+        return JsonResponse({"exists": exists})
+
+
+class SendEmailOTPView(LoginRequiredMixin, View):
+    """
+    Sends a verification OTP to a new email address for phone-only users.
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({"error": "JSON inválido."}, status=400)
+
+        email = (data.get("email") or "").strip()
+
+        if not email:
+            return JsonResponse(
+                {"error": "El correo electrónico es obligatorio."},
+                status=400,
+            )
+
+        from django.core.validators import validate_email
+        from django.core.exceptions import ValidationError
+
+        try:
+            validate_email(email)
+        except ValidationError:
+            return JsonResponse(
+                {"error": "Correo electrónico inválido."},
+                status=400,
+            )
+
+        User = get_user_model()
+        if (
+            User.objects.filter(email__iexact=email)
+            .exclude(pk=request.user.pk)
+            .exists()
+        ):
+            return JsonResponse(
+                {"error": "Este correo electrónico ya está en uso por otra cuenta."},
+                status=409,
+            )
+
+        has_google = request.user.socialaccount_set.filter(provider="google").exists()
+        if request.user.email and request.user.email_verification and has_google:
+            return JsonResponse(
+                {"error": "Tu correo ya está vinculado y verificado."},
+                status=400,
+            )
+
+        otp_obj, otp_code_or_error = EmailLinkVerification.create_otp(
+            user=request.user, email=email
+        )
+
+        if otp_obj is None:
+            if otp_code_or_error == "rate_limit_hourly":
+                return JsonResponse(
+                    {
+                        "error": "Has excedido el límite de solicitudes. Intenta en una hora.",
+                        "code": "rate_limit_hourly",
+                    },
+                    status=429,
+                )
+            elif otp_code_or_error == "cooldown_active":
+                return JsonResponse(
+                    {
+                        "error": "Debes esperar antes de solicitar un nuevo código.",
+                        "code": "cooldown_active",
+                    },
+                    status=429,
+                )
+
+        try:
+            from apps.notifications.notifications import send_notification
+
+            send_notification(
+                recipient={
+                    "email": email,
+                    "phone": "",
+                    "name": request.user.get_full_name() or request.user.phone,
+                },
+                notif_type="email_verification",
+                context={
+                    "recipient_name": request.user.get_full_name()
+                    or request.user.phone,
+                    "confirm_url": "",
+                    "otp_code": otp_code_or_error,
+                },
+                channels=["email"],
+                subject=f"Tu código de verificación BarberSync: {otp_code_or_error}",
+                html_template="notifications/email_link_otp.html",
+            )
+        except Exception:
+            pass
+
+        return JsonResponse(
+            {
+                "ok": True,
+                "message": "Código de verificación enviado a tu correo.",
+                "cooldown_seconds": EmailLinkVerification.COOLDOWN_SECONDS,
+            }
+        )
+
+
+class VerifyEmailOTPView(LoginRequiredMixin, View):
+    """
+    Verifies the OTP for email linking and saves the email to the user account.
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({"error": "JSON inválido."}, status=400)
+
+        otp_code = (data.get("otp_code") or "").strip()
+
+        if not otp_code:
+            return JsonResponse(
+                {"error": "El código de verificación es obligatorio."},
+                status=400,
+            )
+
+        result, message = EmailLinkVerification.verify_otp(request.user, otp_code)
+
+        if result is None:
+            error_status = 400
+            if message == "max_attempts":
+                error_status = 429
+            error_messages = {
+                "expired": "El código ha expirado. Solicita uno nuevo.",
+                "invalid": "Código incorrecto. Intenta de nuevo.",
+                "max_attempts": "Has excedido los intentos. Solicita un nuevo código.",
+            }
+            return JsonResponse(
+                {
+                    "error": error_messages.get(message, f"Error: {message}"),
+                    "code": message,
+                },
+                status=error_status,
+            )
+
+        request.user.email = result
+        request.user.email_verification = True
+        request.user.save(update_fields=["email", "email_verification"])
+
+        return JsonResponse(
+            {
+                "ok": True,
+                "message": "Correo electrónico vinculado exitosamente.",
+                "email": result,
+            }
+        )

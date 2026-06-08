@@ -4,14 +4,16 @@ from django.shortcuts import redirect
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.generic import TemplateView
 
+from apps.accounts.views import SendOTPView, VerifyOTPView
 from apps.core.views import LandingPageView
 
 
 def root_redirect(request):
     if request.user.is_authenticated:
         return redirect("scheduling:calendar")
-    return redirect("account_login")
+    return redirect("accounts:phone_login")
 
 
 urlpatterns = [

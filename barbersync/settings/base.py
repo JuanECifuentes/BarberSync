@@ -69,6 +69,7 @@ MIDDLEWARE = [
     "apps.core.middleware.TenantMiddleware",
     "apps.core.middleware.TenantSecurityMiddleware",
     "apps.core.middleware.GlobalRateLimitMiddleware",
+    "apps.accounts.middleware.ProfileCompletionMiddleware",
     "apps.accounts.middleware.OnboardingMiddleware",
     "apps.billing.middleware.SubscriptionAccessMiddleware",
 ]
@@ -138,6 +139,7 @@ AUTH_USER_MODEL = "accounts.User"
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
     "allauth.account.auth_backends.AuthenticationBackend",
+    "apps.accounts.auth_backends.PhoneOTPBackend",
 ]
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -158,11 +160,7 @@ LOGOUT_REDIRECT_URL = "/"
 # ──────────────────────────────────────────────
 SITE_ID = 1
 
-ACCOUNT_LOGIN_METHODS = {"email"}
-# ACCOUNT_EMAIL_REQUIRED = True
-# ACCOUNT_USERNAME_REQUIRED = False
-
-ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
+ACCOUNT_SIGNUP_FIELDS = ["email", "password1*", "password2*"]
 
 ACCOUNT_EMAIL_VERIFICATION = "optional"
 ACCOUNT_SIGNUP_REDIRECT_URL = LOGIN_REDIRECT_URL
@@ -232,6 +230,12 @@ else:
     }
 
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@barbersync.app")
+
+# AWS Configuration
+AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID", default="")
+AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY", default="")
+AWS_REGION_NAME = env("AWS_REGION_NAME", default="us-east-1")
+
 
 SITE_URL = env("SITE_URL", default="http://127.0.0.1:8000")
 

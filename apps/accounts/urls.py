@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import TemplateView
 
 from . import views
 
@@ -41,5 +42,52 @@ urlpatterns = [
         "onboarding/api/services/",
         views.OnboardingServicesAPI.as_view(),
         name="onboarding_services_api",
+    ),
+    # Phone OTP authentication
+    path(
+        "otp/send/",
+        views.SendOTPView.as_view(),
+        name="send_otp",
+    ),
+    path(
+        "otp/verify/",
+        views.VerifyOTPView.as_view(),
+        name="verify_otp",
+    ),
+    path(
+        "otp/resend/",
+        views.ResendOTPView.as_view(),
+        name="resend_otp",
+    ),
+    path(
+        "phone-check/",
+        views.CheckPhoneView.as_view(),
+        name="check_phone",
+    ),
+    path(
+        "country-code/",
+        views.CountryCodeAPI.as_view(),
+        name="country_code",
+    ),
+    path(
+        "capture-name/",
+        views.CaptureNameView.as_view(),
+        name="capture_name",
+    ),
+    # Email linking (for phone-only accounts)
+    path(
+        "email-otp/send/",
+        views.SendEmailOTPView.as_view(),
+        name="send_email_otp",
+    ),
+    path(
+        "email-otp/verify/",
+        views.VerifyEmailOTPView.as_view(),
+        name="verify_email_otp",
+    ),
+    path(
+        "phone-login/",
+        TemplateView.as_view(template_name="accounts/phone_login.html"),
+        name="phone_login",
     ),
 ]

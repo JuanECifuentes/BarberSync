@@ -29,18 +29,22 @@ phone_validator = RegexValidator(
 # ─────────────────────────────────────────────
 class User(AbstractUser):
     """
-    Custom user.  Uses email as the primary login field.
+    Custom user.  Uses email as the primary login field for Allauth.
+    Phone login is also supported via OTP (see PhoneOTPBackend).
     Username is kept for admin compat but is auto-generated.
+    Email may be null for phone-only registrations.
     """
 
-    email = models.EmailField("correo electrónico", unique=True)
+    email = models.EmailField("correo electrónico", unique=True, null=True, blank=True)
     phone = models.CharField(
-        "teléfono", max_length=20, blank=True, validators=[phone_validator]
+        "teléfono", max_length=20, blank=True, default="", validators=[phone_validator]
     )
     country_code = models.CharField(
         "código de país",
         max_length=5,
-        help_text="Código de país para el número telefónico (ej. 57 para Colombia).",
+        blank=True,
+        default="",
+        help_text="Código de país para el número telefónico (ej. 57 para Colombia). Sin el símbolo '+'.",
     )
     phone_verification = models.BooleanField("teléfono verificado", default=False)
     email_verification = models.BooleanField("correo verificado", default=False)
@@ -53,6 +57,13 @@ class User(AbstractUser):
         db_table = "accounts_user"
         verbose_name = "usuario"
         verbose_name_plural = "usuarios"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["country_code", "phone"],
+                condition=~models.Q(phone=""),
+                name="unique_phone_per_country",
+            ),
+        ]
 
     def __str__(self):
         return self.get_full_name() or self.email
@@ -421,3 +432,261 @@ class EmailVerificationToken(models.Model):
         obj.consumed_at = timezone.now()
         obj.save(update_fields=["is_consumed", "consumed_at"])
         return obj.user
+
+
+# ─────────────────────────────────────────────
+# SMS OTP Verification (Rate-Limited)
+# ─────────────────────────────────────────────
+class SmsVerificationRequest(models.Model):
+    """
+    Controls rate limiting for SMS OTP dispatches.
+    Prevents SMS cost abuse by enforcing cooldowns and attempt caps.
+    """
+
+    phone = models.CharField("teléfono", max_length=20, db_index=True)
+    country_code = models.CharField("código de país", max_length=5, default="")
+    otp_hash = models.CharField("hash del OTP", max_length=64)
+    created_at = models.DateTimeField("creado", auto_now_add=True, db_index=True)
+    expires_at = models.DateTimeField("expira en")
+    attempts = models.PositiveSmallIntegerField("intentos", default=0)
+    cooldown_until = models.DateTimeField("cooldown hasta", null=True, blank=True)
+    ip_address = models.GenericIPAddressField("dirección IP", null=True, blank=True)
+    purpose = models.CharField(
+        "propósito",
+        max_length=10,
+        choices=[
+            ("login", "Login"),
+            ("register", "Registro"),
+            ("email_link", "Enlazar correo"),
+        ],
+        default="login",
+    )
+
+    COOLDOWN_SECONDS = 60
+    MAX_ATTEMPTS = 3
+    OTP_EXPIRY_MINUTES = 5
+    MAX_REQUESTS_PER_HOUR = 5
+
+    class Meta:
+        db_table = "accounts_sms_verification"
+        verbose_name = "solicitud de verificación SMS"
+        verbose_name_plural = "solicitudes de verificación SMS"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"SMS OTP +{self.country_code}{self.phone} ({self.purpose})"
+
+    @classmethod
+    def create_otp(cls, phone, country_code, ip_address=None, purpose="login"):
+        from django.utils import timezone as tz
+
+        now = tz.now()
+        phone_clean = phone.strip().replace(" ", "").replace("-", "").replace("+", "")
+        country_code_clean = country_code.strip().replace("+", "")
+
+        hour_ago = now - tz.timedelta(hours=1)
+        recent_count = cls.objects.filter(
+            phone=phone_clean,
+            created_at__gte=hour_ago,
+        ).count()
+
+        if recent_count >= cls.MAX_REQUESTS_PER_HOUR:
+            return None, "rate_limit_hourly"
+
+        active = cls.objects.filter(
+            phone=phone_clean,
+            country_code=country_code_clean,
+            expires_at__gt=now,
+        ).first()
+
+        if active and active.cooldown_until and active.cooldown_until > now:
+            return None, "cooldown_active"
+
+        otp_code = cls._generate_otp()
+        otp_hash = hashlib.sha256(otp_code.encode()).hexdigest()
+        expires_at = now + tz.timedelta(minutes=cls.OTP_EXPIRY_MINUTES)
+
+        obj = cls.objects.create(
+            phone=phone_clean,
+            country_code=country_code_clean,
+            otp_hash=otp_hash,
+            expires_at=expires_at,
+            ip_address=ip_address,
+            purpose=purpose,
+        )
+        return obj, otp_code
+
+    @classmethod
+    def verify_otp(cls, phone, country_code, otp_code):
+        from django.utils import timezone as tz
+
+        now = tz.now()
+        phone_clean = phone.strip().replace(" ", "").replace("-", "").replace("+", "")
+        country_code_clean = country_code.strip().replace("+", "")
+        otp_hash = hashlib.sha256(otp_code.encode()).hexdigest()
+
+        active = (
+            cls.objects.filter(
+                phone=phone_clean,
+                country_code=country_code_clean,
+                expires_at__gt=now,
+            )
+            .order_by("-created_at")
+            .first()
+        )
+
+        if not active:
+            return None, "expired"
+
+        if active.attempts >= cls.MAX_ATTEMPTS:
+            active.cooldown_until = now + tz.timedelta(seconds=cls.COOLDOWN_SECONDS)
+            active.save(update_fields=["cooldown_until"])
+            return None, "max_attempts"
+
+        active.attempts += 1
+        active.save(update_fields=["attempts"])
+
+        if active.otp_hash != otp_hash:
+            return None, "invalid"
+
+        active.delete()
+        return True, "verified"
+
+    @classmethod
+    def _generate_otp(cls, length=6):
+        import random
+
+        return "".join([str(random.randint(0, 9)) for _ in range(length)])
+
+    @classmethod
+    def resend_allowed(cls, phone, country_code):
+        from django.utils import timezone as tz
+
+        now = tz.now()
+        phone_clean = phone.strip().replace(" ", "").replace("-", "").replace("+", "")
+        country_code_clean = country_code.strip().replace("+", "")
+
+        active = (
+            cls.objects.filter(
+                phone=phone_clean,
+                country_code=country_code_clean,
+                expires_at__gt=now,
+            )
+            .order_by("-created_at")
+            .first()
+        )
+
+        if not active:
+            return True, 0
+
+        if active.cooldown_until and active.cooldown_until > now:
+            remaining = int((active.cooldown_until - now).total_seconds())
+            return False, remaining
+
+        return True, 0
+
+
+# ─────────────────────────────────────────────
+# Email Link Verification (for phone-only accounts)
+# ─────────────────────────────────────────────
+class EmailLinkVerification(models.Model):
+    """
+    OTP-based email verification for phone-only users who
+    want to link an email address to their account.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="email_link_verifications",
+    )
+    email = models.EmailField("correo a verificar")
+    otp_hash = models.CharField("hash del OTP", max_length=64)
+    created_at = models.DateTimeField("creado", auto_now_add=True)
+    expires_at = models.DateTimeField("expira en")
+    attempts = models.PositiveSmallIntegerField("intentos", default=0)
+    cooldown_until = models.DateTimeField("cooldown hasta", null=True, blank=True)
+
+    COOLDOWN_SECONDS = 60
+    MAX_ATTEMPTS = 3
+    OTP_EXPIRY_MINUTES = 10
+    MAX_REQUESTS_PER_HOUR = 3
+
+    class Meta:
+        db_table = "accounts_email_link_verification"
+        verbose_name = "verificación de enlace de correo"
+        verbose_name_plural = "verificaciones de enlace de correo"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Email link OTP {self.email} ({self.user})"
+
+    @classmethod
+    def create_otp(cls, user, email):
+        from django.utils import timezone as tz
+
+        now = tz.now()
+
+        hour_ago = now - tz.timedelta(hours=1)
+        recent_count = cls.objects.filter(
+            user=user,
+            created_at__gte=hour_ago,
+        ).count()
+
+        if recent_count >= cls.MAX_REQUESTS_PER_HOUR:
+            return None, "rate_limit_hourly"
+
+        active = cls.objects.filter(
+            user=user,
+            email__iexact=email,
+            expires_at__gt=now,
+        ).first()
+
+        if active and active.cooldown_until and active.cooldown_until > now:
+            return None, "cooldown_active"
+
+        otp_code = SmsVerificationRequest._generate_otp()
+        otp_hash = hashlib.sha256(otp_code.encode()).hexdigest()
+        expires_at = now + tz.timedelta(minutes=cls.OTP_EXPIRY_MINUTES)
+
+        obj = cls.objects.create(
+            user=user,
+            email=email,
+            otp_hash=otp_hash,
+            expires_at=expires_at,
+        )
+        return obj, otp_code
+
+    @classmethod
+    def verify_otp(cls, user, otp_code):
+        from django.utils import timezone as tz
+
+        now = tz.now()
+
+        active = (
+            cls.objects.filter(
+                user=user,
+                expires_at__gt=now,
+            )
+            .order_by("-created_at")
+            .first()
+        )
+
+        if not active:
+            return None, "expired"
+
+        if active.attempts >= cls.MAX_ATTEMPTS:
+            active.cooldown_until = now + tz.timedelta(seconds=cls.COOLDOWN_SECONDS)
+            active.save(update_fields=["cooldown_until"])
+            return None, "max_attempts"
+
+        active.attempts += 1
+        active.save(update_fields=["attempts"])
+
+        otp_hash = hashlib.sha256(otp_code.encode()).hexdigest()
+        if active.otp_hash != otp_hash:
+            return None, "invalid"
+
+        email = active.email
+        active.delete()
+        return email, "verified"

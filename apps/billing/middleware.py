@@ -9,6 +9,8 @@ EXEMPT_PREFIXES = (
     "/accounts/invite/",
     "/accounts/confirm-email/",
     "/accounts/resend-verification/",
+    "/accounts/capture-name/",
+    "/accounts/onboarding/",
     "/billing/",
     "/book/",
     "/static/",
