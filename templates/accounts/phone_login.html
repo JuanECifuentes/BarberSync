@@ -84,7 +84,11 @@ Ingresar con Teléfono – BarberSync
             {% load socialaccount %}
             {% get_providers as socialaccount_providers %}
             {% if socialaccount_providers %}
+            {% if request.GET.next %}
+            <a href="{% provider_login_url 'google' process='login' next=request.GET.next %}"
+            {% else %}
             <a href="{% provider_login_url 'google' process='login' %}"
+            {% endif %}
                class="btn-action-primary btn-primary font-semibold w-full text-sm flex items-center justify-center gap-3 border border-neutral-700 px-4 py-3 rounded-lg transition-all shadow-sm">
                 <svg class="w-5 h-5" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
@@ -95,25 +99,35 @@ Ingresar con Teléfono – BarberSync
                 <span>{% if request.GET.signup == 'true' or request.GET.flow == 'signup' or request.GET.action == 'register' %}Registrarse con Google{% else %}Iniciar sesión con Google{% endif %}</span>
             </a>
             {% endif %}
-
             <!-- Email login link -->
-            <p class="text-center text-sm text-neutral-400">
-                ¿Prefieres usar correo?
-                {% if request.GET.signup == 'true' or request.GET.flow == 'signup' or request.GET.action == 'register' %}
-                <a href="{% url 'account_signup' %}" class="text-brand hover:text-brand-400 font-medium transition-colors">Registrarse con correo</a>
-                {% else %}
-                <a href="{% url 'account_login' %}" class="text-brand hover:text-brand-400 font-medium transition-colors">Ingresar con correo</a>
-                {% endif %}
-            </p>
+            {% if request.GET.signup == 'true' or request.GET.flow == 'signup' or request.GET.action == 'register' %}
+            <a href="{% url 'account_signup' %}{% if request.GET.next %}?next={{ request.GET.next }}{% endif %}"
+               class="w-full flex items-center justify-center gap-2 border border-neutral-700 px-4 py-3 rounded-lg
+                      text-neutral-300 font-medium hover:bg-neutral-800 hover:text-white transition-all duration-300 text-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"/>
+                </svg>
+                Registrarse con correo y contraseña
+            </a>
+            {% else %}
+            <a href="{% url 'account_login' %}{% if request.GET.next %}?next={{ request.GET.next }}{% endif %}"
+               class="w-full flex items-center justify-center gap-2 border border-neutral-700 px-4 py-3 rounded-lg
+                      text-neutral-300 font-medium hover:bg-neutral-800 hover:text-white transition-all duration-300 text-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"/>
+                </svg>
+                Ingresar con correo y contraseña
+            </a>
+            {% endif %}
 
             <!-- Sign up link -->
             <p class="text-center text-sm text-neutral-400" id="register-link-wrap">
                 {% if request.GET.signup == 'true' or request.GET.flow == 'signup' or request.GET.action == 'register' %}
                 ¿Ya tienes cuenta?
-                <a href="{% url 'account_login' %}" class="text-brand hover:text-brand-400 font-medium transition-colors">Inicia sesión</a>
+                <a href="{% url 'account_login' %}{% if request.GET.next %}?next={{ request.GET.next }}{% endif %}" class="text-brand hover:text-brand-400 font-medium transition-colors">Inicia sesión</a>
                 {% else %}
                 ¿No tienes cuenta?
-                <a href="{% url 'account_signup' %}" class="text-brand hover:text-brand-400 font-medium transition-colors">Regístrate</a>
+                <a href="{% url 'account_signup' %}{% if request.GET.next %}?next={{ request.GET.next }}{% endif %}" class="text-brand hover:text-brand-400 font-medium transition-colors">Regístrate</a>
                 {% endif %}
             </p>
         </div>
@@ -185,6 +199,8 @@ Ingresar con Teléfono – BarberSync
     let countryCode = '';
     let purpose = {% if request.GET.signup == 'true' or request.GET.flow == 'signup' or request.GET.action == 'register' %}'register'{% else %}'login'{% endif %};
     let cooldownInterval = null;
+    const urlParams = new URLSearchParams(window.location.search);
+    const nextParam = urlParams.get('next');
 
     const phoneInput = document.getElementById('phone-input');
     const countryCodeSelect = document.getElementById('country-code');
@@ -340,7 +356,7 @@ Ingresar con Teléfono – BarberSync
             const resp = await fetch('{% url "accounts:verify_otp" %}', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value},
-                body: JSON.stringify({phone: phone, country_code: countryCode, otp_code: otp, purpose: purpose})
+                body: JSON.stringify({phone: phone, country_code: countryCode, otp_code: otp, purpose: purpose, next: nextParam})
             });
             const data = await resp.json();
 

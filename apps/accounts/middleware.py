@@ -18,6 +18,7 @@ class OnboardingMiddleware:
 
             excluded_prefixes = (
                 "/accounts/onboarding/",
+                "/accounts/capture-name/",
                 "/accounts/logout/",
                 "/accounts/login/",
                 "/accounts/google/",

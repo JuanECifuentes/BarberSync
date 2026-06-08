@@ -869,6 +869,7 @@ class VerifyOTPView(View):
         country_code = (data.get("country_code") or "").strip()
         otp_code = (data.get("otp_code") or "").strip()
         purpose = data.get("purpose", "login")
+        next_url = (data.get("next") or "").strip()
 
         if not phone or not country_code or not otp_code:
             return JsonResponse(
@@ -918,22 +919,27 @@ class VerifyOTPView(View):
                         backend="apps.accounts.auth_backends.PhoneOTPBackend",
                     )
                     needs_name = not existing.first_name.strip()
+                    from django.utils.http import url_has_allowed_host_and_scheme
+                    redirect_url = "/accounts/capture-name/" if needs_name else "/app/schedule/"
+                    if needs_name:
+                        if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                            redirect_url = f"{redirect_url}?next={next_url}"
+                    else:
+                        if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                            redirect_url = next_url
                     return JsonResponse(
                         {
                             "ok": True,
                             "purpose": "register",
                             "needs_name": needs_name,
-                            "redirect": "/accounts/capture-name/"
-                            if needs_name
-                            else "/app/schedule/",
+                            "redirect": redirect_url,
                         }
                     )
 
             username = f"phone_{country_code}{phone}_{User.objects.count() + 1}"
-            user = User.objects.create_user(
+            user = User(
                 username=username,
                 email=None,
-                password=None,
                 country_code=country_code,
                 phone=phone,
                 phone_verification=True,
@@ -943,12 +949,17 @@ class VerifyOTPView(View):
 
             login(request, user, backend="apps.accounts.auth_backends.PhoneOTPBackend")
 
+            from django.utils.http import url_has_allowed_host_and_scheme
+            redirect_url = "/accounts/capture-name/"
+            if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                redirect_url = f"{redirect_url}?next={next_url}"
+
             return JsonResponse(
                 {
                     "ok": True,
                     "purpose": "register",
                     "needs_name": True,
-                    "redirect": "/accounts/capture-name/",
+                    "redirect": redirect_url,
                 }
             )
 
@@ -982,6 +993,15 @@ class VerifyOTPView(View):
                 redirect_url = "/accounts/onboarding/"
 
             needs_name = not user.first_name.strip()
+
+            from django.utils.http import url_has_allowed_host_and_scheme
+            if needs_name:
+                redirect_url = "/accounts/capture-name/"
+                if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                    redirect_url = f"{redirect_url}?next={next_url}"
+            else:
+                if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                    redirect_url = next_url
 
             return JsonResponse(
                 {
@@ -1150,6 +1170,10 @@ class CaptureNameView(LoginRequiredMixin, View):
 
     def get(self, request):
         if request.user.first_name.strip():
+            next_url = request.GET.get("next")
+            from django.utils.http import url_has_allowed_host_and_scheme
+            if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                return redirect(next_url)
             return redirect("/app/schedule/")
         return render(request, self.template_name, {"is_booking_page": True})
 
@@ -1171,6 +1195,11 @@ class CaptureNameView(LoginRequiredMixin, View):
         request.user.first_name = first_name
         request.user.last_name = last_name
         request.user.save(update_fields=["first_name", "last_name"])
+
+        from django.utils.http import url_has_allowed_host_and_scheme
+        next_url = request.GET.get("next") or data.get("next")
+        if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+            return JsonResponse({"ok": True, "redirect": next_url})
 
         membership = request.user.memberships.filter(is_active=True).first()
         if not membership or not membership.organization:
