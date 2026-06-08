@@ -52,3 +52,54 @@ class OnboardingMiddleware:
                     return redirect("accounts:onboarding")
 
         return self.get_response(request)
+
+
+class ProfileCompletionMiddleware:
+    """
+    Forces authenticated phone-only users (without a first_name) to
+    complete their profile by capturing their name before using the app.
+    Exempt paths: login, logout, static, capture-name, and API endpoints.
+    """
+
+    EXEMPT_PREFIXES = (
+        "/accounts/login/",
+        "/accounts/logout/",
+        "/accounts/signup/",
+        "/accounts/google/",
+        "/accounts/capture-name/",
+        "/accounts/otp/",
+        "/accounts/phone-check/",
+        "/accounts/country-code/",
+        "/accounts/confirm-email/",
+        "/accounts/resend-verification/",
+        "/accounts/email-otp/",
+        "/accounts/invite/",
+        "/accounts/onboarding/",
+        "/accounts/profile/",
+        "/billing/",
+        "/book/",
+        "/static/",
+        "/media/",
+        "/admin/",
+        "/api/",
+    )
+
+    EXEMPT_EXACT = {"/", "/accounts/capture-name/"}
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if request.user.is_authenticated:
+            path = request.path_info
+
+            is_exempt = path in self.EXEMPT_EXACT or any(
+                path.startswith(p) for p in self.EXEMPT_PREFIXES
+            )
+
+            if not is_exempt:
+                first_name = getattr(request.user, "first_name", "") or ""
+                if not first_name.strip():
+                    return redirect("accounts:capture_name")
+
+        return self.get_response(request)

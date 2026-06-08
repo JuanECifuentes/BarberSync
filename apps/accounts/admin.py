@@ -1,7 +1,15 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
-from .models import BarberProfile, Barbershop, Membership, Organization, User
+from .models import (
+    BarberProfile,
+    Barbershop,
+    Membership,
+    Organization,
+    User,
+    SmsVerificationRequest,
+    EmailLinkVerification,
+)
 
 
 @admin.register(User)
@@ -39,3 +47,18 @@ class MembershipAdmin(admin.ModelAdmin):
 @admin.register(BarberProfile)
 class BarberProfileAdmin(admin.ModelAdmin):
     list_display = ("__str__", "phone", "buffer_minutes", "is_active")
+
+
+@admin.register(SmsVerificationRequest)
+class SmsVerificationRequestAdmin(admin.ModelAdmin):
+    list_display = ("phone", "country_code", "purpose", "created_at", "attempts")
+    list_filter = ("purpose",)
+    readonly_fields = ("otp_hash",)
+    search_fields = ("phone", "country_code")
+
+
+@admin.register(EmailLinkVerification)
+class EmailLinkVerificationAdmin(admin.ModelAdmin):
+    list_display = ("email", "user", "created_at", "attempts")
+    list_filter = ("user",)
+    readonly_fields = ("otp_hash",)

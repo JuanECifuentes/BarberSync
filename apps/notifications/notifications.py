@@ -51,6 +51,7 @@ def _build_sms_message(context: dict, notif_type: str) -> str:
     barber_name = context.get("barber_name", "")
     start_time = context.get("start_time")
     service_names = context.get("service_names", "")
+    otp_code = context.get("otp_code", "")
 
     fmt_time = ""
     if start_time:
@@ -67,6 +68,7 @@ def _build_sms_message(context: dict, notif_type: str) -> str:
         "confirmation": f"{barbershop}: Cita confirmada para el {fmt_time} con {barber_name}.",
         "reschedule_client": f"{barbershop}: Tu cita fue reprogramada al {fmt_time} con {barber_name}.",
         "reschedule_barber": f"{barbershop}: Tu cita con {client_name} fue reprogramada al {fmt_time} por administracion.",
+        "phone_otp": f"{barbershop}: Tu codigo de verificacion es {otp_code}.",
     }
 
     msg = templates.get(
@@ -319,6 +321,8 @@ def send_notification(
         "confirmation": f"Cita confirmada en {context.get('barbershop_name', 'BarberSync')}",
         "reschedule_client": f"Cita reprogramada en {context.get('barbershop_name', 'BarberSync')}",
         "reschedule_barber": f"Agenda modificada: cita reprogramada en {context.get('barbershop_name', 'BarberSync')}",
+        "phone_otp": f"Tu código de verificación {context.get('barbershop_name', 'BarberSync')}: {context.get('otp_code', '')}",
+        "email_verification": f"Tu código de verificación {context.get('barbershop_name', 'BarberSync')}: {context.get('otp_code', '')}",
     }
     final_subject = subject or subject_map.get(notif_type, "Notificación – BarberSync")
 

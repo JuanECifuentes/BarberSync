@@ -94,10 +94,80 @@
                     <label class="block text-sm font-medium text-neutral-400 mb-1.5">
                         Correo Electrónico
                     </label>
+                    {% if can_edit_email %}
+                    <div class="space-y-3" id="email-edit-section">
+                        <input type="email" id="email-input"
+                               class="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3 text-white
+                                      placeholder-neutral-500 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-all"
+                               placeholder="tu@correo.com"
+                               value="{{ user.email|default:'' }}">
+                        <button type="button" id="send-email-otp-btn"
+                                class="text-sm text-brand hover:text-brand-400 font-medium transition-colors">
+                            Verificar correo
+                        </button>
+                        <div id="email-otp-feedback" class="hidden text-sm mt-1"></div>
+                        <div id="email-otp-section" class="hidden space-y-3 mt-3">
+                            <p class="text-xs text-neutral-400">Ingresa el código de 6 dígitos enviado a tu correo.</p>
+                            <div class="flex gap-2">
+                                <input type="text" maxlength="1" class="email-otp-digit w-10 h-10 text-center text-lg font-bold bg-neutral-900 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-brand focus:border-brand transition-colors" data-index="0" inputmode="numeric" pattern="[0-9]">
+                                <input type="text" maxlength="1" class="email-otp-digit w-10 h-10 text-center text-lg font-bold bg-neutral-900 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-brand focus:border-brand transition-colors" data-index="1" inputmode="numeric" pattern="[0-9]">
+                                <input type="text" maxlength="1" class="email-otp-digit w-10 h-10 text-center text-lg font-bold bg-neutral-900 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-brand focus:border-brand transition-colors" data-index="2" inputmode="numeric" pattern="[0-9]">
+                                <input type="text" maxlength="1" class="email-otp-digit w-10 h-10 text-center text-lg font-bold bg-neutral-900 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-brand focus:border-brand transition-colors" data-index="3" inputmode="numeric" pattern="[0-9]">
+                                <input type="text" maxlength="1" class="email-otp-digit w-10 h-10 text-center text-lg font-bold bg-neutral-900 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-brand focus:border-brand transition-colors" data-index="4" inputmode="numeric" pattern="[0-9]">
+                                <input type="text" maxlength="1" class="email-otp-digit w-10 h-10 text-center text-lg font-bold bg-neutral-900 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-brand focus:border-brand transition-colors" data-index="5" inputmode="numeric" pattern="[0-9]">
+                            </div>
+                            <button type="button" id="verify-email-otp-btn"
+                                    class="btn-action-primary btn-primary text-sm flex items-center gap-2 border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm">
+                                <span>Confirmar correo</span>
+                            </button>
+                            <button type="button" id="resend-email-otp-btn" class="hidden text-xs text-neutral-400 hover:text-brand transition-colors disabled:opacity-50" disabled>
+                                <span id="resend-email-text">Reenviar código</span>
+                            </button>
+                        </div>
+                    </div>
+                    {% elif has_linked_email %}
+                    {% if user.email_verification %}
+                    <div class="flex items-center gap-2">
+                        <input type="email" value="{{ user.email }}" disabled
+                               class="flex-1 bg-neutral-800/50 border border-neutral-800 rounded-xl px-4 py-3 text-neutral-500 cursor-not-allowed">
+                        <div class="inline-flex items-center gap-1.5 text-green-400">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            <span class="text-xs font-medium">Verificado</span>
+                        </div>
+                    </div>
+                    {% else %}
+                    <input type="email" value="{{ user.email }}" disabled
+                           class="w-full bg-neutral-800/50 border border-neutral-800 rounded-xl px-4 py-3 text-neutral-500 cursor-not-allowed">
+                    <p class="mt-1 text-xs text-neutral-500">
+                        <a href="{% url 'accounts:resend_verification' %}" class="text-brand hover:text-brand-400">Verificar correo</a>
+                    </p>
+                    {% endif %}
+                    {% else %}
                     <input type="email" value="{{ user.email }}" disabled
                            class="w-full bg-neutral-800/50 border border-neutral-800 rounded-xl px-4 py-3 text-neutral-500 cursor-not-allowed">
                     <p class="mt-1 text-xs text-neutral-500">El correo electrónico no se puede modificar.</p>
+                    {% endif %}
                 </div>
+
+                {% if is_phone_verified and phone_display %}
+                <div>
+                    <label class="block text-sm font-medium text-neutral-400 mb-1.5">
+                        Teléfono
+                    </label>
+                    <div class="flex items-center gap-2">
+                        <input type="tel" value="{{ phone_display }}" disabled
+                               class="flex-1 bg-neutral-800/50 border border-neutral-800 rounded-xl px-4 py-3 text-neutral-500 cursor-not-allowed">
+                        <div class="inline-flex items-center gap-1.5 text-green-400">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            <span class="text-xs font-medium">Verificado</span>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
 
                 <div class="pt-4 flex justify-end">
                     <button type="submit" 
@@ -227,4 +297,132 @@
 
     </div>
 </div>
+
+{% if can_edit_email %}
+<script>
+(function() {
+    const sendBtn = document.getElementById('send-email-otp-btn');
+    const otpSection = document.getElementById('email-otp-section');
+    const emailOtpDigits = document.querySelectorAll('.email-otp-digit');
+    const verifyEmailBtn = document.getElementById('verify-email-otp-btn');
+    const resendEmailBtn = document.getElementById('resend-email-otp-btn');
+    const resendEmailText = document.getElementById('resend-email-text');
+    const feedback = document.getElementById('email-otp-feedback');
+    let emailCooldown = null;
+
+    emailOtpDigits.forEach((input, idx) => {
+        input.addEventListener('input', function(e) {
+            e.target.value = e.target.value.replace(/\D/g, '');
+            if (e.target.value && idx < emailOtpDigits.length - 1) {
+                emailOtpDigits[idx + 1].focus();
+            }
+        });
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Backspace' && !e.target.value && idx > 0) {
+                emailOtpDigits[idx - 1].focus();
+            }
+        });
+        input.addEventListener('paste', function(e) {
+            e.preventDefault();
+            const pasted = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '');
+            for (let i = 0; i < Math.min(pasted.length, 6); i++) {
+                emailOtpDigits[i].value = pasted[i];
+            }
+        });
+    });
+
+    sendBtn.addEventListener('click', async function() {
+        const email = document.getElementById('email-input').value.trim();
+        if (!email || !email.includes('@')) {
+            feedback.textContent = 'Ingresa un correo electrónico válido.';
+            feedback.className = 'text-sm text-red-400';
+            feedback.classList.remove('hidden');
+            return;
+        }
+
+        try {
+            const resp = await fetch('{% url "accounts:send_email_otp" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value},
+                body: JSON.stringify({email: email})
+            });
+            const data = await resp.json();
+
+            if (!resp.ok) {
+                feedback.textContent = data.error || 'Error al enviar el código.';
+                feedback.className = 'text-sm text-red-400';
+                feedback.classList.remove('hidden');
+                return;
+            }
+
+            otpSection.classList.remove('hidden');
+            sendBtn.classList.add('hidden');
+            feedback.textContent = 'Código enviado a ' + email;
+            feedback.className = 'text-sm text-green-400';
+            feedback.classList.remove('hidden');
+            startEmailCooldown(data.cooldown_seconds || 60);
+        } catch {
+            feedback.textContent = 'Error de conexión.';
+            feedback.className = 'text-sm text-red-400';
+            feedback.classList.remove('hidden');
+        }
+    });
+
+    verifyEmailBtn.addEventListener('click', async function() {
+        const otp = Array.from(emailOtpDigits).map(d => d.value).join('');
+        if (otp.length < 6) {
+            feedback.textContent = 'Ingresa los 6 dígitos.';
+            feedback.className = 'text-sm text-red-400';
+            feedback.classList.remove('hidden');
+            return;
+        }
+
+        try {
+            const resp = await fetch('{% url "accounts:verify_email_otp" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value},
+                body: JSON.stringify({otp_code: otp})
+            });
+            const data = await resp.json();
+
+            if (!resp.ok) {
+                feedback.textContent = data.error || 'Código incorrecto.';
+                feedback.className = 'text-sm text-red-400';
+                feedback.classList.remove('hidden');
+                emailOtpDigits.forEach(d => { d.value = ''; });
+                emailOtpDigits[0].focus();
+                return;
+            }
+
+            feedback.textContent = 'Correo vinculado exitosamente.';
+            feedback.className = 'text-sm text-green-400';
+            feedback.classList.remove('hidden');
+            setTimeout(() => window.location.reload(), 1500);
+        } catch {
+            feedback.textContent = 'Error de conexión.';
+            feedback.className = 'text-sm text-red-400';
+            feedback.classList.remove('hidden');
+        }
+    });
+
+    function startEmailCooldown(seconds) {
+        resendEmailBtn.classList.remove('hidden');
+        resendEmailBtn.disabled = true;
+        let remaining = seconds;
+        resendEmailText.textContent = `Reenviar código (${remaining}s)`;
+        if (emailCooldown) clearInterval(emailCooldown);
+        emailCooldown = setInterval(() => {
+            remaining--;
+            if (remaining <= 0) {
+                clearInterval(emailCooldown);
+                resendEmailBtn.disabled = false;
+                resendEmailText.textContent = 'Reenviar código';
+            } else {
+                resendEmailText.textContent = `Reenviar código (${remaining}s)`;
+            }
+        }, 1000);
+    }
+})();
+</script>
+{% endif %}
 {% endblock %}

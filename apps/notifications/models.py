@@ -21,6 +21,8 @@ class NotificationLog(models.Model):
         CONFIRMATION = "confirmation", "Confirmación"
         RESCHEDULE_CLIENT = "reschedule_client", "Reprogramación (cliente)"
         RESCHEDULE_BARBER = "reschedule_barber", "Reprogramación (barbero)"
+        PHONE_OTP = "phone_otp", "OTP de teléfono"
+        EMAIL_VERIFICATION = "email_verification", "Verificación de correo"
 
     appointment = models.ForeignKey(
         "scheduling.Appointment",
