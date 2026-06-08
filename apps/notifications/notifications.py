@@ -75,6 +75,23 @@ def _build_sms_message(context: dict, notif_type: str) -> str:
     return _truncate_for_sms(msg, 160)
 
 
+def _get_aws_client(service_name: str):
+    aws_access_key_id = getattr(settings, "AWS_ACCESS_KEY_ID", None)
+    aws_secret_access_key = getattr(settings, "AWS_SECRET_ACCESS_KEY", None)
+    region_name = getattr(settings, "AWS_REGION_NAME", "us-east-1")
+
+    import boto3
+
+    kwargs = {}
+    if aws_access_key_id and aws_secret_access_key:
+        kwargs["aws_access_key_id"] = aws_access_key_id
+        kwargs["aws_secret_access_key"] = aws_secret_access_key
+    if region_name:
+        kwargs["region_name"] = region_name
+
+    return boto3.client(service_name, **kwargs)
+
+
 def _send_email_sync(
     recipient_email: str,
     recipient_name: str,
@@ -86,19 +103,66 @@ def _send_email_sync(
     success = True
     error_msg = ""
 
-    try:
-        send_mail(
-            subject=subject,
-            message=_html_to_plain_text(html_body),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[recipient_email],
-            html_message=html_body,
-            fail_silently=False,
-        )
-    except Exception as e:
-        success = False
-        error_msg = str(e)
-        logger.exception("Failed to send email %s to %s", notif_type, recipient_email)
+    aws_configured = bool(
+        getattr(settings, "AWS_ACCESS_KEY_ID", None)
+        and getattr(settings, "AWS_SECRET_ACCESS_KEY", None)
+    ) or not getattr(settings, "LOCAL", False)
+
+    sent_via_ses = False
+
+    if aws_configured:
+        try:
+            client = _get_aws_client("ses")
+            plain_text = _html_to_plain_text(html_body)
+            recipient_formatted = recipient_email
+            if recipient_name:
+                recipient_formatted = f"{recipient_name} <{recipient_email}>"
+
+            client.send_email(
+                Source=settings.DEFAULT_FROM_EMAIL,
+                Destination={
+                    "ToAddresses": [recipient_formatted],
+                },
+                Message={
+                    "Subject": {
+                        "Data": subject,
+                        "Charset": "UTF-8",
+                    },
+                    "Body": {
+                        "Html": {
+                            "Data": html_body,
+                            "Charset": "UTF-8",
+                        },
+                        "Text": {
+                            "Data": plain_text,
+                            "Charset": "UTF-8",
+                        },
+                    },
+                },
+            )
+            sent_via_ses = True
+        except (ImportError, Exception) as e:
+            logger.warning(
+                "AWS SES send failed or boto3 not installed, attempting Django mail fallback. Error: %s",
+                e,
+            )
+
+    if not sent_via_ses:
+        try:
+            send_mail(
+                subject=subject,
+                message=_html_to_plain_text(html_body),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[recipient_email],
+                html_message=html_body,
+                fail_silently=False,
+            )
+        except Exception as e:
+            success = False
+            error_msg = str(e)
+            logger.exception(
+                "Failed to send email %s to %s via fallback", notif_type, recipient_email
+            )
 
     NotificationLog.objects.create(
         appointment_id=appointment_id,
@@ -124,23 +188,44 @@ def _send_sms_sync(
     success = True
     error_msg = ""
 
-    twilio_configured = getattr(settings, "TWILIO_ACCOUNT_SID", None) and getattr(
-        settings, "TWILIO_AUTH_TOKEN", None
-    )
+    aws_configured = bool(
+        getattr(settings, "AWS_ACCESS_KEY_ID", None)
+        and getattr(settings, "AWS_SECRET_ACCESS_KEY", None)
+    ) or not getattr(settings, "LOCAL", False)
 
-    if twilio_configured:
+    sent_via_sns = False
+
+    if aws_configured:
         try:
-            from twilio.rest import Client
+            client = _get_aws_client("sns")
+            formatted_phone = phone.strip()
+            # Basic E.164 normalization for SNS if missing standard + prefix
+            if formatted_phone and not formatted_phone.startswith("+"):
+                if formatted_phone.isdigit():
+                    formatted_phone = f"+{formatted_phone}"
 
-            client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
-            from_number = getattr(settings, "TWILIO_PHONE_NUMBER", "")
-            client.messages.create(body=message, from_=from_number, to=phone)
-        except Exception as e:
+            client.publish(
+                PhoneNumber=formatted_phone,
+                Message=message,
+                MessageAttributes={
+                    "AWS.SNS.SMS.SMSType": {
+                        "DataType": "String",
+                        "StringValue": "Transactional",
+                    }
+                },
+            )
+            sent_via_sns = True
+        except (ImportError, Exception) as e:
             success = False
             error_msg = str(e)
-            logger.exception("Failed to send SMS %s to %s", notif_type, phone)
+            logger.exception("Failed to send SMS %s to %s via AWS SNS", notif_type, phone)
     else:
-        logger.info("SMS skipped (Twilio not configured): %s -> %s", notif_type, phone)
+        logger.info(
+            "SMS skipped (AWS SNS not configured): %s -> %s (Message: %s)",
+            notif_type,
+            phone,
+            message,
+        )
 
     NotificationLog.objects.create(
         appointment_id=appointment_id,
@@ -150,10 +235,11 @@ def _send_sms_sync(
         notif_type=notif_type,
         subject="",
         body=message,
-        success=success,
+        success=success if (sent_via_sns or not aws_configured) else False,
         error_message=error_msg,
     )
     return success
+
 
 
 def _dispatch_notification_task(

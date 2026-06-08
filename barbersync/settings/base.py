@@ -233,6 +233,12 @@ else:
 
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@barbersync.app")
 
+# AWS Configuration
+AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID", default="")
+AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY", default="")
+AWS_REGION_NAME = env("AWS_REGION_NAME", default="us-east-1")
+
+
 SITE_URL = env("SITE_URL", default="http://127.0.0.1:8000")
 
 GOOGLE_MAPS_API_KEY = env("GOOGLE_MAPS_API_KEY", default="")
