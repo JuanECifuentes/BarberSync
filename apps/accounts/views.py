@@ -494,29 +494,125 @@ class ProfileView(LoginRequiredMixin, UpdateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["google_account"] = self.request.user.socialaccount_set.filter(
-            provider="google"
-        ).first()
-        context["has_linked_email"] = bool(
-            self.request.user.email and self.request.user.email_verification
-        )
-        context["has_google"] = self.request.user.socialaccount_set.filter(
-            provider="google"
-        ).exists()
+        user = self.request.user
+
+        google_accounts = user.socialaccount_set.filter(provider="google")
+        google_account = None
+        for ga in google_accounts:
+            extra_data = ga.extra_data or {}
+            if not extra_data.get("disconnected", False):
+                google_account = ga
+                break
+
+        context["google_account"] = google_account
+        context["has_linked_email"] = bool(user.email and user.email_verification)
+        context["has_google"] = google_account is not None
         context["can_edit_email"] = (
             not context["has_linked_email"] and not context["has_google"]
         )
-        context["phone_display"] = (
-            f"+{self.request.user.country_code}{self.request.user.phone}"
-            if self.request.user.phone
-            else ""
+        context["can_unlink_google"] = (
+            context["has_google"]
+            and context["has_linked_email"]
+            and (
+                user.has_usable_password()
+                or bool(user.phone_verification and user.phone)
+            )
         )
-        context["is_phone_verified"] = self.request.user.phone_verification
+        context["phone_display"] = (
+            f"+{user.country_code}{user.phone}" if user.phone else ""
+        )
+        context["is_phone_verified"] = user.phone_verification
+
+        membership = getattr(user, "membership", None)
+        user_role = membership.role if membership else None
+        org = getattr(self.request, "organization", None)
+
+        user_barbershops = []
+        has_all_barbershops = False
+
+        if membership and org:
+            if user_role in ("owner", "admin"):
+                has_all_barbershops = True
+                user_barbershops = list(
+                    org.barbershops.filter(is_active=True).order_by("name")
+                )
+            elif user_role == "barber":
+                profile = getattr(membership, "barber_profile", None)
+                if profile and profile.sucursales.exists():
+                    user_barbershops = list(
+                        profile.sucursales.filter(is_active=True).order_by("name")
+                    )
+                elif membership.sucursales.exists():
+                    user_barbershops = list(
+                        membership.sucursales.filter(is_active=True).order_by("name")
+                    )
+                elif membership.barbershop:
+                    user_barbershops = [membership.barbershop]
+
+        context["user_barbershops"] = user_barbershops
+        context["has_all_barbershops"] = has_all_barbershops
+
         return context
 
     def form_valid(self, form):
         messages.success(self.request, "Tu perfil ha sido actualizado correctamente.")
         return super().form_valid(form)
+
+
+class UnlinkGoogleView(LoginRequiredMixin, View):
+    """
+    Logically disconnect (soft delete) the user's Google social account.
+    Marks the SocialAccount as disconnected via extra_data flag
+    instead of hard-deleting the row, preserving audit trail.
+    """
+
+    def post(self, request):
+        user = request.user
+
+        google_accounts = user.socialaccount_set.filter(provider="google")
+        social_account = None
+        for ga in google_accounts:
+            extra_data = ga.extra_data or {}
+            if not extra_data.get("disconnected", False):
+                social_account = ga
+                break
+
+        if not social_account:
+            return JsonResponse(
+                {"error": "No tienes una cuenta de Google vinculada."},
+                status=400,
+            )
+
+        has_verified_email = bool(user.email and user.email_verification)
+        has_usable_password = user.has_usable_password()
+        has_verified_phone = bool(user.phone_verification and user.phone)
+
+        if not (has_verified_email and (has_usable_password or has_verified_phone)):
+            return JsonResponse(
+                {
+                    "error": "No puedes desvincular Google sin un método de acceso alternativo. "
+                    "Verifica tu correo electrónico y configura una contraseña o teléfono verificado."
+                },
+                status=400,
+            )
+
+        extra_data = social_account.extra_data or {}
+        extra_data["disconnected"] = True
+        extra_data["disconnected_at"] = timezone.now().isoformat()
+        extra_data["original_uid"] = social_account.uid
+        social_account.extra_data = extra_data
+
+        # Rename the UID to release the unique constraint (provider, uid)
+        original_uid = social_account.uid
+        social_account.uid = f"{original_uid}_disconnected_{int(timezone.now().timestamp())}"
+        social_account.save(update_fields=["extra_data", "uid"])
+
+        if hasattr(user, "_membership_cache"):
+            del user._membership_cache
+
+        return JsonResponse(
+            {"ok": True, "message": "Cuenta de Google desvinculada exitosamente."},
+        )
 
 
 class SwitchBarbershopView(LoginRequiredMixin, View):
@@ -920,12 +1016,19 @@ class VerifyOTPView(View):
                     )
                     needs_name = not existing.first_name.strip()
                     from django.utils.http import url_has_allowed_host_and_scheme
-                    redirect_url = "/accounts/capture-name/" if needs_name else "/app/schedule/"
+
+                    redirect_url = (
+                        "/accounts/capture-name/" if needs_name else "/app/schedule/"
+                    )
                     if needs_name:
-                        if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                        if next_url and url_has_allowed_host_and_scheme(
+                            next_url, allowed_hosts={request.get_host()}
+                        ):
                             redirect_url = f"{redirect_url}?next={next_url}"
                     else:
-                        if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                        if next_url and url_has_allowed_host_and_scheme(
+                            next_url, allowed_hosts={request.get_host()}
+                        ):
                             redirect_url = next_url
                     return JsonResponse(
                         {
@@ -950,8 +1053,11 @@ class VerifyOTPView(View):
             login(request, user, backend="apps.accounts.auth_backends.PhoneOTPBackend")
 
             from django.utils.http import url_has_allowed_host_and_scheme
+
             redirect_url = "/accounts/capture-name/"
-            if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+            if next_url and url_has_allowed_host_and_scheme(
+                next_url, allowed_hosts={request.get_host()}
+            ):
                 redirect_url = f"{redirect_url}?next={next_url}"
 
             return JsonResponse(
@@ -995,12 +1101,17 @@ class VerifyOTPView(View):
             needs_name = not user.first_name.strip()
 
             from django.utils.http import url_has_allowed_host_and_scheme
+
             if needs_name:
                 redirect_url = "/accounts/capture-name/"
-                if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                if next_url and url_has_allowed_host_and_scheme(
+                    next_url, allowed_hosts={request.get_host()}
+                ):
                     redirect_url = f"{redirect_url}?next={next_url}"
             else:
-                if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                if next_url and url_has_allowed_host_and_scheme(
+                    next_url, allowed_hosts={request.get_host()}
+                ):
                     redirect_url = next_url
 
             return JsonResponse(
@@ -1172,7 +1283,10 @@ class CaptureNameView(LoginRequiredMixin, View):
         if request.user.first_name.strip():
             next_url = request.GET.get("next")
             from django.utils.http import url_has_allowed_host_and_scheme
-            if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+
+            if next_url and url_has_allowed_host_and_scheme(
+                next_url, allowed_hosts={request.get_host()}
+            ):
                 return redirect(next_url)
             return redirect("/app/schedule/")
         return render(request, self.template_name, {"is_booking_page": True})
@@ -1197,8 +1311,11 @@ class CaptureNameView(LoginRequiredMixin, View):
         request.user.save(update_fields=["first_name", "last_name"])
 
         from django.utils.http import url_has_allowed_host_and_scheme
+
         next_url = request.GET.get("next") or data.get("next")
-        if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+        if next_url and url_has_allowed_host_and_scheme(
+            next_url, allowed_hosts={request.get_host()}
+        ):
             return JsonResponse({"ok": True, "redirect": next_url})
 
         membership = request.user.memberships.filter(is_active=True).first()

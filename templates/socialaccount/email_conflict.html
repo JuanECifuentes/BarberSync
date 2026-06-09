@@ -16,18 +16,31 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                 </svg>
             </div>
-            <h1 class="font-heading font-bold text-2xl text-white">Correo ya registrado</h1>
-            <p class="text-sm text-neutral-400 mt-1">Este correo ya está en uso</p>
+            <h1 class="font-heading font-bold text-2xl text-white">
+                {% if disconnected_conflict %}Cuenta desvinculada{% else %}Correo ya registrado{% endif %}
+            </h1>
+            <p class="text-sm text-neutral-400 mt-1">
+                {% if disconnected_conflict %}Acceso deshabilitado por desvinculación{% else %}Este correo ya está en uso{% endif %}
+            </p>
         </div>
 
         <!-- Card -->
         <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 space-y-5 text-center">
+            {% if disconnected_conflict %}
+            <p class="text-sm text-neutral-300">
+                Esta cuenta de <span class="font-medium text-white">{{ provider|title }}</span> ha sido desvinculada de tu perfil de BarberSync.
+            </p>
+            <p class="text-sm text-neutral-400">
+                Por razones de seguridad, debes iniciar sesión utilizando tu correo y contraseña, o tu teléfono verificado. Después podrás volver a vincular tu cuenta de Google desde tu configuración de perfil.
+            </p>
+            {% else %}
             <p class="text-sm text-neutral-300">
                 Ya existe una cuenta en BarberSync con el correo <strong class="text-white">{{ email }}</strong> que utiliza una contraseña para acceder.
             </p>
             <p class="text-sm text-neutral-400">
                 Por razones de seguridad, debes iniciar sesión usando tu correo y contraseña. Después podrás vincular tu cuenta de <span class="font-medium text-white">{{ provider|title }}</span> desde tu perfil para usarla en el futuro.
             </p>
+            {% endif %}
 
             <a href="{% url 'account_login' %}{% if request.GET.next %}?next={{ request.GET.next }}{% endif %}"
                class="block w-full mt-6 border border-neutral-700 px-4 py-3 rounded-lg font-semibold text-white

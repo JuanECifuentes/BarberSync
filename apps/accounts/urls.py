@@ -90,4 +90,9 @@ urlpatterns = [
         TemplateView.as_view(template_name="accounts/phone_login.html"),
         name="phone_login",
     ),
+    path(
+        "google/unlink/",
+        views.UnlinkGoogleView.as_view(),
+        name="unlink_google",
+    ),
 ]
