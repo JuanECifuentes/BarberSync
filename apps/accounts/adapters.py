@@ -2,6 +2,7 @@ from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from django.http import HttpRequest, HttpResponseRedirect
 from django.urls import reverse
 from allauth.core.exceptions import ImmediateHttpResponse
+from django.utils import timezone
 
 
 class SocialAccountAdapter(DefaultSocialAccountAdapter):
@@ -17,6 +18,8 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
         Handles the case where a user tries to sign in with Google using an email
         which already has a local password account. Instead of raising an error,
         we associate the social account and log the user in.
+
+        Also handles re-connection of logically disconnected (soft-deleted) accounts.
         """
         from allauth.account.models import EmailAddress
         from allauth.socialaccount.models import SocialAccount
@@ -35,7 +38,40 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
                 provider=sociallogin.account.provider,
                 uid=sociallogin.account.uid,
             )
-            # Already exists - let allauth handle it normally
+
+            # Check if this account was logically disconnected (soft delete)
+            extra_data = existing_social.extra_data or {}
+            if extra_data.get("disconnected", False):
+                if request.user.is_authenticated and request.user != existing_social.user:
+                    # If a different logged-in user is trying to connect this Google account,
+                    # rename the old one's uid to free up the unique constraint, and proceed as if it doesn't exist.
+                    existing_social.uid = f"{existing_social.uid}_disconnected_{int(timezone.now().timestamp())}"
+                    existing_social.save(update_fields=["uid"])
+                    raise SocialAccount.DoesNotExist
+
+                if request.user.is_authenticated and request.user == existing_social.user:
+                    # Re-connect: clear the disconnect flag, preserving audit trail
+                    extra_data["disconnected"] = False
+                    extra_data["reconnected_at"] = timezone.now().isoformat()
+                    existing_social.extra_data = extra_data
+                    existing_social.save(update_fields=["extra_data"])
+                else:
+                    # If they are NOT authenticated, block logging in with a disconnected account.
+                    # They must log in with password/phone and reconnect.
+                    from django.shortcuts import render
+                    from allauth.core.exceptions import ImmediateHttpResponse
+
+                    response = render(
+                        request,
+                        "socialaccount/email_conflict.html",
+                        {
+                            "email": email,
+                            "provider": sociallogin.account.provider,
+                            "disconnected_conflict": True,
+                        },
+                    )
+                    raise ImmediateHttpResponse(response)
+
             sociallogin.account = existing_social
             sociallogin.user = existing_social.user
             if not sociallogin.user.email_verification:
@@ -64,6 +100,31 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
             return
 
         if user:
+            # Check if this user had disconnected this social account previously
+            has_disconnected = False
+            for sa in SocialAccount.objects.filter(user=user, provider=sociallogin.account.provider):
+                if sa.extra_data.get("disconnected", False) and (
+                    sa.extra_data.get("original_uid") == sociallogin.account.uid
+                    or sa.uid.startswith(f"{sociallogin.account.uid}_disconnected_")
+                ):
+                    has_disconnected = True
+                    break
+
+            if has_disconnected and not request.user.is_authenticated:
+                from django.shortcuts import render
+                from allauth.core.exceptions import ImmediateHttpResponse
+
+                response = render(
+                    request,
+                    "socialaccount/email_conflict.html",
+                    {
+                        "email": email,
+                        "provider": sociallogin.account.provider,
+                        "disconnected_conflict": True,
+                    },
+                )
+                raise ImmediateHttpResponse(response)
+
             if user.has_usable_password():
                 # User exists with this email and has a password
                 # Do not auto-link. Show a conflict page.

@@ -18,6 +18,15 @@
                         neutral: { DEFAULT: '#59595D', 900: '#2a2a2d', 950: '#1a1a1c' },
                     },
                     fontFamily: { heading: ['Roboto', 'sans-serif'], body: ['Poppins', 'sans-serif'] },
+                    keyframes: {
+                        fadeInUp: {
+                            '0%': { opacity: '0', transform: 'translateY(16px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    },
+                    animation: {
+                        'fade-in-up': 'fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both',
+                    }
                 }
             }
         }
@@ -30,9 +39,9 @@
         </div>
         <h1 class="font-heading font-bold text-2xl text-white mb-3">Procesando tu pago</h1>
         <p class="text-neutral-400 text-sm mb-8">{{ message }}</p>
-        <a href="/" class="inline-flex items-center gap-2 bg-brand text-white font-semibold px-6 py-3 rounded-xl hover:bg-brand-600 transition-all duration-200">
+        <a href="/" class="group inline-flex items-center gap-2 bg-brand text-white font-semibold px-6 py-3 rounded-xl hover:bg-brand-600 hover:scale-[1.03] hover:shadow-xl hover:shadow-brand/30 active:scale-[0.98] transition-all duration-300 ease-out animate-fade-in-up [animation-delay:200ms]">
             Volver al inicio
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+            <svg class="w-4 h-4 transform group-hover:translate-x-1 transition-transform duration-300 ease-out" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
         </a>
     </div>
 </body>

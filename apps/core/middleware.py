@@ -210,7 +210,7 @@ class GlobalRateLimitMiddleware(MiddlewareMixin):
             for p in ["/accounts/login/", "/accounts/signup/", "/accounts/password/"]
         ):
             if is_ratelimited(
-                request, group="auth", key="ip", rate="5/m", increment=True
+                request, group="auth", key="ip", rate="10/m", increment=True
             ):
                 return JsonResponse(
                     {
