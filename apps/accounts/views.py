@@ -1183,7 +1183,7 @@ class ResendOTPView(View):
             ip_address=ip_address,
             purpose=purpose,
         )
-        otp_code_or_error = None
+        
 
         if otp_obj is None:
             if otp_code_or_error == "rate_limit_hourly":
@@ -1846,7 +1846,7 @@ class VerifyPhoneProfileView(LoginRequiredMixin, View):
             purpose="register",
         )
 
-        otp_code_or_error = None
+        
 
         if otp_obj is None:
             if otp_code_or_error == "rate_limit_hourly":
