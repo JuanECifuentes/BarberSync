@@ -95,4 +95,49 @@ urlpatterns = [
         views.UnlinkGoogleView.as_view(),
         name="unlink_google",
     ),
+    path(
+        "phone/unlink/",
+        views.UnlinkPhoneView.as_view(),
+        name="unlink_phone",
+    ),
+    path(
+        "phone/verify/",
+        views.VerifyPhoneProfileView.as_view(),
+        name="verify_phone_profile",
+    ),
+    path(
+        "phone/confirm/",
+        views.ConfirmPhoneProfileView.as_view(),
+        name="confirm_phone_profile",
+    ),
+    path(
+        "change-password/",
+        views.ChangePasswordView.as_view(),
+        name="change_password",
+    ),
+    path(
+        "password-reset/",
+        views.PasswordResetRequestView.as_view(),
+        name="password_reset_request",
+    ),
+    path(
+        "password/reset/",
+        views.PasswordResetRequestView.as_view(),
+        name="account_reset_password",
+    ),
+    path(
+        "password-reset/<str:token>/",
+        views.PasswordResetConfirmView.as_view(),
+        name="password_reset_confirm",
+    ),
+    path(
+        "registration/email-otp/send/",
+        views.SendRegistrationEmailOTPView.as_view(),
+        name="send_registration_email_otp",
+    ),
+    path(
+        "registration/email-otp/verify/",
+        views.VerifyRegistrationEmailOTPView.as_view(),
+        name="verify_registration_email_otp",
+    ),
 ]

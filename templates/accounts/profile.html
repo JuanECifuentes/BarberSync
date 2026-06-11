@@ -187,6 +187,93 @@
                     </div>
                 </div>
 
+                <!-- Security: Password Change -->
+                {% if show_password_change %}
+                <div class="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden shadow-xl shadow-black/50" style="margin-bottom: 20px;">
+                    <div class="px-6 py-4 border-b border-neutral-800 flex items-center gap-3 cursor-pointer select-none" id="password-accordion-header">
+                        <div class="w-10 h-10 rounded-lg bg-neutral-800 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="font-heading font-bold text-white text-lg">Seguridad</h3>
+                            <p class="text-xs text-neutral-400">Cambio de contraseña</p>
+                        </div>
+                        <div class="ml-auto text-neutral-400 transition-transform duration-200" id="password-accordion-chevron">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="px-6 pb-6 pt-4 hidden transition-all duration-300" id="password-accordion-content">
+                        {% if can_change_password %}
+                        <form id="change-password-form" class="space-y-4">
+                            <div>
+                                <label for="current-password" class="block text-sm font-medium text-neutral-400 mb-1.5">Contraseña actual</label>
+                                <input type="password" id="current-password" required
+                                    class="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-all"
+                                    placeholder="••••••••">
+                            </div>
+                            <div>
+                                <label for="new-password" class="block text-sm font-medium text-neutral-400 mb-1.5">Nueva contraseña</label>
+                                <input type="password" id="new-password" required minlength="8"
+                                    class="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-all"
+                                    placeholder="Mínimo 8 caracteres">
+                            </div>
+                            <div>
+                                <label for="confirm-password" class="block text-sm font-medium text-neutral-400 mb-1.5">Confirmar nueva contraseña</label>
+                                <input type="password" id="confirm-password" required
+                                    class="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-all"
+                                    placeholder="Repite la nueva contraseña">
+                            </div>
+                            <div id="password-feedback" class="hidden text-sm"></div>
+                            <div class="pt-2">
+                                <button type="submit" id="change-password-btn"
+                                        class="btn-action-primary btn-primary text-sm flex items-center gap-2 border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm">
+                                    <span>Actualizar contraseña</span>
+                                </button>
+                            </div>
+                        </form>
+                        {% else %}
+                        <p class="text-sm text-neutral-400">
+                            {% if has_linked_email and not has_usable_password %}
+                            Tu cuenta no tiene contraseña configurada. Puedes establecer una desde el enlace de recuperación de contraseña.
+                            {% else %}
+                            Configura y verifica tu correo electrónico para habilitar el cambio de contraseña.
+                            {% endif %}
+                        </p>
+                        {% if has_linked_email and not has_usable_password %}
+                        <div class="mt-3">
+                            <a href="{% url 'accounts:password_reset_request' %}" class="text-sm text-brand hover:text-brand-400 font-medium transition-colors">
+                                Establecer contraseña
+                            </a>
+                        </div>
+                        {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+                <script>
+                (function() {
+                    var header = document.getElementById('password-accordion-header');
+                    var content = document.getElementById('password-accordion-content');
+                    var chevron = document.getElementById('password-accordion-chevron');
+                    if (header && content && chevron) {
+                        header.addEventListener('click', function() {
+                            var isHidden = content.classList.contains('hidden');
+                            if (isHidden) {
+                                content.classList.remove('hidden');
+                                chevron.classList.add('rotate-180');
+                            } else {
+                                content.classList.add('hidden');
+                                chevron.classList.remove('rotate-180');
+                            }
+                        });
+                    }
+                })();
+                </script>
+                {% endif %}
+
                 <!-- Email field -->
                 <div>
                     <label class="block text-sm font-medium text-neutral-400 mb-1.5">
@@ -249,39 +336,105 @@
                     {% endif %}
                 </div>
 
-                <!-- Phone field (only shown when verified) -->
-                {% if is_phone_verified and phone_display %}
+                <!-- Phone field -->
+                {% if show_phone_section %}
                 <div>
                     <label class="block text-sm font-medium text-neutral-400 mb-1.5">
                         Teléfono
                     </label>
+                    {% if is_phone_verified and phone_display %}
                     <div class="flex items-center gap-3">
                         <div class="flex gap-2 flex-1">
                             <select id="country-code" name="country_code" disabled
                                     class="w-28 px-3 py-3 bg-neutral-800/50 border border-neutral-800 rounded-xl text-neutral-500 cursor-not-allowed">
-                                <option value="57" {% if user.country_code == '57' %}selected{% endif %}>+57 🇨🇴</option>
-                                <option value="1" {% if user.country_code == '1' %}selected{% endif %}>+1 🇺🇸</option>
-                                <option value="52" {% if user.country_code == '52' %}selected{% endif %}>+52 🇲🇽</option>
-                                <option value="54" {% if user.country_code == '54' %}selected{% endif %}>+54 🇦🇷</option>
-                                <option value="56" {% if user.country_code == '56' %}selected{% endif %}>+56 🇨🇱</option>
-                                <option value="51" {% if user.country_code == '51' %}selected{% endif %}>+51 🇵🇪</option>
-                                <option value="593" {% if user.country_code == '593' %}selected{% endif %}>+593 🇪🇨</option>
-                                <option value="58" {% if user.country_code == '58' %}selected{% endif %}>+58 🇻🇪</option>
-                                <option value="55" {% if user.country_code == '55' %}selected{% endif %}>+55 🇧🇷</option>
-                                <option value="34" {% if user.country_code == '34' %}selected{% endif %}>+34 🇪🇸</option>
-                                <option value="507" {% if user.country_code == '507' %}selected{% endif %}>+507 🇵🇦</option>
-                                <option value="506" {% if user.country_code == '506' %}selected{% endif %}>+506 🇨🇷</option>
+                                <option value="57" {% if country_code == '57' %}selected{% endif %}>+57 🇨🇴</option>
+                                <option value="1" {% if country_code == '1' %}selected{% endif %}>+1 🇺🇸</option>
+                                <option value="52" {% if country_code == '52' %}selected{% endif %}>+52 🇲🇽</option>
+                                <option value="54" {% if country_code == '54' %}selected{% endif %}>+54 🇦🇷</option>
+                                <option value="56" {% if country_code == '56' %}selected{% endif %}>+56 🇨🇱</option>
+                                <option value="51" {% if country_code == '51' %}selected{% endif %}>+51 🇵🇪</option>
+                                <option value="593" {% if country_code == '593' %}selected{% endif %}>+593 🇪🇨</option>
+                                <option value="58" {% if country_code == '58' %}selected{% endif %}>+58 🇻🇪</option>
+                                <option value="55" {% if country_code == '55' %}selected{% endif %}>+55 🇧🇷</option>
+                                <option value="34" {% if country_code == '34' %}selected{% endif %}>+34 🇪🇸</option>
+                                <option value="507" {% if country_code == '507' %}selected{% endif %}>+507 🇵🇦</option>
+                                <option value="506" {% if country_code == '506' %}selected{% endif %}>+506 🇨🇷</option>
                             </select>
-                            <input type="tel" value="{{ user.phone }}" disabled
+                            <input type="tel" value="{{ raw_phone }}" disabled
                                    class="flex-1 bg-neutral-800/50 border border-neutral-800 rounded-xl px-4 py-3 text-neutral-500 cursor-not-allowed">
                         </div>
-                        <div class="inline-flex items-center gap-1.5 text-green-400 shrink-0">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                            </svg>
-                            <span class="text-xs font-medium">Verificado</span>
+                        <div class="flex flex-col items-end gap-1 shrink-0">
+                            <div class="inline-flex items-center gap-1.5 text-green-400">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                </svg>
+                                <span class="text-xs font-medium">Verificado</span>
+                            </div>
+                            {% if can_unlink_phone %}
+                            <button type="button" id="btn-unlink-phone"
+                                    class="text-xs text-neutral-500 hover:text-red-400 transition-colors duration-200 flex items-center gap-1">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                                </svg>
+                                Desvincular
+                            </button>
+                            <div id="unlink-phone-confirm" class="unlink-confirm">
+                                <p class="text-xs text-neutral-400 mb-2">Se eliminará tu teléfono.</p>
+                                <div class="flex items-center gap-2">
+                                    <button type="button" id="btn-confirm-unlink-phone" class="text-xs bg-red-500/10 border border-red-500/30 text-red-400 px-2 py-1 rounded-lg hover:bg-red-500/20 transition-all">Confirmar</button>
+                                    <button type="button" id="btn-cancel-unlink-phone" class="text-xs text-neutral-500 hover:text-neutral-300 transition-colors">Cancelar</button>
+                                </div>
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
+                    {% else %}
+                    <div class="space-y-3" id="phone-edit-section">
+                        <div class="flex gap-2">
+                            <select id="phone-country-code"
+                                    class="w-28 px-3 py-3 bg-neutral-900 border border-neutral-700 rounded-xl text-white focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
+                                <option value="57">+57 🇨🇴</option>
+                                <option value="1">+1 🇺🇸</option>
+                                <option value="52">+52 🇲🇽</option>
+                                <option value="54">+54 🇦🇷</option>
+                                <option value="56">+56 🇨🇱</option>
+                                <option value="51">+51 🇵🇪</option>
+                                <option value="593">+593 🇪🇨</option>
+                                <option value="58">+58 🇻🇪</option>
+                                <option value="55">+55 🇧🇷</option>
+                                <option value="34">+34 🇪🇸</option>
+                                <option value="507">+507 🇵🇦</option>
+                                <option value="506">+506 🇨🇷</option>
+                            </select>
+                            <input type="tel" id="phone-number-input"
+                                   class="flex-1 bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-all"
+                                   placeholder="300 123 4567" inputmode="numeric" maxlength="15">
+                        </div>
+                        <button type="button" id="send-phone-otp-btn"
+                                class="text-sm text-brand hover:text-brand-400 font-medium transition-colors">
+                            Verificar teléfono
+                        </button>
+                        <div id="phone-otp-feedback" class="hidden text-sm mt-1"></div>
+                        <div id="phone-otp-section" class="hidden space-y-3 mt-3">
+                            <p class="text-xs text-neutral-400">Ingresa el código de 6 dígitos enviado a tu teléfono.</p>
+                            <div class="flex gap-2">
+                                <input type="text" maxlength="1" class="phone-otp-digit w-10 h-10 text-center text-lg font-bold bg-neutral-900 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-brand focus:border-brand transition-colors" data-index="0" inputmode="numeric" pattern="[0-9]">
+                                <input type="text" maxlength="1" class="phone-otp-digit w-10 h-10 text-center text-lg font-bold bg-neutral-900 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-brand focus:border-brand transition-colors" data-index="1" inputmode="numeric" pattern="[0-9]">
+                                <input type="text" maxlength="1" class="phone-otp-digit w-10 h-10 text-center text-lg font-bold bg-neutral-900 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-brand focus:border-brand transition-colors" data-index="2" inputmode="numeric" pattern="[0-9]">
+                                <input type="text" maxlength="1" class="phone-otp-digit w-10 h-10 text-center text-lg font-bold bg-neutral-900 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-brand focus:border-brand transition-colors" data-index="3" inputmode="numeric" pattern="[0-9]">
+                                <input type="text" maxlength="1" class="phone-otp-digit w-10 h-10 text-center text-lg font-bold bg-neutral-900 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-brand focus:border-brand transition-colors" data-index="4" inputmode="numeric" pattern="[0-9]">
+                                <input type="text" maxlength="1" class="phone-otp-digit w-10 h-10 text-center text-lg font-bold bg-neutral-900 border border-neutral-700 rounded-lg text-white focus:ring-2 focus:ring-brand focus:border-brand transition-colors" data-index="5" inputmode="numeric" pattern="[0-9]">
+                            </div>
+                            <button type="button" id="verify-phone-otp-btn"
+                                    class="btn-action-primary btn-primary text-sm flex items-center gap-2 border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm">
+                                <span>Confirmar teléfono</span>
+                            </button>
+                            <button type="button" id="resend-phone-otp-btn" class="hidden text-xs text-neutral-400 hover:text-brand transition-colors disabled:opacity-50" disabled>
+                                <span id="resend-phone-text">Reenviar código</span>
+                            </button>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
                 {% endif %}
 
@@ -754,6 +907,318 @@ function dismissToast(toast) {
             }
         }, 1000);
     }
+})();
+</script>
+{% endif %}
+
+{% if can_unlink_phone %}
+<script>
+(function() {
+    var unlinkPhoneBtn = document.getElementById('btn-unlink-phone');
+    var confirmPhoneSection = document.getElementById('unlink-phone-confirm');
+    var confirmPhoneBtn = document.getElementById('btn-confirm-unlink-phone');
+    var cancelPhoneBtn = document.getElementById('btn-cancel-unlink-phone');
+
+    if (unlinkPhoneBtn) {
+        unlinkPhoneBtn.addEventListener('click', function() {
+            confirmPhoneSection.classList.add('unlink-confirm-active');
+            unlinkPhoneBtn.style.display = 'none';
+        });
+    }
+    if (cancelPhoneBtn) {
+        cancelPhoneBtn.addEventListener('click', function() {
+            confirmPhoneSection.classList.remove('unlink-confirm-active');
+            unlinkPhoneBtn.style.display = 'flex';
+        });
+    }
+    if (confirmPhoneBtn) {
+        confirmPhoneBtn.addEventListener('click', function() {
+            confirmPhoneBtn.disabled = true;
+            confirmPhoneBtn.textContent = 'Desvinculando...';
+            fetch('{% url "accounts:unlink_phone" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value}
+            })
+            .then(function(resp) { return resp.json().then(function(data) { return {ok: resp.ok, data: data}; }); })
+            .then(function(result) {
+                if (result.ok) {
+                    showToast(result.data.message || 'Teléfono desvinculado.', 'success');
+                    setTimeout(function() { window.location.reload(); }, 1800);
+                } else {
+                    showToast(result.data.error || 'No se pudo desvincular el teléfono.', 'error');
+                    confirmPhoneBtn.disabled = false;
+                    confirmPhoneBtn.textContent = 'Confirmar';
+                    confirmPhoneSection.classList.remove('unlink-confirm-active');
+                    unlinkPhoneBtn.style.display = 'flex';
+                }
+            })
+            .catch(function() {
+                showToast('Error de conexión.', 'error');
+                confirmPhoneBtn.disabled = false;
+                confirmPhoneBtn.textContent = 'Confirmar';
+            });
+        });
+    }
+})();
+</script>
+{% endif %}
+
+{% if show_phone_section and not is_phone_verified %}
+<script>
+(function() {
+    var sendPhoneBtn = document.getElementById('send-phone-otp-btn');
+    var phoneOtpSection = document.getElementById('phone-otp-section');
+    var phoneOtpDigits = document.querySelectorAll('.phone-otp-digit');
+    var verifyPhoneBtn = document.getElementById('verify-phone-otp-btn');
+    var resendPhoneBtn = document.getElementById('resend-phone-otp-btn');
+    var resendPhoneText = document.getElementById('resend-phone-text');
+    var phoneFeedback = document.getElementById('phone-otp-feedback');
+    var phoneCooldown = null;
+
+    phoneOtpDigits.forEach(function(input, idx) {
+        input.addEventListener('input', function(e) {
+            e.target.value = e.target.value.replace(/\D/g, '');
+            if (e.target.value && idx < phoneOtpDigits.length - 1) {
+                phoneOtpDigits[idx + 1].focus();
+            }
+        });
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Backspace' && !e.target.value && idx > 0) {
+                phoneOtpDigits[idx - 1].focus();
+            }
+        });
+        input.addEventListener('paste', function(e) {
+            e.preventDefault();
+            var pasted = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '');
+            for (var i = 0; i < Math.min(pasted.length, 6); i++) {
+                phoneOtpDigits[i].value = pasted[i];
+            }
+        });
+    });
+
+    sendPhoneBtn.addEventListener('click', function() {
+        var countryCode = document.getElementById('phone-country-code').value;
+        var phoneNumber = document.getElementById('phone-number-input').value.trim().replace(/\s/g, '').replace(/-/g, '');
+        if (!phoneNumber || phoneNumber.length < 7) {
+            phoneFeedback.textContent = 'Ingresa un número de teléfono válido.';
+            phoneFeedback.className = 'text-sm text-red-400';
+            phoneFeedback.classList.remove('hidden');
+            return;
+        }
+
+        sendPhoneBtn.disabled = true;
+        sendPhoneBtn.textContent = 'Enviando...';
+        fetch('{% url "accounts:verify_phone_profile" %}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value},
+            body: JSON.stringify({phone: phoneNumber, country_code: countryCode})
+        })
+        .then(function(resp) { return resp.json().then(function(data) { return {ok: resp.ok, status: resp.status, data: data}; }); })
+        .then(function(result) {
+            if (!result.ok) {
+                phoneFeedback.textContent = result.data.error || 'Error al enviar el código.';
+                phoneFeedback.className = 'text-sm text-red-400';
+                phoneFeedback.classList.remove('hidden');
+                sendPhoneBtn.disabled = false;
+                sendPhoneBtn.textContent = 'Verificar teléfono';
+                if (result.status === 429) {
+                    var remaining = result.data.cooldown_remaining || 60;
+                    startPhoneCooldown(remaining);
+                }
+                return;
+            }
+            phoneOtpSection.classList.remove('hidden');
+            sendPhoneBtn.classList.add('hidden');
+            phoneFeedback.textContent = 'Código enviado a tu teléfono.';
+            phoneFeedback.className = 'text-sm text-green-400';
+            phoneFeedback.classList.remove('hidden');
+            startPhoneCooldown(result.data.cooldown_seconds || 60);
+        })
+        .catch(function() {
+            phoneFeedback.textContent = 'Error de conexión.';
+            phoneFeedback.className = 'text-sm text-red-400';
+            phoneFeedback.classList.remove('hidden');
+            sendPhoneBtn.disabled = false;
+            sendPhoneBtn.textContent = 'Verificar teléfono';
+        });
+    });
+
+    verifyPhoneBtn.addEventListener('click', function() {
+        var otp = Array.from(phoneOtpDigits).map(function(d) { return d.value; }).join('');
+        if (otp.length < 6) {
+            phoneFeedback.textContent = 'Ingresa los 6 dígitos.';
+            phoneFeedback.className = 'text-sm text-red-400';
+            phoneFeedback.classList.remove('hidden');
+            return;
+        }
+        verifyPhoneBtn.disabled = true;
+        fetch('{% url "accounts:confirm_phone_profile" %}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value},
+            body: JSON.stringify({otp_code: otp})
+        })
+        .then(function(resp) { return resp.json().then(function(data) { return {ok: resp.ok, data: data}; }); })
+        .then(function(result) {
+            if (!result.ok) {
+                phoneFeedback.textContent = result.data.error || 'Código incorrecto.';
+                phoneFeedback.className = 'text-sm text-red-400';
+                phoneFeedback.classList.remove('hidden');
+                phoneOtpDigits.forEach(function(d) { d.value = ''; });
+                phoneOtpDigits[0].focus();
+                verifyPhoneBtn.disabled = false;
+                return;
+            }
+            phoneFeedback.textContent = 'Teléfono verificado exitosamente.';
+            phoneFeedback.className = 'text-sm text-green-400';
+            phoneFeedback.classList.remove('hidden');
+            setTimeout(function() { window.location.reload(); }, 1500);
+        })
+        .catch(function() {
+            phoneFeedback.textContent = 'Error de conexión.';
+            phoneFeedback.className = 'text-sm text-red-400';
+            phoneFeedback.classList.remove('hidden');
+            verifyPhoneBtn.disabled = false;
+        });
+    });
+
+    if (resendPhoneBtn) {
+        resendPhoneBtn.addEventListener('click', function() {
+            if (resendPhoneBtn.disabled) return;
+            phoneFeedback.classList.add('hidden');
+            var countryCode = document.getElementById('phone-country-code').value;
+            var phoneNumber = document.getElementById('phone-number-input').value.trim().replace(/\s/g, '').replace(/-/g, '');
+            
+            resendPhoneBtn.disabled = true;
+            resendPhoneText.textContent = 'Reenviando...';
+
+            fetch('{% url "accounts:verify_phone_profile" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value},
+                body: JSON.stringify({phone: phoneNumber, country_code: countryCode})
+            })
+            .then(function(resp) { return resp.json().then(function(data) { return {ok: resp.ok, status: resp.status, data: data}; }); })
+            .then(function(result) {
+                if (!result.ok) {
+                    phoneFeedback.textContent = result.data.error || 'Error al enviar el código.';
+                    phoneFeedback.className = 'text-sm text-red-400';
+                    phoneFeedback.classList.remove('hidden');
+                    resendPhoneBtn.disabled = false;
+                    resendPhoneText.textContent = 'Reenviar código';
+                    if (result.status === 429) {
+                        var remaining = result.data.cooldown_remaining || 60;
+                        startPhoneCooldown(remaining);
+                    }
+                    return;
+                }
+                phoneFeedback.textContent = 'Código reenviado a tu teléfono.';
+                phoneFeedback.className = 'text-sm text-green-400';
+                phoneFeedback.classList.remove('hidden');
+                startPhoneCooldown(result.data.cooldown_seconds || 60);
+                phoneOtpDigits.forEach(function(d) { d.value = ''; });
+                phoneOtpDigits[0].focus();
+            })
+            .catch(function() {
+                phoneFeedback.textContent = 'Error de conexión.';
+                phoneFeedback.className = 'text-sm text-red-400';
+                phoneFeedback.classList.remove('hidden');
+                resendPhoneBtn.disabled = false;
+                resendPhoneText.textContent = 'Reenviar código';
+            });
+        });
+    }
+
+    function startPhoneCooldown(seconds) {
+        if (resendPhoneBtn) {
+            resendPhoneBtn.classList.remove('hidden');
+            resendPhoneBtn.disabled = true;
+            var remaining = seconds;
+            resendPhoneText.textContent = 'Reenviar código (' + remaining + 's)';
+            if (phoneCooldown) clearInterval(phoneCooldown);
+            phoneCooldown = setInterval(function() {
+                remaining--;
+                if (remaining <= 0) {
+                    clearInterval(phoneCooldown);
+                    resendPhoneBtn.disabled = false;
+                    resendPhoneText.textContent = 'Reenviar código';
+                } else {
+                    resendPhoneText.textContent = 'Reenviar código (' + remaining + 's)';
+                }
+            }, 1000);
+        }
+    }
+})();
+</script>
+{% endif %}
+
+{% if show_password_change and can_change_password %}
+<script>
+(function() {
+    var form = document.getElementById('change-password-form');
+    var feedback = document.getElementById('password-feedback');
+    var submitBtn = document.getElementById('change-password-btn');
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        var currentPw = document.getElementById('current-password').value;
+        var newPw = document.getElementById('new-password').value;
+        var confirmPw = document.getElementById('confirm-password').value;
+
+        if (!currentPw || !newPw || !confirmPw) {
+            feedback.textContent = 'Todos los campos son obligatorios.';
+            feedback.className = 'text-sm text-red-400';
+            feedback.classList.remove('hidden');
+            return;
+        }
+
+        if (newPw !== confirmPw) {
+            feedback.textContent = 'Las contraseñas no coinciden.';
+            feedback.className = 'text-sm text-red-400';
+            feedback.classList.remove('hidden');
+            return;
+        }
+
+        if (newPw.length < 8) {
+            feedback.textContent = 'La nueva contraseña debe tener al menos 8 caracteres.';
+            feedback.className = 'text-sm text-red-400';
+            feedback.classList.remove('hidden');
+            return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.querySelector('span').textContent = 'Actualizando...';
+
+        fetch('{% url "accounts:change_password" %}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value},
+            body: JSON.stringify({
+                current_password: currentPw,
+                new_password: newPw,
+                confirm_password: confirmPw
+            })
+        })
+        .then(function(resp) { return resp.json().then(function(data) { return {ok: resp.ok, data: data}; }); })
+        .then(function(result) {
+            if (result.ok) {
+                showToast(result.data.message || 'Contraseña actualizada.', 'success');
+                document.getElementById('current-password').value = '';
+                document.getElementById('new-password').value = '';
+                document.getElementById('confirm-password').value = '';
+                feedback.classList.add('hidden');
+            } else {
+                feedback.textContent = result.data.error || 'Error al cambiar la contraseña.';
+                feedback.className = 'text-sm text-red-400';
+                feedback.classList.remove('hidden');
+            }
+            submitBtn.disabled = false;
+            submitBtn.querySelector('span').textContent = 'Actualizar contraseña';
+        })
+        .catch(function() {
+            showToast('Error de conexión.', 'error');
+            submitBtn.disabled = false;
+            submitBtn.querySelector('span').textContent = 'Actualizar contraseña';
+        });
+    });
 })();
 </script>
 {% endif %}
