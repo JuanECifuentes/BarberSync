@@ -599,6 +599,8 @@ class EmailLinkVerification(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="email_link_verifications",
+        null=True,
+        blank=True,
     )
     email = models.EmailField("correo a verificar")
     otp_hash = models.CharField("hash del OTP", max_length=64)
@@ -628,19 +630,20 @@ class EmailLinkVerification(models.Model):
         now = tz.now()
 
         hour_ago = now - tz.timedelta(hours=1)
-        recent_count = cls.objects.filter(
-            user=user,
-            created_at__gte=hour_ago,
-        ).count()
+        qs = cls.objects.filter(email__iexact=email, created_at__gte=hour_ago)
+        if user:
+            qs = qs.filter(user=user)
+
+        recent_count = qs.count()
 
         if recent_count >= cls.MAX_REQUESTS_PER_HOUR:
             return None, "rate_limit_hourly"
 
-        active = cls.objects.filter(
-            user=user,
-            email__iexact=email,
-            expires_at__gt=now,
-        ).first()
+        filter_kwargs = {"email__iexact": email, "expires_at__gt": now}
+        if user:
+            filter_kwargs["user"] = user
+
+        active = cls.objects.filter(**filter_kwargs).first()
 
         if active and active.cooldown_until and active.cooldown_until > now:
             return None, "cooldown_active"
@@ -690,3 +693,37 @@ class EmailLinkVerification(models.Model):
         email = active.email
         active.delete()
         return email, "verified"
+
+    @classmethod
+    def verify_otp_by_email(cls, email, otp_code):
+        from django.utils import timezone as tz
+
+        now = tz.now()
+
+        active = (
+            cls.objects.filter(
+                email__iexact=email,
+                expires_at__gt=now,
+            )
+            .order_by("-created_at")
+            .first()
+        )
+
+        if not active:
+            return None, "expired"
+
+        if active.attempts >= cls.MAX_ATTEMPTS:
+            active.cooldown_until = now + tz.timedelta(seconds=cls.COOLDOWN_SECONDS)
+            active.save(update_fields=["cooldown_until"])
+            return None, "max_attempts"
+
+        active.attempts += 1
+        active.save(update_fields=["attempts"])
+
+        otp_hash = hashlib.sha256(otp_code.encode()).hexdigest()
+        if active.otp_hash != otp_hash:
+            return None, "invalid"
+
+        verified_email = active.email
+        active.delete()
+        return verified_email, "verified"

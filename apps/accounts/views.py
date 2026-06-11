@@ -9,7 +9,7 @@ from django.shortcuts import get_object_or_404, redirect
 from django.utils.text import slugify
 from django.views import View
 from django.views.generic import UpdateView
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.contrib import messages
 from django.utils import timezone
 from django.shortcuts import render
@@ -504,24 +504,35 @@ class ProfileView(LoginRequiredMixin, UpdateView):
                 google_account = ga
                 break
 
+        has_linked_email = bool(user.email and user.email_verification)
+        has_google = google_account is not None
+        has_usable_password = user.has_usable_password()
+        has_verified_phone = bool(user.phone_verification and user.phone)
+
         context["google_account"] = google_account
-        context["has_linked_email"] = bool(user.email and user.email_verification)
-        context["has_google"] = google_account is not None
-        context["can_edit_email"] = (
-            not context["has_linked_email"] and not context["has_google"]
-        )
+        context["has_linked_email"] = has_linked_email
+        context["has_google"] = has_google
+        context["can_edit_email"] = not has_linked_email and not has_google
         context["can_unlink_google"] = (
-            context["has_google"]
-            and context["has_linked_email"]
-            and (
-                user.has_usable_password()
-                or bool(user.phone_verification and user.phone)
-            )
+            has_google
+            and has_linked_email
+            and (has_usable_password or has_verified_phone)
         )
+        context["can_unlink_phone"] = (
+            has_verified_phone
+            and (has_linked_email and has_usable_password)
+            or has_google
+        )
+        context["can_change_password"] = has_linked_email and has_usable_password
+        context["show_password_change"] = has_linked_email
+        context["has_usable_password"] = has_usable_password
+        context["show_phone_section"] = True
         context["phone_display"] = (
             f"+{user.country_code}{user.phone}" if user.phone else ""
         )
         context["is_phone_verified"] = user.phone_verification
+        context["country_code"] = user.country_code or "57"
+        context["raw_phone"] = user.phone or ""
 
         membership = getattr(user, "membership", None)
         user_role = membership.role if membership else None
@@ -604,7 +615,9 @@ class UnlinkGoogleView(LoginRequiredMixin, View):
 
         # Rename the UID to release the unique constraint (provider, uid)
         original_uid = social_account.uid
-        social_account.uid = f"{original_uid}_disconnected_{int(timezone.now().timestamp())}"
+        social_account.uid = (
+            f"{original_uid}_disconnected_{int(timezone.now().timestamp())}"
+        )
         social_account.save(update_fields=["extra_data", "uid"])
 
         if hasattr(user, "_membership_cache"):
@@ -1170,6 +1183,7 @@ class ResendOTPView(View):
             ip_address=ip_address,
             purpose=purpose,
         )
+        otp_code_or_error = None
 
         if otp_obj is None:
             if otp_code_or_error == "rate_limit_hourly":
@@ -1515,4 +1529,745 @@ class VerifyEmailOTPView(LoginRequiredMixin, View):
                 "message": "Correo electrónico vinculado exitosamente.",
                 "email": result,
             }
+        )
+
+
+# ─────────────────────────────────────────────
+# Registration Email OTP (for signup flow)
+# ─────────────────────────────────────────────
+
+
+class SendRegistrationEmailOTPView(View):
+    """
+    Sends a 6-digit OTP to an email for registration verification.
+    Persists the `next` parameter for booking flow continuity.
+    Rate-limited with cooldown enforcement (429 on early resend).
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({"error": "JSON inválido."}, status=400)
+
+        email = (data.get("email") or "").strip()
+        next_url = (data.get("next") or "").strip()
+
+        if not email:
+            return JsonResponse(
+                {"error": "El correo electrónico es obligatorio."}, status=400
+            )
+
+        from django.core.validators import validate_email
+        from django.core.exceptions import ValidationError
+
+        try:
+            validate_email(email)
+        except ValidationError:
+            return JsonResponse({"error": "Correo electrónico inválido."}, status=400)
+
+        User = get_user_model()
+        if User.objects.filter(email__iexact=email).exists():
+            return JsonResponse(
+                {"error": "Este correo ya está registrado. Inicia sesión."},
+                status=409,
+            )
+
+        ip_address = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip()
+        if not ip_address:
+            ip_address = request.META.get("REMOTE_ADDR")
+
+        otp_obj, otp_code_or_error = EmailLinkVerification.create_otp(
+            user=None, email=email
+        )
+
+        if otp_obj is None:
+            if otp_code_or_error == "rate_limit_hourly":
+                return JsonResponse(
+                    {
+                        "error": "Has excedido el límite de solicitudes. Intenta en una hora.",
+                        "code": "rate_limit_hourly",
+                    },
+                    status=429,
+                )
+            elif otp_code_or_error == "cooldown_active":
+                active = (
+                    EmailLinkVerification.objects.filter(
+                        email__iexact=email,
+                        expires_at__gt=timezone.now(),
+                    )
+                    .order_by("-created_at")
+                    .first()
+                )
+                remaining = 0
+                if active and active.cooldown_until:
+                    remaining = max(
+                        0, int((active.cooldown_until - timezone.now()).total_seconds())
+                    )
+                return JsonResponse(
+                    {
+                        "error": "Debes esperar antes de solicitar un nuevo código.",
+                        "code": "cooldown_active",
+                        "cooldown_remaining": remaining,
+                    },
+                    status=429,
+                )
+
+        try:
+            from apps.notifications.notifications import send_notification
+
+            send_notification(
+                recipient={"email": email, "phone": "", "name": email},
+                notif_type="email_verification",
+                context={
+                    "recipient_name": email,
+                    "barbershop_name": "BarberSync",
+                    "otp_code": otp_code_or_error,
+                },
+                channels=["email"],
+                subject=f"Tu código de verificación BarberSync: {otp_code_or_error}",
+                html_template="notifications/email_link_otp.html",
+            )
+        except Exception:
+            pass
+
+        request.session["reg_email_otp_next"] = next_url
+        request.session["reg_email"] = email
+
+        return JsonResponse(
+            {
+                "ok": True,
+                "message": "Código de verificación enviado a tu correo.",
+                "cooldown_seconds": EmailLinkVerification.COOLDOWN_SECONDS,
+            }
+        )
+
+
+class VerifyRegistrationEmailOTPView(View):
+    """
+    Verifies the OTP sent during registration, creates the user account,
+    and sets email_verification = True. Preserves `next` redirect.
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({"error": "JSON inválido."}, status=400)
+
+        otp_code = (data.get("otp_code") or "").strip()
+        password = (data.get("password") or "").strip()
+        first_name = (data.get("first_name") or "").strip()
+        last_name = (data.get("last_name") or "").strip()
+
+        if not otp_code:
+            return JsonResponse(
+                {"error": "El código de verificación es obligatorio."}, status=400
+            )
+
+        email = request.session.get("reg_email", "")
+        next_url = request.session.get("reg_email_otp_next", "")
+
+        if not email:
+            return JsonResponse(
+                {"error": "Sesión expirada. Solicita un nuevo código."}, status=400
+            )
+
+        result, message = EmailLinkVerification.verify_otp_by_email(email, otp_code)
+
+        if result is None:
+            error_status = 400
+            if message == "max_attempts":
+                error_status = 429
+            error_messages = {
+                "expired": "El código ha expirado. Solicita uno nuevo.",
+                "invalid": "Código incorrecto. Intenta de nuevo.",
+                "max_attempts": "Has excedido los intentos. Solicita un nuevo código.",
+            }
+            return JsonResponse(
+                {
+                    "error": error_messages.get(message, f"Error: {message}"),
+                    "code": message,
+                },
+                status=error_status,
+            )
+
+        User = get_user_model()
+        if User.objects.filter(email__iexact=result).exists():
+            return JsonResponse(
+                {"error": "Este correo ya fue registrado. Inicia sesión."}, status=409
+            )
+
+        if not password or len(password) < 6:
+            return JsonResponse(
+                {"error": "La contraseña debe tener al menos 6 caracteres."}, status=400
+            )
+
+        username = result.split("@")[0] + str(User.objects.count() + 1)
+        user = User.objects.create_user(
+            username=username,
+            email=result,
+            password=password,
+            first_name=first_name,
+            last_name=last_name,
+            email_verification=True,
+        )
+
+        for key in ("reg_email_otp_next", "reg_email"):
+            request.session.pop(key, None)
+
+        login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+
+        from django.utils.http import url_has_allowed_host_and_scheme
+
+        redirect_url = "/accounts/onboarding/"
+        if next_url and url_has_allowed_host_and_scheme(
+            next_url, allowed_hosts={request.get_host()}
+        ):
+            redirect_url = next_url
+
+        return JsonResponse(
+            {
+                "ok": True,
+                "message": "Cuenta creada exitosamente.",
+                "redirect": redirect_url,
+            }
+        )
+
+
+class UnlinkPhoneView(LoginRequiredMixin, View):
+    """
+    Logically disconnects the user's phone number.
+    Only allowed if another secure login method exists (verified email + password, or Google).
+    Enforces soft delete: clears phone fields and sets phone_verification = False.
+    """
+
+    def post(self, request):
+        user = request.user
+
+        if not user.phone_verification or not user.phone:
+            return JsonResponse(
+                {"error": "No tienes un teléfono vinculado."}, status=400
+            )
+
+        has_verified_email = bool(user.email and user.email_verification)
+        has_usable_password = user.has_usable_password()
+        has_google = user.socialaccount_set.filter(provider="google").exists()
+        google_active = False
+        for ga in user.socialaccount_set.filter(provider="google"):
+            if not (ga.extra_data or {}).get("disconnected", False):
+                google_active = True
+                break
+
+        if not ((has_verified_email and has_usable_password) or google_active):
+            return JsonResponse(
+                {
+                    "error": "No puedes desvincular tu teléfono sin otro método de acceso seguro. "
+                    "Vincula y verifica un correo electrónico con contraseña, o conecta Google."
+                },
+                status=400,
+            )
+
+        previous_phone = user.phone
+        previous_country_code = user.country_code
+        user.phone = ""
+        user.country_code = ""
+        user.phone_verification = False
+        user._previous_phone = previous_phone
+        user._previous_country_code = previous_country_code
+        user.save(update_fields=["phone", "country_code", "phone_verification"])
+
+        if hasattr(user, "_membership_cache"):
+            del user._membership_cache
+
+        return JsonResponse(
+            {"ok": True, "message": "Teléfono desvinculado exitosamente."},
+        )
+
+
+class VerifyPhoneProfileView(LoginRequiredMixin, View):
+    """
+    Sends an SMS OTP to the phone number entered in the profile.
+    Only allows if the phone is not already verified.
+    Enforces server-side cooldown (429).
+    """
+
+    def post(self, request):
+        user = request.user
+
+        if user.phone_verification and user.phone:
+            return JsonResponse(
+                {"error": "Tu teléfono ya está verificado."}, status=400
+            )
+
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({"error": "JSON inválido."}, status=400)
+
+        phone = (data.get("phone") or "").strip()
+        country_code = (data.get("country_code") or "").strip()
+
+        if not phone or not country_code:
+            return JsonResponse(
+                {"error": "Número de teléfono y código de país son obligatorios."},
+                status=400,
+            )
+
+        phone = phone.replace(" ", "").replace("-", "").replace("+", "")
+        country_code = country_code.replace("+", "")
+
+        if not phone.isdigit() or len(phone) < 7 or len(phone) > 15:
+            return JsonResponse(
+                {
+                    "error": "Número de teléfono inválido. Debe contener entre 7 y 15 dígitos."
+                },
+                status=400,
+            )
+
+        User = get_user_model()
+        existing = User.objects.filter(
+            country_code=country_code, phone=phone, phone_verification=True
+        ).exclude(pk=user.pk)
+        if existing.exists():
+            return JsonResponse(
+                {"error": "Este número de teléfono ya está en uso por otra cuenta."},
+                status=409,
+            )
+
+        ip_address = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip()
+        if not ip_address:
+            ip_address = request.META.get("REMOTE_ADDR")
+
+        otp_obj, otp_code_or_error = SmsVerificationRequest.create_otp(
+            phone=phone,
+            country_code=country_code,
+            ip_address=ip_address,
+            purpose="register",
+        )
+
+        otp_code_or_error = None
+
+        if otp_obj is None:
+            if otp_code_or_error == "rate_limit_hourly":
+                return JsonResponse(
+                    {
+                        "error": "Has excedido el límite de solicitudes. Intenta nuevamente en una hora.",
+                        "code": "rate_limit_hourly",
+                    },
+                    status=429,
+                )
+            elif otp_code_or_error == "cooldown_active":
+                return JsonResponse(
+                    {
+                        "error": "Debes esperar antes de solicitar un nuevo código.",
+                        "code": "cooldown_active",
+                    },
+                    status=429,
+                )
+
+        request.session["profile_phone_country_code"] = country_code
+        request.session["profile_phone_number"] = phone
+
+        full_phone = f"+{country_code}{phone}"
+        try:
+            from apps.notifications.notifications import send_notification
+
+            send_notification(
+                recipient={"email": "", "phone": full_phone, "name": phone},
+                notif_type="phone_otp",
+                context={
+                    "recipient_name": phone,
+                    "barbershop_name": "BarberSync",
+                    "start_time": timezone.now(),
+                    "otp_code": otp_code_or_error,
+                },
+                channels=["sms"],
+                subject=f"Tu código de verificación BarberSync: {otp_code_or_error}",
+                html_template="notifications/phone_otp.html",
+            )
+        except Exception:
+            pass
+
+        return JsonResponse(
+            {
+                "ok": True,
+                "message": "Código de verificación enviado a tu teléfono.",
+                "cooldown_seconds": SmsVerificationRequest.COOLDOWN_SECONDS,
+            }
+        )
+
+
+class ConfirmPhoneProfileView(LoginRequiredMixin, View):
+    """
+    Verifies the SMS OTP and links the phone number to the user profile.
+    Sets phone_verification = True so the user can log in with this phone.
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({"error": "JSON inválido."}, status=400)
+
+        otp_code = (data.get("otp_code") or "").strip()
+        if not otp_code:
+            return JsonResponse(
+                {"error": "El código de verificación es obligatorio."}, status=400
+            )
+
+        country_code = request.session.get("profile_phone_country_code", "")
+        phone = request.session.get("profile_phone_number", "")
+
+        if not phone or not country_code:
+            return JsonResponse(
+                {"error": "Sesión expirada. Solicita un nuevo código."}, status=400
+            )
+
+        result, message = SmsVerificationRequest.verify_otp(
+            phone, country_code, otp_code
+        )
+
+        if result is None:
+            error_status = 400
+            if message == "max_attempts":
+                error_status = 429
+            error_messages = {
+                "expired": "El código ha expirado. Solicita uno nuevo.",
+                "invalid": "Código incorrecto. Intenta de nuevo.",
+                "max_attempts": "Has excedido los intentos. Solicita un nuevo código.",
+            }
+            return JsonResponse(
+                {
+                    "error": error_messages.get(message, f"Error: {message}"),
+                    "code": message,
+                },
+                status=error_status,
+            )
+
+        user = request.user
+        user.phone = phone
+        user.country_code = country_code
+        user.phone_verification = True
+        user.save(update_fields=["phone", "country_code", "phone_verification"])
+
+        for key in ("profile_phone_country_code", "profile_phone_number"):
+            request.session.pop(key, None)
+
+        if hasattr(user, "_membership_cache"):
+            del user._membership_cache
+
+        return JsonResponse(
+            {
+                "ok": True,
+                "message": "Teléfono verificado exitosamente.",
+                "phone_display": f"+{country_code}{phone}",
+            }
+        )
+
+
+class ChangePasswordView(LoginRequiredMixin, View):
+    """
+    In-app password change. Requires current password verification.
+    Only available to users with a verified email and an existing password.
+    """
+
+    def post(self, request):
+        user = request.user
+
+        if not (user.email and user.email_verification):
+            return JsonResponse(
+                {
+                    "error": "Debes tener un correo verificado para cambiar tu contraseña."
+                },
+                status=403,
+            )
+
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({"error": "JSON inválido."}, status=400)
+
+        current_password = data.get("current_password", "")
+        new_password = data.get("new_password", "")
+        confirm_password = data.get("confirm_password", "")
+
+        if not current_password or not new_password or not confirm_password:
+            return JsonResponse(
+                {"error": "Todos los campos son obligatorios."}, status=400
+            )
+
+        if not user.has_usable_password():
+            return JsonResponse(
+                {
+                    "error": "Tu cuenta no tiene contraseña configurada. Usa el enlace de recuperación."
+                },
+                status=400,
+            )
+
+        if not user.check_password(current_password):
+            return JsonResponse(
+                {"error": "La contraseña actual es incorrecta."}, status=400
+            )
+
+        if new_password != confirm_password:
+            return JsonResponse({"error": "Las contraseñas no coinciden."}, status=400)
+
+        if len(new_password) < 8:
+            return JsonResponse(
+                {"error": "La nueva contraseña debe tener al menos 8 caracteres."},
+                status=400,
+            )
+
+        from django.contrib.auth.password_validation import validate_password
+
+        try:
+            validate_password(new_password, user)
+        except Exception as e:
+            errors = list(e.messages) if hasattr(e, "messages") else [str(e)]
+            return JsonResponse({"error": " ".join(errors)}, status=400)
+
+        user.set_password(new_password)
+        user.save()
+
+        from django.contrib.auth import update_session_auth_hash
+
+        update_session_auth_hash(request, user)
+
+        return JsonResponse(
+            {"ok": True, "message": "Contraseña actualizada exitosamente."}
+        )
+
+
+class PasswordResetRequestView(View):
+    """
+    Public password reset request. Anti-enumeration: always returns the same message.
+    Sends a cryptographically signed one-time link valid for 1 hour.
+    Uses TimestampSigner for tamper-proof tokens and cache for single-use enforcement.
+    """
+
+    def get(self, request):
+        return render(request, "accounts/password_reset_request.html")
+
+    def post(self, request):
+        email = (request.POST.get("email") or "").strip()
+
+        User = get_user_model()
+        user = User.objects.filter(email__iexact=email).first()
+        print("Usuario", user)
+
+        generic_message = "Si el correo está registrado y verificado, recibirás un enlace de restablecimiento."
+
+        if not user or not user.email_verification:
+            print("No se encontró usuario o no está verificado")
+            return render(
+                request,
+                "accounts/password_reset_request.html",
+                {"message": generic_message, "email": email},
+            )
+
+        has_password = user.has_usable_password()
+        action_type = "reset" if has_password else "establish"
+        subject = "Restablece tu contraseña – BarberSync" if has_password else "Establece tu contraseña – BarberSync"
+
+        from django.core.signing import TimestampSigner
+
+        signer = TimestampSigner()
+        token = signer.sign(user.pk)
+
+        from django.core.cache import cache
+
+        cache.set(
+            f"pwd_reset_allowed:{user.pk}",
+            "1",
+            timeout=3600,
+        )
+
+        reset_url = request.build_absolute_uri(
+            reverse("accounts:password_reset_confirm", kwargs={"token": token})
+        )
+
+        try:
+            from apps.notifications.notifications import send_notification
+
+            send_notification(
+                recipient={
+                    "email": user.email,
+                    "phone": "",
+                    "name": user.get_full_name() or user.email,
+                },
+                notif_type="password_reset",
+                context={
+                    "recipient_name": user.get_full_name() or user.email,
+                    "reset_url": reset_url,
+                    "action_type": action_type,
+                },
+                channels=["email"],
+                subject=subject,
+                html_template="notifications/password_reset.html",
+            )
+            print("peticion enviada")
+        except Exception:
+            print("Error al enviar correo")
+            pass
+
+        return render(
+            request,
+            "accounts/password_reset_request.html",
+            {"message": generic_message, "email": email},
+        )
+
+
+class PasswordResetConfirmView(View):
+    """
+    Validates the TimestampSigner token (max age: 3600s = 1 hour).
+    Checks single-use via cache. Renders the password reset form on GET,
+    processes the password change on POST.
+    IDOR protection: token contains user PK, no cross-user mutation possible.
+    """
+
+    def get(self, request, token):
+        from django.core.signing import TimestampSigner, SignatureExpired, BadSignature
+
+        signer = TimestampSigner()
+
+        try:
+            user_pk = signer.unsign(token, max_age=3600)
+        except SignatureExpired:
+            return render(
+                request,
+                "accounts/password_reset_confirm.html",
+                {"token_invalid": True, "error": "El enlace ha expirado."},
+            )
+        except BadSignature:
+            return render(
+                request,
+                "accounts/password_reset_confirm.html",
+                {"token_invalid": True, "error": "El enlace no es válido."},
+            )
+
+        User = get_user_model()
+        try:
+            user = User.objects.get(pk=user_pk)
+        except User.DoesNotExist:
+            return render(
+                request,
+                "accounts/password_reset_confirm.html",
+                {"token_invalid": True, "error": "El enlace no es válido."},
+            )
+
+        from django.core.cache import cache
+
+        if cache.get(f"pwd_reset_used:{user_pk}"):
+            return render(
+                request,
+                "accounts/password_reset_confirm.html",
+                {"token_invalid": True, "error": "Este enlace ya fue utilizado."},
+            )
+
+        if not cache.get(f"pwd_reset_allowed:{user_pk}"):
+            return render(
+                request,
+                "accounts/password_reset_confirm.html",
+                {
+                    "token_invalid": True,
+                    "error": "El enlace no es válido o ha expirado.",
+                },
+            )
+
+        has_password = user.has_usable_password()
+        action_type = "reset" if has_password else "establish"
+
+        return render(
+            request,
+            "accounts/password_reset_confirm.html",
+            {"token": token, "token_invalid": False, "action_type": action_type},
+        )
+
+    def post(self, request, token):
+        from django.core.signing import TimestampSigner, SignatureExpired, BadSignature
+
+        signer = TimestampSigner()
+
+        try:
+            user_pk = signer.unsign(token, max_age=3600)
+        except (SignatureExpired, BadSignature):
+            return render(
+                request,
+                "accounts/password_reset_confirm.html",
+                {
+                    "token_invalid": True,
+                    "error": "El enlace ha expirado o no es válido.",
+                },
+            )
+
+        User = get_user_model()
+        try:
+            user = User.objects.get(pk=user_pk)
+        except User.DoesNotExist:
+            return render(
+                request,
+                "accounts/password_reset_confirm.html",
+                {"token_invalid": True, "error": "El enlace no es válido."},
+            )
+
+        from django.core.cache import cache
+
+        if cache.get(f"pwd_reset_used:{user_pk}"):
+            return render(
+                request,
+                "accounts/password_reset_confirm.html",
+                {"token_invalid": True, "error": "Este enlace ya fue utilizado."},
+            )
+
+        if not cache.get(f"pwd_reset_allowed:{user_pk}"):
+            return render(
+                request,
+                "accounts/password_reset_confirm.html",
+                {
+                    "token_invalid": True,
+                    "error": "El enlace no es válido o ha expirado.",
+                },
+            )
+
+        new_password = request.POST.get("new_password", "")
+        confirm_password = request.POST.get("confirm_password", "")
+
+        errors = []
+
+        if not new_password or not confirm_password:
+            errors.append("Todos los campos son obligatorios.")
+        elif new_password != confirm_password:
+            errors.append("Las contraseñas no coinciden.")
+        elif len(new_password) < 8:
+            errors.append("La contraseña debe tener al menos 8 caracteres.")
+
+        if not errors:
+            from django.contrib.auth.password_validation import validate_password
+
+            try:
+                validate_password(new_password, user)
+            except Exception as e:
+                errors = list(e.messages) if hasattr(e, "messages") else [str(e)]
+
+        has_password = user.has_usable_password()
+        action_type = "reset" if has_password else "establish"
+
+        if errors:
+            return render(
+                request,
+                "accounts/password_reset_confirm.html",
+                {"token": token, "token_invalid": False, "errors": errors, "action_type": action_type},
+            )
+
+        user.set_password(new_password)
+        user.save()
+
+        cache.set(f"pwd_reset_used:{user_pk}", "1", timeout=86400)
+        cache.delete(f"pwd_reset_allowed:{user_pk}")
+
+        return render(
+            request,
+            "accounts/password_reset_confirm.html",
+            {"success": True},
         )
