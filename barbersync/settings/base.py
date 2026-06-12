@@ -215,6 +215,8 @@ Q_CLUSTER = {
     "ack_failures": True,
     "max_attempts": 3,
     "label": "Django Q2",
+    "catch_up": False,
+    "prune": True,
 }
 
 # ──────────────────────────────────────────────

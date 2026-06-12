@@ -246,31 +246,60 @@ class BookingCreateAPI(View):
 
 
 class MyBookingsAPI(View):
-    """Returns the authenticated client's upcoming bookings."""
+    """
+    Returns the authenticated client's appointments (paginated 30-by-30).
+    Filters by tab: 'current' (active/upcoming) or 'history' (past/completed).
+    """
 
     def get(self, request, booking_uid):
         if not request.user.is_authenticated:
-            return JsonResponse([], safe=False)
+            return JsonResponse({"error": "No autorizado"}, status=403)
 
         barbershop = _get_barbershop(booking_uid)
 
+        # Anti-IDOR check: verify that the user's client profile belongs to this organization
         client = Client.objects.filter(
             organization=barbershop.organization,
             user=request.user,
         ).first()
 
         if not client:
-            return JsonResponse([], safe=False)
+            return JsonResponse({"appointments": [], "has_more": False})
 
-        appointments = (
-            client.appointments.filter(
-                barbershop=barbershop,
-                start_time__gte=timezone.now(),
-                status__in=["pending", "confirmed"],
-            )
-            .select_related("barber__membership__user")
-            .order_by("start_time")
+        # Ensure the organization matches
+        if client.organization_id != barbershop.organization_id:
+            return JsonResponse({"error": "Violación de límites de tenant."}, status=403)
+
+        # Parse query params
+        tab = request.GET.get("tab", "current")
+        try:
+            page = int(request.GET.get("page", 1))
+            if page < 1:
+                page = 1
+        except (ValueError, TypeError):
+            page = 1
+
+        page_size = 30
+        offset = (page - 1) * page_size
+
+        # Base query
+        qs = client.appointments.filter(barbershop=barbershop)
+
+        # Filter by tab
+        if tab == "current":
+            qs = qs.filter(
+                status__in=["pending", "confirmed", "in_progress"]
+            ).order_by("start_time")
+        else:
+            qs = qs.filter(
+                status__in=["completed", "cancelled", "no_show"]
+            ).order_by("-start_time")
+
+        total_count = qs.count()
+        appointments_page = list(
+            qs[offset : offset + page_size].select_related("barber__membership__user")
         )
+        has_more = (offset + page_size) < total_count
 
         data = [
             {
@@ -278,13 +307,15 @@ class MyBookingsAPI(View):
                 "barber": str(apt.barber),
                 "start": apt.start_time.isoformat(),
                 "end": apt.end_time.isoformat(),
-                "status": apt.get_status_display(),
+                "status": apt.status,
+                "status_display": apt.get_status_display(),
                 "services": list(apt.services.values_list("service__name", flat=True)),
                 "total": str(apt.total_price),
             }
-            for apt in appointments
+            for apt in appointments_page
         ]
-        return JsonResponse(data, safe=False)
+
+        return JsonResponse({"appointments": data, "has_more": has_more})
 
 
 # ─────────────────────────────────────────────
