@@ -288,11 +288,13 @@ class MyBookingsAPI(View):
         # Filter by tab
         if tab == "current":
             qs = qs.filter(
-                status__in=["pending", "confirmed", "in_progress"]
+                status__in=["pending", "confirmed", "in_progress"],
+                start_time__gt=timezone.now()
             ).order_by("start_time")
         else:
             qs = qs.filter(
-                status__in=["completed", "cancelled", "no_show"]
+                Q(status__in=["completed", "cancelled", "no_show"]) |
+                Q(status__in=["pending", "confirmed", "in_progress"], start_time__lte=timezone.now())
             ).order_by("-start_time")
 
         total_count = qs.count()
