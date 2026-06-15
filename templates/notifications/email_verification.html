@@ -1,15 +1,32 @@
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body style="font-family:Arial,sans-serif;background:#1a1a1c;color:#f7f7f8;padding:20px;">
-<div style="max-width:480px;margin:0 auto;background:#2a2a2d;border-radius:12px;border:1px solid #4a4a4f;padding:24px;">
-    <h2 style="color:#ff2301;margin:0 0 16px;">Verifica tu correo</h2>
-    <p style="margin:0 0 8px;">Hola {{ recipient_name }},</p>
-    <p style="margin:0 0 16px;">Gracias por registrarte en <strong>BarberSync</strong>. Haz clic en el botón para confirmar tu dirección de correo electrónico.</p>
-    <a href="{{ confirm_url }}" style="display:inline-block;background:#ff2301;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Verificar correo</a>
-    <p style="margin:16px 0 0;color:#91919a;font-size:12px;">Este enlace es de un solo uso y expira en 24 horas.</p>
-    <p style="margin:8px 0 0;color:#91919a;font-size:12px;">Si no creaste esta cuenta, puedes ignorar este correo.</p>
-    <p style="margin:16px 0 0;color:#91919a;font-size:12px;">– BarberSync</p>
-</div>
-</body>
-</html>
+{% extends "notifications/base_notification.html" %}
+
+{% block email_subject %}Verifica tu correo en BarberSync{% endblock %}
+
+{% block title %}Verifica tu correo{% endblock %}
+
+{% block content %}
+Hola <strong>{{ recipient_name }}</strong>,
+<br><br>
+Gracias por registrarte en <a href="{{ site_url }}" style="color: #ff2301; text-decoration: none; font-weight: 600;">BarberSync</a>. Por favor, haz clic en el botón de abajo para confirmar tu dirección de correo electrónico:
+{% endblock %}
+
+{% block action %}
+<tr>
+    <td align="center" style="padding: 12px 0 24px 0;" class="button-wrapper">
+        <a href="{{ confirm_url }}" style="display: inline-block; background-color: #ff2301; color: #ffffff; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(255, 35, 1, 0.3);">Verificar correo</a>
+    </td>
+</tr>
+{% endblock %}
+
+{% block extra_content %}
+<tr>
+    <td>
+        <p style="margin: 0 0 8px 0; color: #9ca3af; font-size: 14px; line-height: 1.5;">
+            Este enlace es de un solo uso y expira en 24 horas.
+        </p>
+        <p style="margin: 0 0 24px 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+            Si no creaste esta cuenta, puedes ignorar este correo sin problemas.
+        </p>
+    </td>
+</tr>
+{% endblock %}

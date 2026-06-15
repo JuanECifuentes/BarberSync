@@ -1,18 +1,32 @@
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body style="font-family:Arial,sans-serif;background:#1a1a1c;color:#f7f7f8;padding:20px;">
-<div style="max-width:480px;margin:0 auto;background:#2a2a2d;border-radius:12px;border:1px solid #4a4a4f;padding:24px;">
-    <h2 style="color:#ff2301;margin:0 0 16px;">Cita Reprogramada</h2>
-    <p style="margin:0 0 8px;">Hola {{ recipient_name }},</p>
-    <p style="margin:0 0 16px;">Te informamos que tu cita en <strong>{{ barbershop_name }}</strong> ha sido reprogramada.</p>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
-        <tr><td style="padding:6px 10px;color:#91919a;">Barbero</td><td style="padding:6px 10px;color:#f7f7f8;">{{ barber_name }}</td></tr>
-        <tr><td style="padding:6px 10px;color:#91919a;">Servicios</td><td style="padding:6px 10px;color:#f7f7f8;">{{ service_names }}</td></tr>
-        <tr><td style="padding:6px 10px;color:#91919a;">Nueva fecha y hora</td><td style="padding:6px 10px;color:#ff2301;font-weight:600;">{{ new_start_time }}</td></tr>
-    </table>
-    <p style="color:#91919a;font-size:12px;">Si tienes preguntas, contacta a la barbería directamente.</p>
-    <p style="margin:16px 0 0;color:#91919a;font-size:12px;">– BarberSync</p>
-</div>
-</body>
-</html>
+{% extends "notifications/base_notification.html" %}
+
+{% block email_subject %}Cita reprogramada en {{ barbershop_name }}{% endblock %}
+
+{% block title %}Cita Reprogramada{% endblock %}
+
+{% block content %}
+Hola <strong>{{ recipient_name }}</strong>,
+<br><br>
+Te informamos que tu cita en <strong>{{ barbershop_name }}</strong> ha sido reprogramada. Por favor, toma nota de los nuevos detalles:
+{% endblock %}
+
+{% block details %}
+<tr>
+    <td style="padding-bottom: 24px;">
+        <table class="detail-table" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; background-color: #0f0f11; border: 1px solid #2e2e38; border-radius: 12px; overflow: hidden;">
+            <tr>
+                <td style="padding: 14px 16px; color: #9ca3af; font-size: 15px; border-bottom: 1px solid #2e2e38;">Barbero</td>
+                <td style="padding: 14px 16px; color: #f3f4f6; font-size: 15px; font-weight: 600; text-align: right; border-bottom: 1px solid #2e2e38;">{{ barber_name }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 14px 16px; color: #9ca3af; font-size: 15px; border-bottom: 1px solid #2e2e38;">Servicios</td>
+                <td style="padding: 14px 16px; color: #f3f4f6; font-size: 15px; font-weight: 600; text-align: right; border-bottom: 1px solid #2e2e38;">{{ service_names }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 14px 16px; color: #9ca3af; font-size: 15px;">Nueva fecha/hora</td>
+                <td style="padding: 14px 16px; color: #ff2301; font-size: 15px; font-weight: 700; text-align: right;">{{ new_start_time }}</td>
+            </tr>
+        </table>
+    </td>
+</tr>
+{% endblock %}

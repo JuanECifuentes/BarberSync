@@ -1,17 +1,27 @@
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body style="font-family:Arial,sans-serif;background:#1a1a1c;color:#f7f7f8;padding:20px;">
-<div style="max-width:480px;margin:0 auto;background:#2a2a2d;border-radius:12px;border:1px solid #4a4a4f;padding:24px;">
-    <h2 style="color:#ff2301;margin:0 0 16px;">Vincular correo electrónico</h2>
-    <p style="margin:0 0 8px;">Hola {{ recipient_name }},</p>
-    <p style="margin:0 0 16px;">Para vincular este correo a tu cuenta de BarberSync, ingresa el siguiente código:</p>
-    <div style="background:#1a1a1c;border-radius:8px;padding:16px;text-align:center;margin:0 0 16px;">
-        <span style="font-size:32px;font-weight:700;letter-spacing:8px;color:#ff2301;">{{ otp_code }}</span>
-    </div>
-    <p style="margin:0 0 8px;color:#91919a;font-size:13px;">Este código expira en 10 minutos.</p>
-    <p style="margin:0 0 0;color:#91919a;font-size:12px;">Si no solicitaste vincular este correo, puedes ignorar este mensaje.</p>
-    <p style="margin:16px 0 0;color:#91919a;font-size:12px;">– BarberSync</p>
-</div>
-</body>
-</html>
+{% extends "notifications/base_notification.html" %}
+
+{% block email_subject %}Vincular correo electrónico en BarberSync{% endblock %}
+
+{% block title %}Vincular correo electrónico{% endblock %}
+
+{% block content %}
+Hola <strong>{{ recipient_name }}</strong>,
+<br><br>
+Para vincular este correo a tu cuenta de <a href="{{ site_url }}" style="color: #ff2301; text-decoration: none; font-weight: 600;">BarberSync</a>, ingresa el siguiente código de verificación:
+{% endblock %}
+
+{% block extra_content %}
+<tr>
+    <td>
+        <div style="background-color: #0f0f11; border: 1px solid #2e2e38; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px;">
+            <span style="font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #ff2301; font-family: Courier, monospace;">{{ otp_code }}</span>
+        </div>
+        <p style="margin: 0 0 8px 0; color: #9ca3af; font-size: 14px; line-height: 1.5;">
+            Este código expira en 10 minutos.
+        </p>
+        <p style="margin: 0 0 24px 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+            Si no solicitaste vincular este correo, puedes ignorar este mensaje sin problemas.
+        </p>
+    </td>
+</tr>
+{% endblock %}

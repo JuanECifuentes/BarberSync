@@ -33,7 +33,9 @@ WHITESPACE_RE = re.compile(r"\s+")
 
 
 def _html_to_plain_text(html_body: str) -> str:
-    text = HTML_TAG_RE.sub("", html_body)
+    # Remove style and script blocks and their content to prevent CSS leaking to plain text
+    clean_body = re.sub(r"<(style|script)\b[^>]*>([\s\S]*?)<\/\1>", "", html_body, flags=re.IGNORECASE)
+    text = HTML_TAG_RE.sub("", clean_body)
     text = unescape(text)
     text = WHITESPACE_RE.sub(" ", text).strip()
     return text
@@ -271,6 +273,9 @@ def send_notification(
         name = str(recipient) if not hasattr(recipient, "name") else recipient.name
 
     context.setdefault("recipient_name", name)
+
+    domain = getattr(settings, "SITE_URL", "http://127.0.0.1:8000")
+    context.setdefault("site_url", domain)
 
     subject_map = {
         "reminder_24h": f"Recordatorio: tu cita mañana en {context.get('barbershop_name', 'BarberSync')}",

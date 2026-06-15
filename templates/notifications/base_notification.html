@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block email_subject %}{% endblock %}</title>
+    <style>
+        /* Responsive overrides for modern email clients */
+        @media only screen and (max-width: 600px) {
+            .email-container {
+                padding: 16px 8px !important;
+            }
+            .card {
+                padding: 24px 16px !important;
+                border-radius: 12px !important;
+            }
+            .detail-table td {
+                padding: 10px 8px !important;
+                font-size: 14px !important;
+            }
+            .button-wrapper a {
+                display: block !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+                text-align: center !important;
+                padding: 14px 20px !important;
+            }
+            .title-text {
+                font-size: 22px !important;
+            }
+            .body-text {
+                font-size: 15px !important;
+            }
+        }
+    </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #0f0f11; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #0f0f11; table-layout: fixed;">
+        <tr>
+            <td align="center" class="email-container" style="padding: 40px 20px;">
+                <!--[if (gte mso 9)|(IE)]>
+                <table align="center" border="0" cellspacing="0" cellpadding="0" width="600">
+                <tr>
+                align="center" valign="top" width="600">
+                <![endif]-->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" class="card" style="max-width: 600px; background-color: #1d1d22; border: 1px solid #2e2e38; border-radius: 16px; padding: 40px; box-shadow: 0 10px 30px rgba(0,0,0,0.55); text-align: left;">
+                    
+                    <!-- Header / Logo -->
+                    <tr>
+                        <td style="padding-bottom: 32px; border-bottom: 1px solid #2e2e38; text-align: center;">
+                            <a href="{{ site_url }}" style="color: #ffffff; text-decoration: none; font-size: 26px; font-weight: 800; letter-spacing: -0.5px;">
+                                Barber<span style="color: #ff2301;">Sync</span>
+                            </a>
+                        </td>
+                    </tr>
+                    
+                    <!-- Title -->
+                    <tr>
+                        <td style="padding-top: 32px;">
+                            <h1 class="title-text" style="color: #ffffff; font-size: 24px; font-weight: 700; line-height: 1.3; margin: 0 0 20px 0;">
+                                {% block title %}{% endblock %}
+                            </h1>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                        <td>
+                            <div class="body-text" style="color: #d1d5db; font-size: 16px; line-height: 1.6; margin-bottom: 24px;">
+                                {% block content %}{% endblock %}
+                            </div>
+                        </td>
+                    </tr>
+                    
+                    <!-- Details / Table -->
+                    {% block details %}{% endblock %}
+                    
+                    <!-- Action -->
+                    {% block action %}{% endblock %}
+                    
+                    <!-- Extra Content (like verification code) -->
+                    {% block extra_content %}{% endblock %}
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding-top: 32px; border-top: 1px solid #2e2e38; margin-top: 32px;">
+                            <p style="margin: 0 0 8px 0; color: #9ca3af; font-size: 13px; line-height: 1.5; text-align: center;">
+                                Si tienes alguna duda, contacta directamente con tu barbería.
+                            </p>
+                            <p style="margin: 0; color: #6b7280; font-size: 12px; line-height: 1.5; text-align: center;">
+                                Este mensaje ha sido enviado automáticamente por <a href="{{ site_url }}" style="color: #ff2301; text-decoration: none; font-weight: 600;">BarberSync</a>.
+                            </p>
+                        </td>
+                    </tr>
+                    
+                </table>
+                <!--[if (gte mso 9)|(IE)]>
+                </td>
+                </tr>
+                </table>
+                <![endif]-->
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

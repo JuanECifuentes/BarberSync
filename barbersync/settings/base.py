@@ -227,7 +227,7 @@ if DEBUG:
 else:
     EMAIL_BACKEND = "django_ses.SESBackend"
 
-#EMAIL_BACKEND = "django_ses.SESBackend"
+EMAIL_BACKEND = "django_ses.SESBackend"
 
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@barbersync.app")
 
