@@ -105,66 +105,25 @@ def _send_email_sync(
     success = True
     error_msg = ""
 
-    aws_configured = bool(
-        getattr(settings, "AWS_ACCESS_KEY_ID", None)
-        and getattr(settings, "AWS_SECRET_ACCESS_KEY", None)
-    ) or not getattr(settings, "LOCAL", False)
+    try:
+        recipient_formatted = recipient_email
+        if recipient_name:
+            recipient_formatted = f"{recipient_name} <{recipient_email}>"
 
-    sent_via_ses = False
-
-    if aws_configured:
-        try:
-            client = _get_aws_client("ses")
-            plain_text = _html_to_plain_text(html_body)
-            recipient_formatted = recipient_email
-            if recipient_name:
-                recipient_formatted = f"{recipient_name} <{recipient_email}>"
-
-            client.send_email(
-                Source=settings.DEFAULT_FROM_EMAIL,
-                Destination={
-                    "ToAddresses": [recipient_formatted],
-                },
-                Message={
-                    "Subject": {
-                        "Data": subject,
-                        "Charset": "UTF-8",
-                    },
-                    "Body": {
-                        "Html": {
-                            "Data": html_body,
-                            "Charset": "UTF-8",
-                        },
-                        "Text": {
-                            "Data": plain_text,
-                            "Charset": "UTF-8",
-                        },
-                    },
-                },
-            )
-            sent_via_ses = True
-        except (ImportError, Exception) as e:
-            logger.warning(
-                "AWS SES send failed or boto3 not installed, attempting Django mail fallback. Error: %s",
-                e,
-            )
-
-    if not sent_via_ses:
-        try:
-            send_mail(
-                subject=subject,
-                message=_html_to_plain_text(html_body),
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[recipient_email],
-                html_message=html_body,
-                fail_silently=False,
-            )
-        except Exception as e:
-            success = False
-            error_msg = str(e)
-            logger.exception(
-                "Failed to send email %s to %s via fallback", notif_type, recipient_email
-            )
+        send_mail(
+            subject=subject,
+            message=_html_to_plain_text(html_body),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[recipient_formatted],
+            html_message=html_body,
+            fail_silently=False,
+        )
+    except Exception as e:
+        success = False
+        error_msg = str(e)
+        logger.exception(
+            "Failed to send email %s to %s via Django email backend", notif_type, recipient_email
+        )
 
     NotificationLog.objects.create(
         appointment_id=appointment_id,
