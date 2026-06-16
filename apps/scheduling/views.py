@@ -303,6 +303,7 @@ class AppointmentCreateAPI(LoginRequiredMixin, View):
                 notes=notes,
                 created_by=request.user,
             )
+            svc.notify_appointment_mutation(appointment, "create", request.user)
         except ValueError as e:
             return JsonResponse({"error": str(e)}, status=409)
 
@@ -350,6 +351,7 @@ class AppointmentActionAPI(LoginRequiredMixin, View):
                 intervencion.save(update_fields=["estado", "updated_by", "updated_at"])
             except Intervencion.DoesNotExist:
                 pass
+            svc.notify_appointment_mutation(appointment, "cancel", request.user)
             return JsonResponse({"message": "Cita cancelada"})
 
         elif action == "complete":
@@ -413,6 +415,7 @@ class AppointmentActionAPI(LoginRequiredMixin, View):
                     new_start,
                     rescheduled_by=request.user,
                 )
+                svc.notify_appointment_mutation(new_apt, "reschedule", request.user)
             except ValueError as e:
                 return JsonResponse({"error": str(e)}, status=409)
 
@@ -1215,61 +1218,7 @@ class AppointmentRescheduleAPI(LoginRequiredMixin, View):
             pass
 
         svc.schedule_appointment_reminders(appointment.pk)
-        service_names = ", ".join(
-            appointment.services.values_list("service__name", flat=True)
-        )
-
-        if appointment.client:
-            client_channels = ["email"]
-            if appointment.client.phone:
-                client_channels.append("sms")
-
-            send_notification(
-                recipient={
-                    "email": appointment.client.email,
-                    "phone": appointment.client.phone,
-                    "name": appointment.client.name,
-                },
-                notif_type="reschedule_client",
-                context={
-                    "recipient_name": appointment.client.name,
-                    "barbershop_name": appointment.barbershop.name,
-                    "barber_name": str(appointment.barber),
-                    "service_names": service_names,
-                    "start_time": appointment.start_time,
-                    "new_start_time": new_start.strftime("%d/%m/%Y %H:%M"),
-                },
-                channels=client_channels,
-                appointment_id=appointment.pk,
-            )
-
-        # Notify barber if the change was made by an admin (not the barber themselves)
-        if is_admin and not is_assigned_barber:
-            barber_channels = ["email"]
-            barber_phone = getattr(appointment.barber, "phone", "") or ""
-            if barber_phone:
-                barber_channels.append("sms")
-
-            send_notification(
-                recipient={
-                    "email": appointment.barber.user.email,
-                    "phone": barber_phone,
-                    "name": str(appointment.barber),
-                },
-                notif_type="reschedule_barber",
-                context={
-                    "recipient_name": str(appointment.barber),
-                    "barbershop_name": appointment.barbershop.name,
-                    "client_name": appointment.client.name
-                    if appointment.client
-                    else "Sin cliente",
-                    "service_names": service_names,
-                    "start_time": appointment.start_time,
-                    "new_start_time": new_start.strftime("%d/%m/%Y %H:%M"),
-                },
-                channels=barber_channels,
-                appointment_id=appointment.pk,
-            )
+        svc.notify_appointment_mutation(appointment, "reschedule", request.user)
 
         return JsonResponse(
             {

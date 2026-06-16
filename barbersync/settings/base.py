@@ -225,18 +225,18 @@ Q_CLUSTER = {
 if DEBUG:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 else:
-    EMAIL_BACKEND = "anymail.backends.mailgun.EmailBackend"
-    ANYMAIL = {
-        "MAILGUN_API_KEY": env("MAILGUN_API_KEY", default=""),
-        "MAILGUN_SENDER_DOMAIN": env("MAILGUN_SENDER_DOMAIN", default=""),
-    }
+    EMAIL_BACKEND = "django_ses.SESBackend"
+
+EMAIL_BACKEND = "django_ses.SESBackend"
 
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@barbersync.app")
 
-# AWS Configuration
+# AWS SES Configuration
 AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID", default="")
 AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY", default="")
-AWS_REGION_NAME = env("AWS_REGION_NAME", default="us-east-1")
+AWS_SES_REGION_NAME = env("AWS_SES_REGION_NAME", default="us-east-1")
+AWS_SES_REGION_ENDPOINT = env("AWS_SES_REGION_ENDPOINT", default="email.us-east-1.amazonaws.com")
+AWS_REGION_NAME = AWS_SES_REGION_NAME
 
 
 SITE_URL = env("SITE_URL", default="http://127.0.0.1:8000")

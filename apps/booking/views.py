@@ -230,6 +230,7 @@ class BookingCreateAPI(View):
                 notes="Reserva online",
                 created_by=request.user,
             )
+            svc.notify_appointment_mutation(appointment, "create", request.user)
         except ValueError as e:
             return JsonResponse({"error": str(e)}, status=409)
 
