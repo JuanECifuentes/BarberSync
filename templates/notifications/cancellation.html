@@ -1,0 +1,44 @@
+{% extends "notifications/base_notification.html" %}
+
+{% block email_subject %}Cita cancelada en {{ barbershop_name }}{% endblock %}
+
+{% block title %}Cita Cancelada{% endblock %}
+
+{% block content %}
+Hola <strong>{{ recipient_name }}</strong>,
+<br><br>
+Te informamos que la cita en <strong>{{ barbershop_name }}</strong> ha sido cancelada. A continuación se presentan los detalles de la reserva cancelada:
+{% endblock %}
+
+{% block details %}
+<tr>
+    <td style="padding-bottom: 24px;">
+        <table class="detail-table" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; background-color: #0f0f11; border: 1px solid #2e2e38; border-radius: 12px; overflow: hidden;">
+            <tr>
+                <td style="padding: 14px 16px; color: #9ca3af; font-size: 15px; border-bottom: 1px solid #2e2e38;">Cliente</td>
+                <td style="padding: 14px 16px; color: #f3f4f6; font-size: 15px; font-weight: 600; text-align: right; border-bottom: 1px solid #2e2e38;">{{ client_name }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 14px 16px; color: #9ca3af; font-size: 15px; border-bottom: 1px solid #2e2e38;">Barbero</td>
+                <td style="padding: 14px 16px; color: #f3f4f6; font-size: 15px; font-weight: 600; text-align: right; border-bottom: 1px solid #2e2e38;">{{ barber_name }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 14px 16px; color: #9ca3af; font-size: 15px; border-bottom: 1px solid #2e2e38;">Servicios</td>
+                <td style="padding: 14px 16px; color: #f3f4f6; font-size: 15px; font-weight: 600; text-align: right; border-bottom: 1px solid #2e2e38;">{{ service_names }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 14px 16px; color: #9ca3af; font-size: 15px; {% if cancelled_reason %}border-bottom: 1px solid #2e2e38;{% endif %}">Fecha y hora</td>
+                <td style="padding: 14px 16px; color: #ff2301; font-size: 15px; font-weight: 700; text-align: right; {% if cancelled_reason %}border-bottom: 1px solid #2e2e38;{% endif %}">
+                    {{ start_time|date:"d/m/Y" }} a las {{ start_time|time:"H:i" }}
+                </td>
+            </tr>
+            {% if cancelled_reason %}
+            <tr>
+                <td style="padding: 14px 16px; color: #9ca3af; font-size: 15px;">Motivo</td>
+                <td style="padding: 14px 16px; color: #ef4444; font-size: 15px; font-weight: 600; text-align: right;">{{ cancelled_reason }}</td>
+            </tr>
+            {% endif %}
+        </table>
+    </td>
+</tr>
+{% endblock %}

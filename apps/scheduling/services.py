@@ -557,3 +557,165 @@ def _status_color(status: str) -> str:
         "completed": "#10b981",  # green
         "cancelled": "#ef4444",  # red
     }.get(status, "#6b7280")  # gray
+
+
+def notify_appointment_mutation(appointment, action, actor):
+    """
+    Despacha notificaciones asíncronas para creación, reprogramación o cancelación
+    de citas, aplicando reglas de negocio basadas en el rol del actor.
+    """
+    from django_q.tasks import async_task
+
+    if not appointment.client:
+        return
+
+    # Check if the actor is the same barber assigned to the appointment
+    is_barber_acting = False
+    if actor and actor.is_authenticated:
+        is_barber_acting = (appointment.barber.membership.user_id == actor.id)
+
+    # Determine recipient channels
+    client_channels = ["email"]
+    if appointment.client.phone:
+        client_channels.append("sms")
+
+    barber_channels = ["email"]
+    barber_phone = getattr(appointment.barber, "phone", "") or ""
+    if barber_phone:
+        barber_channels.append("sms")
+
+    service_names = ", ".join(
+        appointment.services.values_list("service__name", flat=True)
+    )
+
+    if action == "create":
+        # Notify client
+        async_task(
+            "apps.notifications.notifications.send_notification",
+            recipient={
+                "email": appointment.client.email,
+                "phone": appointment.client.phone,
+                "name": appointment.client.name,
+            },
+            notif_type="confirmation",
+            context={
+                "recipient_name": appointment.client.name,
+                "barbershop_name": appointment.barbershop.name,
+                "barber_name": str(appointment.barber),
+                "service_names": service_names,
+                "start_time": appointment.start_time,
+            },
+            channels=client_channels,
+            appointment_id=appointment.pk,
+        )
+
+        # Notify barber only if the creator is NOT the barber themselves
+        if not is_barber_acting:
+            async_task(
+                "apps.notifications.notifications.send_notification",
+                recipient={
+                    "email": appointment.barber.user.email,
+                    "phone": barber_phone,
+                    "name": str(appointment.barber),
+                },
+                notif_type="confirmation",
+                context={
+                    "recipient_name": str(appointment.barber),
+                    "barbershop_name": appointment.barbershop.name,
+                    "barber_name": str(appointment.barber),
+                    "service_names": service_names,
+                    "start_time": appointment.start_time,
+                },
+                channels=barber_channels,
+                appointment_id=appointment.pk,
+            )
+
+    elif action == "reschedule":
+        # Notify client
+        async_task(
+            "apps.notifications.notifications.send_notification",
+            recipient={
+                "email": appointment.client.email,
+                "phone": appointment.client.phone,
+                "name": appointment.client.name,
+            },
+            notif_type="reschedule_client",
+            context={
+                "recipient_name": appointment.client.name,
+                "barbershop_name": appointment.barbershop.name,
+                "barber_name": str(appointment.barber),
+                "service_names": service_names,
+                "start_time": appointment.start_time,
+                "new_start_time": appointment.start_time.strftime("%d/%m/%Y %H:%M"),
+            },
+            channels=client_channels,
+            appointment_id=appointment.pk,
+        )
+
+        # Notify barber only if the reschedule was done by a third party
+        if not is_barber_acting:
+            async_task(
+                "apps.notifications.notifications.send_notification",
+                recipient={
+                    "email": appointment.barber.user.email,
+                    "phone": barber_phone,
+                    "name": str(appointment.barber),
+                },
+                notif_type="reschedule_barber",
+                context={
+                    "recipient_name": str(appointment.barber),
+                    "barbershop_name": appointment.barbershop.name,
+                    "client_name": appointment.client.name,
+                    "service_names": service_names,
+                    "start_time": appointment.start_time,
+                    "new_start_time": appointment.start_time.strftime("%d/%m/%Y %H:%M"),
+                },
+                channels=barber_channels,
+                appointment_id=appointment.pk,
+            )
+
+    elif action == "cancel":
+        # Notify client
+        async_task(
+            "apps.notifications.notifications.send_notification",
+            recipient={
+                "email": appointment.client.email,
+                "phone": appointment.client.phone,
+                "name": appointment.client.name,
+            },
+            notif_type="cancellation",
+            context={
+                "recipient_name": appointment.client.name,
+                "client_name": appointment.client.name,
+                "barbershop_name": appointment.barbershop.name,
+                "barber_name": str(appointment.barber),
+                "service_names": service_names,
+                "start_time": appointment.start_time,
+                "cancelled_reason": appointment.cancelled_reason,
+            },
+            channels=client_channels,
+            appointment_id=appointment.pk,
+        )
+
+        # Notify barber only if the cancellation was done by a third party
+        if not is_barber_acting:
+            async_task(
+                "apps.notifications.notifications.send_notification",
+                recipient={
+                    "email": appointment.barber.user.email,
+                    "phone": barber_phone,
+                    "name": str(appointment.barber),
+                },
+                notif_type="cancellation",
+                context={
+                    "recipient_name": str(appointment.barber),
+                    "client_name": appointment.client.name if appointment.client else "Sin cliente",
+                    "barbershop_name": appointment.barbershop.name,
+                    "barber_name": str(appointment.barber),
+                    "service_names": service_names,
+                    "start_time": appointment.start_time,
+                    "cancelled_reason": appointment.cancelled_reason,
+                },
+                channels=barber_channels,
+                appointment_id=appointment.pk,
+            )
