@@ -153,30 +153,48 @@
     .flatpickr-confirm:hover { background: #e01e00 !important; }
     .flatpickr-confirm svg { display: none !important; }
 
-    /* Sticky filters (desktop only) */
+    /* Sticky filters */
     .filters-sticky {
-        position: relative;
+        position: sticky;
+        top: 0;
         z-index: 10;
         background: #1a1a1c;
     }
-    @media (min-width: 768px) {
-        .filters-sticky {
-            position: sticky;
-            top: 0;
+    .filters-panel {
+        transition: max-height 0.2s ease, opacity 0.2s ease;
+    }
+    @media (max-width: 767px) {
+        .filters-panel {
+            max-height: calc(100vh - 140px);
+            overflow-y: auto;
         }
     }
 
     /* Heatmap */
-    .heatmap-grid {
-        display: grid;
-        grid-template-columns: 40px repeat(24, minmax(24px, 1fr));
-        gap: 2px;
+    .heatmap-table {
+        table-layout: fixed;
+        border-collapse: separate;
+        border-spacing: 2px;
+        width: 100%;
+        min-width: 640px;
+    }
+    .heatmap-table th,
+    .heatmap-table td {
+        padding: 0;
+        width: 24px;
+        height: 24px;
+        min-width: 24px;
+        min-height: 24px;
+    }
+    .heatmap-table th:first-child,
+    .heatmap-table td:first-child {
+        width: 40px;
+        min-width: 40px;
     }
     .heatmap-cell {
-        aspect-ratio: 1;
+        width: 100%;
+        height: 100%;
         border-radius: 3px;
-        min-width: 22px;
-        min-height: 22px;
         position: relative;
     }
     .heatmap-cell[data-count]:hover::after {
@@ -197,17 +215,15 @@
     .heatmap-label {
         font-size: 10px;
         color: #91919a;
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
+        text-align: right;
         padding-right: 6px;
-        min-width: 40px;
+        vertical-align: middle;
     }
     .heatmap-hour {
         font-size: 9px;
         color: #91919a;
         text-align: center;
-        min-width: 22px;
+        vertical-align: middle;
     }
 
     /* Funnel */
@@ -246,6 +262,27 @@
         font-size: 12px;
         font-weight: 600;
         color: #fff;
+    }
+    .funnel-row {
+        position: relative;
+    }
+    .funnel-row[data-value]:hover::after {
+        content: attr(data-value) " clientes";
+        position: absolute;
+        bottom: calc(100% + 4px);
+        left: 50%;
+        transform: translateX(-50%);
+        background: #2a2a2d;
+        border: 1px solid #4a4a4f;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 500;
+        padding: 4px 8px;
+        border-radius: 6px;
+        white-space: nowrap;
+        z-index: 20;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        pointer-events: none;
     }
 
     /* Chart containers */
@@ -327,7 +364,7 @@
             </div>
         </div>
 
-        <div class="hidden md:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3"
+        <div class="filters-panel hidden md:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3"
              :class="filtersOpen ? '!grid' : ''">
 
             <!-- Rango de fechas -->
@@ -648,23 +685,30 @@
                     </div>
                 </div>
                 <div class="overflow-x-auto">
-                    <div class="min-w-[640px]">
-                        <!-- Single grid: header + all rows -->
-                        <div class="heatmap-grid">
-                            <div></div>
-                            <template x-for="h in 24" :key="'h-' + h">
-                                <div class="heatmap-hour" x-text="(h - 1) + 'h'"></div>
-                            </template>
-                            <template x-for="(label, dow) in diasOptions" :key="'row-' + dow">
-                                <div class="heatmap-label" x-text="label"></div>
-                                <template x-for="hour in 24" :key="dow + '-' + hour">
-                                    <div class="heatmap-cell"
-                                         :style="'background-color: ' + heatmapColor(dow, hour - 1)"
-                                         :data-count="charts.horas_pico.matrix[dow][hour - 1]"></div>
+                    <table class="heatmap-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <template x-for="h in 24" :key="'h-' + h">
+                                    <th class="heatmap-hour" x-text="(h - 1) + 'h'"></th>
                                 </template>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="(label, dow) in diasOptions" :key="'row-' + dow">
+                                <tr>
+                                    <td class="heatmap-label" x-text="label"></td>
+                                    <template x-for="hour in 24" :key="dow + '-' + hour">
+                                        <td>
+                                            <div class="heatmap-cell"
+                                                 :style="'background-color: ' + heatmapColor(dow, hour - 1)"
+                                                 :data-count="charts.horas_pico.matrix[dow][hour - 1]"></div>
+                                        </td>
+                                    </template>
+                                </tr>
                             </template>
-                        </div>
-                    </div>
+                        </tbody>
+                    </table>
                 </div>
                 <div class="flex items-center justify-between mt-3 text-[10px] text-neutral-400">
                     <span>Bajo</span>
@@ -684,7 +728,7 @@
                 </div>
                 <div class="space-y-2" id="funnelContainer">
                     <template x-for="(label, idx) in charts.embudo_retencion.labels" :key="idx">
-                        <div class="funnel-row">
+                        <div class="funnel-row" :data-value="charts.embudo_retencion.values[idx]">
                             <div class="funnel-label" x-text="label"></div>
                             <div class="funnel-bar-wrap">
                                 <div class="funnel-bar" :style="'width: ' + funnelWidth(idx) + '%'">

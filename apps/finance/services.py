@@ -85,6 +85,15 @@ def _parse_time(value: str | None) -> time | None:
         return None
 
 
+def _to_date(value: date | datetime | None) -> date | None:
+    """Normalize a Django Trunc* result (which may be datetime) to date."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    return value
+
+
 # ─────────────────────────────────────────────
 # Sale creation from a completed appointment
 # ─────────────────────────────────────────────
@@ -436,6 +445,36 @@ def _base_servicios_qs(filters: dict[str, Any]):
     return qs
 
 
+def _base_ocupacion_servicios_qs(filters: dict[str, Any]):
+    """Return IntervencionServicio lines for occupied agenda slots (pending, in-progress, realized)."""
+    estados_ocupacion = [
+        Intervencion.Estado.PENDIENTE,
+        Intervencion.Estado.EN_PROGRESO,
+        Intervencion.Estado.REALIZADA,
+    ]
+    qs = IntervencionServicio.objects.filter(
+        intervencion__estado__in=estados_ocupacion,
+        intervencion__barbershop_id__in=filters["barbershop_ids"],
+        intervencion__fecha__date__gte=filters["date_from"],
+        intervencion__fecha__date__lte=filters["date_to"],
+    )
+
+    if filters["barber_ids"]:
+        qs = qs.filter(intervencion__barber_id__in=filters["barber_ids"])
+    if filters["service_ids"]:
+        qs = qs.filter(servicio_id__in=filters["service_ids"])
+    if filters["days_of_week"]:
+        qs = qs.filter(
+            intervencion__fecha__week_day__in=[d + 1 for d in filters["days_of_week"]]
+        )
+    if filters["time_start"]:
+        qs = qs.filter(intervencion__fecha__time__gte=filters["time_start"])
+    if filters["time_end"]:
+        qs = qs.filter(intervencion__fecha__time__lte=filters["time_end"])
+
+    return qs
+
+
 # ─────────────────────────────────────────────
 # KPIs
 # ─────────────────────────────────────────────
@@ -550,7 +589,7 @@ def _calc_tasa_ocupacion(filters: dict[str, Any]) -> float:
     if not filters["barber_ids"]:
         return 0.0
 
-    occupied = _base_servicios_qs(filters).aggregate(
+    occupied = _base_ocupacion_servicios_qs(filters).aggregate(
         total=Coalesce(
             Sum(F("servicio__duration_minutes"), output_field=DecimalField()),
             Value(Decimal("0")),
@@ -608,7 +647,7 @@ def _chart_evolucion(filters: dict[str, Any]):
         .annotate(revenue=Coalesce(Sum("precio_cobrado"), Value(Decimal("0"))))
         .order_by("period")
     )
-    revenue_map = {item["period"]: item["revenue"] for item in revenue_qs}
+    revenue_map = {_to_date(item["period"]): item["revenue"] for item in revenue_qs}
 
     product_qs = (
         IntervencionProducto.objects.filter(
@@ -628,9 +667,8 @@ def _chart_evolucion(filters: dict[str, Any]):
         .order_by("period")
     )
     for item in product_qs:
-        revenue_map[item["period"]] = (
-            revenue_map.get(item["period"], Decimal("0")) + item["total"]
-        )
+        period = _to_date(item["period"])
+        revenue_map[period] = revenue_map.get(period, Decimal("0")) + item["total"]
 
     volume_qs = (
         _base_intervenciones_qs(filters)
@@ -639,26 +677,34 @@ def _chart_evolucion(filters: dict[str, Any]):
         .annotate(count=Count("id"))
         .order_by("period")
     )
-    volume_map = {item["period"]: item["count"] for item in volume_qs}
+    volume_map = {_to_date(item["period"]): item["count"] for item in volume_qs}
+
+    def _period_start(d: date) -> date:
+        if step == "month":
+            return date(d.year, d.month, 1)
+        if step == "week":
+            # ISO Monday
+            return d - timedelta(days=d.weekday())
+        return d
+
+    def _next_period(d: date) -> date:
+        if step == "month":
+            if d.month == 12:
+                return date(d.year + 1, 1, 1)
+            return date(d.year, d.month + 1, 1)
+        if step == "week":
+            return d + timedelta(days=7)
+        return d + timedelta(days=1)
 
     labels = []
     revenue_values = []
     volume_values = []
-    current = filters["date_from"]
+    current = _period_start(filters["date_from"])
     while current <= filters["date_to"]:
         labels.append(current.isoformat())
         revenue_values.append(float(revenue_map.get(current, Decimal("0"))))
         volume_values.append(volume_map.get(current, 0))
-
-        if step == "month":
-            if current.month == 12:
-                current = date(current.year + 1, 1, 1)
-            else:
-                current = date(current.year, current.month + 1, 1)
-        elif step == "week":
-            current += timedelta(days=7)
-        else:
-            current += timedelta(days=1)
+        current = _next_period(current)
 
     return {
         "labels": labels,
@@ -805,7 +851,7 @@ def _chart_ocupacion_tendencia(filters: dict[str, Any]):
         return {"labels": [], "occupancy": [], "capacity": []}
 
     occupied_qs = (
-        _base_servicios_qs(filters)
+        _base_ocupacion_servicios_qs(filters)
         .annotate(month=TruncMonth("intervencion__fecha"))
         .values("month")
         .annotate(
@@ -816,7 +862,7 @@ def _chart_ocupacion_tendencia(filters: dict[str, Any]):
         )
         .order_by("month")
     )
-    occupied_map = {item["month"]: item["minutes"] for item in occupied_qs}
+    occupied_map = {_to_date(item["month"]): item["minutes"] for item in occupied_qs}
 
     weekly_minutes = 0
     for ws in WorkSchedule.objects.filter(barber_id__in=filters["barber_ids"]):
@@ -843,7 +889,7 @@ def _chart_ocupacion_tendencia(filters: dict[str, Any]):
         month_end = min((next_month - timedelta(days=1)), filters["date_to"])
         if month_start <= month_end:
             labels.append(current.isoformat()[:7])
-            occupied = occupied_map.get(current, 0)
+            occupied = float(occupied_map.get(current, 0))
             capacity_values.append(round(capacity, 1))
             occupancy_values.append(
                 round((occupied / capacity) * 100, 1) if capacity > 0 else 0
