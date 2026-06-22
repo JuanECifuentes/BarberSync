@@ -65,20 +65,20 @@
         font-family: 'Poppins', sans-serif;
         font-weight: 500;
         border-radius: 8px;
-        white-space: nowrap;
+        white-space: normal;
+        word-wrap: break-word;
         opacity: 0;
         pointer-events: none;
         transition: opacity 0.2s ease, transform 0.2s ease;
         z-index: 50;
         box-shadow: 0 4px 12px rgba(0,0,0,0.4);
         line-height: 1.4;
-        max-width: 260px;
+        width: max-content;
+        max-width: min(260px, 90vw);
         text-align: center;
     }
     .tooltip-help .tooltip-text.wide {
-        white-space: normal;
-        width: max-content;
-        max-width: 280px;
+        max-width: min(280px, 90vw);
     }
     .tooltip-help:hover .tooltip-text {
         opacity: 1;
@@ -91,6 +91,15 @@
     }
     .tooltip-help.right-aligned:hover .tooltip-text {
         transform: translateX(0) scale(1);
+    }
+    @media (max-width: 640px) {
+        .tooltip-help .tooltip-text {
+            left: 50%;
+            transform: translateX(-50%) scale(0.95);
+        }
+        .tooltip-help:hover .tooltip-text {
+            transform: translateX(-50%) scale(1);
+        }
     }
 
     /* ── Multi-select dropdown ── */
@@ -144,12 +153,17 @@
     .flatpickr-confirm:hover { background: #e01e00 !important; }
     .flatpickr-confirm svg { display: none !important; }
 
-    /* Sticky filters */
+    /* Sticky filters (desktop only) */
     .filters-sticky {
-        position: sticky;
-        top: 0;
-        z-index: 20;
+        position: relative;
+        z-index: 10;
         background: #1a1a1c;
+    }
+    @media (min-width: 768px) {
+        .filters-sticky {
+            position: sticky;
+            top: 0;
+        }
     }
 
     /* Heatmap */
@@ -157,8 +171,6 @@
         display: grid;
         grid-template-columns: 40px repeat(24, minmax(24px, 1fr));
         gap: 2px;
-        overflow-x: auto;
-        padding-bottom: 4px;
     }
     .heatmap-cell {
         aspect-ratio: 1;
@@ -189,11 +201,13 @@
         align-items: center;
         justify-content: flex-end;
         padding-right: 6px;
+        min-width: 40px;
     }
     .heatmap-hour {
         font-size: 9px;
         color: #91919a;
         text-align: center;
+        min-width: 22px;
     }
 
     /* Funnel */
@@ -243,6 +257,13 @@
     .chart-container.tall {
         height: 320px;
     }
+    .chart-container canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100% !important;
+        height: 100% !important;
+    }
 
     /* KPI cards */
     .kpi-value {
@@ -250,6 +271,25 @@
         font-weight: 700;
         font-size: 1.75rem;
         line-height: 1.1;
+    }
+    @media (max-width: 640px) {
+        .kpi-grid .card {
+            padding: 12px;
+        }
+        .kpi-value {
+            font-size: 1.25rem;
+        }
+        .kpi-grid .text-[10px] {
+            font-size: 9px;
+        }
+        .kpi-grid .w-9 {
+            width: 28px;
+            height: 28px;
+        }
+        .kpi-grid .w-9 svg {
+            width: 16px;
+            height: 16px;
+        }
     }
 
     [x-cloak] { display: none !important; }
@@ -259,22 +299,8 @@
 {% block content %}
 <div x-data="financeApp()" x-init="init()" class="flex flex-col h-full">
 
-    <!-- ═══════ Tabs Navigation ═══════ -->
-    <div class="flex items-center border-b border-neutral-800 mb-4 flex-shrink-0">
-        <button @click="tab = 'resumen'"
-                :class="tab === 'resumen' ? 'border-b-2 border-brand text-brand' : 'text-neutral-400 hover:text-neutral-300'"
-                class="px-4 py-2 text-sm font-medium transition-colors">
-            Resumen
-        </button>
-        <button @click="tab = 'tendencias'"
-                :class="tab === 'tendencias' ? 'border-b-2 border-brand text-brand' : 'text-neutral-400 hover:text-neutral-300'"
-                class="px-4 py-2 text-sm font-medium transition-colors">
-            Tendencias
-        </button>
-    </div>
-
     <!-- ═══════ Filtros Globales Sticky + Colapsables ═══════ -->
-    <div class="filters-sticky pb-3 mb-4 border-b border-neutral-800/50" x-data="{ filtersOpen: true }">
+    <div class="filters-sticky pb-3 mb-4 border-b border-neutral-800/50">
         <div class="flex items-center justify-between mb-2">
             <div class="flex items-center gap-2">
                 <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Filtros</p>
@@ -292,7 +318,8 @@
                         Cargando...
                     </span>
                 </button>
-                <button type="button" @click="filtersOpen = !filtersOpen"
+                <button type="button"
+                        @click="filtersOpen = !filtersOpen; if (filtersOpen) $nextTick(() => $el.closest('.filters-sticky').scrollIntoView({ behavior: 'smooth', block: 'start' }))"
                         class="md:hidden flex items-center gap-1 text-xs text-neutral-400 hover:text-white transition-colors border border-neutral-700 px-3 py-1.5 rounded-lg">
                     <span x-text="filtersOpen ? 'Ocultar' : 'Mostrar'"></span>
                     <svg class="w-3.5 h-3.5 transition-transform duration-200" :class="filtersOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
@@ -439,11 +466,11 @@
                     </div>
                 </label>
                 <div class="flex gap-2">
-                    <input type="text" x-ref="timeStart" placeholder="Inicio"
-                           class="w-1/2 px-3 py-2 bg-[#2a2a2d] border border-[#4a4a4f] rounded-lg text-white text-sm placeholder-neutral-500 focus:border-[#ff2301] transition-colors text-center"
+                    <input type="text" x-ref="timeStart" readonly placeholder="Inicio"
+                           class="w-1/2 px-3 py-2 bg-[#2a2a2d] border border-[#4a4a4f] rounded-lg text-white text-sm placeholder-neutral-500 focus:border-[#ff2301] transition-colors text-center cursor-pointer"
                            style="min-height:38px;">
-                    <input type="text" x-ref="timeEnd" placeholder="Fin"
-                           class="w-1/2 px-3 py-2 bg-[#2a2a2d] border border-[#4a4a4f] rounded-lg text-white text-sm placeholder-neutral-500 focus:border-[#ff2301] transition-colors text-center"
+                    <input type="text" x-ref="timeEnd" readonly placeholder="Fin"
+                           class="w-1/2 px-3 py-2 bg-[#2a2a2d] border border-[#4a4a4f] rounded-lg text-white text-sm placeholder-neutral-500 focus:border-[#ff2301] transition-colors text-center cursor-pointer"
                            style="min-height:38px;">
                 </div>
             </div>
@@ -458,11 +485,11 @@
         </div>
     </div>
 
-    <!-- ═══════ TAB: RESUMEN ═══════ -->
-    <div x-show="tab === 'resumen'" x-cloak x-transition class="space-y-6">
+    <!-- ═══════ Contenido Finanzas ═══════ -->
+    <div class="space-y-6 pb-6">
 
         <!-- KPI Cards -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div class="kpi-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
             <!-- Ingresos Brutos -->
             <div class="card border border-neutral-700 rounded-xl p-4">
                 <div class="flex items-start justify-between">
@@ -578,7 +605,7 @@
             </div>
         </div>
 
-        <!-- Gráficas Resumen -->
+        <!-- Gráficas -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <!-- Evolución -->
             <div class="card">
@@ -608,11 +635,8 @@
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- ═══════ TAB: TENDENCIAS ═══════ -->
-    <div x-show="tab === 'tendencias'" x-cloak x-transition class="space-y-6">
-
+        <!-- Patrones -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <!-- Horas Pico -->
             <div class="card">
@@ -625,24 +649,21 @@
                 </div>
                 <div class="overflow-x-auto">
                     <div class="min-w-[640px]">
-                        <!-- Header -->
-                        <div class="heatmap-grid mb-1" style="grid-template-rows: auto;">
+                        <!-- Single grid: header + all rows -->
+                        <div class="heatmap-grid">
                             <div></div>
                             <template x-for="h in 24" :key="'h-' + h">
                                 <div class="heatmap-hour" x-text="(h - 1) + 'h'"></div>
                             </template>
-                        </div>
-                        <!-- Rows -->
-                        <template x-for="(label, dow) in diasOptions" :key="'row-' + dow">
-                            <div class="heatmap-grid mb-0.5">
+                            <template x-for="(label, dow) in diasOptions" :key="'row-' + dow">
                                 <div class="heatmap-label" x-text="label"></div>
                                 <template x-for="hour in 24" :key="dow + '-' + hour">
                                     <div class="heatmap-cell"
                                          :style="'background-color: ' + heatmapColor(dow, hour - 1)"
                                          :data-count="charts.horas_pico.matrix[dow][hour - 1]"></div>
                                 </template>
-                            </div>
-                        </template>
+                            </template>
+                        </div>
                     </div>
                 </div>
                 <div class="flex items-center justify-between mt-3 text-[10px] text-neutral-400">
@@ -695,8 +716,8 @@
 <script>
 function financeApp() {
     return {
-        tab: 'resumen',
         loading: false,
+        filtersOpen: true,
         dropdowns: {
             barberos: false,
             servicios: false,
@@ -736,6 +757,7 @@ function financeApp() {
         flatpickrStart: null,
         flatpickrEnd: null,
         chartInstances: {},
+        _renderTimer: null,
 
         init() {
             // Locked barber pre-selection
@@ -745,7 +767,11 @@ function financeApp() {
             {% endif %}
 
             this.$nextTick(() => {
-                this.initFlatpickr();
+                try {
+                    this.initFlatpickr();
+                } catch (err) {
+                    console.error('Error inicializando datepickers', err);
+                }
                 this.applyFilters();
             });
         },
@@ -853,19 +879,36 @@ function financeApp() {
         },
 
         renderCharts() {
-            this.renderEvolucion();
-            this.renderBarberChart();
-            this.renderOcupacionChart();
+            clearTimeout(this._renderTimer);
+            this._renderTimer = setTimeout(() => {
+                this.$nextTick(() => {
+                    requestAnimationFrame(() => {
+                        this.renderEvolucion();
+                        this.renderBarberChart();
+                        this.renderOcupacionChart();
+                        // Give the layout one extra frame, then resize any chart that may have
+                        // measured a zero-sized container during the first paint.
+                        requestAnimationFrame(() => {
+                            Object.values(this.chartInstances).forEach(chart => {
+                                if (chart && typeof chart.resize === 'function') {
+                                    chart.resize();
+                                }
+                            });
+                        });
+                    });
+                });
+            }, 50);
         },
 
         renderEvolucion() {
             const ctx = document.getElementById('evolucionChart');
             if (!ctx) return;
+            console.debug('renderEvolucion', this.charts.evolucion);
             if (this.chartInstances.evolucion) this.chartInstances.evolucion.destroy();
 
             const step = this.charts.evolucion.labels.length > 31 ? 'month' : (this.charts.evolucion.labels.length > 7 ? 'week' : 'day');
             const labels = this.charts.evolucion.labels.map(d => {
-                const date = new Date(d);
+                const date = new Date(d + 'T00:00:00');
                 if (step === 'month') {
                     return date.toLocaleDateString('es', { month: 'short', year: '2-digit' });
                 }
@@ -909,6 +952,7 @@ function financeApp() {
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    animation: { duration: 0 },
                     interaction: { mode: 'index', intersect: false },
                     plugins: {
                         legend: { labels: { color: '#b8b8be' } },
@@ -929,6 +973,7 @@ function financeApp() {
                             type: 'linear',
                             display: true,
                             position: 'left',
+                            beginAtZero: true,
                             ticks: { color: '#ff6b56', callback: v => '$' + v.toLocaleString() },
                             grid: { color: '#2a2a2d' },
                         },
@@ -936,6 +981,7 @@ function financeApp() {
                             type: 'linear',
                             display: true,
                             position: 'right',
+                            beginAtZero: true,
                             ticks: { color: '#60a5fa' },
                             grid: { drawOnChartArea: false },
                         },
@@ -947,6 +993,7 @@ function financeApp() {
         renderBarberChart() {
             const ctx = document.getElementById('barberChart');
             if (!ctx) return;
+            console.debug('renderBarberChart', this.charts.rendimiento_barbero);
             if (this.chartInstances.barber) this.chartInstances.barber.destroy();
 
             this.chartInstances.barber = new Chart(ctx, {
@@ -963,6 +1010,7 @@ function financeApp() {
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    animation: { duration: 0 },
                     plugins: {
                         legend: { display: false },
                         tooltip: {
@@ -984,6 +1032,7 @@ function financeApp() {
                             grid: { display: false },
                         },
                         y: {
+                            beginAtZero: true,
                             ticks: { color: '#91919a', callback: v => '$' + v.toLocaleString() },
                             grid: { color: '#2a2a2d' },
                         }
@@ -995,6 +1044,7 @@ function financeApp() {
         renderOcupacionChart() {
             const ctx = document.getElementById('ocupacionChart');
             if (!ctx) return;
+            console.debug('renderOcupacionChart', this.charts.ocupacion_tendencia);
             if (this.chartInstances.ocupacion) this.chartInstances.ocupacion.destroy();
 
             this.chartInstances.ocupacion = new Chart(ctx, {
@@ -1030,6 +1080,7 @@ function financeApp() {
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    animation: { duration: 0 },
                     interaction: { mode: 'index', intersect: false },
                     plugins: {
                         legend: { labels: { color: '#b8b8be' } },
@@ -1049,6 +1100,7 @@ function financeApp() {
                         y: {
                             display: true,
                             position: 'left',
+                            beginAtZero: true,
                             ticks: { color: '#ff6b56', callback: v => v + '%' },
                             grid: { color: '#2a2a2d' },
                             min: 0,
@@ -1057,6 +1109,7 @@ function financeApp() {
                         y1: {
                             display: true,
                             position: 'right',
+                            beginAtZero: true,
                             ticks: { color: '#91919a' },
                             grid: { drawOnChartArea: false },
                         }
