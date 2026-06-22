@@ -1,0 +1,1183 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Finanzas – BarberSync{% endblock %}
+{% block page_title %}Finanzas{% endblock %}
+
+{% block extra_head %}
+<!-- Alpine.js -->
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<!-- Flatpickr + confirmDate plugin -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/confirmDate/confirmDate.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/confirmDate/confirmDate.js"></script>
+
+<style>
+    /* ── Animated button ── */
+    .btn-action-primary {
+        position: relative;
+        overflow: hidden;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .btn-action-primary::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: #ff2301;
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 0;
+        border-radius: inherit;
+    }
+    .btn-action-primary:not(:disabled):hover::before { transform: scaleX(1); }
+    .btn-action-primary:not(:disabled):hover {
+        color: #fff !important;
+        border-color: #ff2301 !important;
+        transform: scale(1.03);
+        box-shadow: 0 4px 16px rgba(255, 35, 1, 0.3);
+    }
+    .btn-action-primary > *,
+    .btn-action-primary span,
+    .btn-action-primary svg { position: relative; z-index: 1; }
+
+    /* ── Tooltip helper ── */
+    .tooltip-help {
+        position: relative;
+        display: inline-flex;
+        cursor: help;
+    }
+    .tooltip-help .tooltip-text {
+        position: absolute;
+        bottom: calc(100% + 8px);
+        left: 50%;
+        transform: translateX(-50%) scale(0.95);
+        padding: 8px 12px;
+        background: #2a2a2d;
+        border: 1px solid #4a4a4f;
+        color: #fff;
+        font-size: 11px;
+        font-family: 'Poppins', sans-serif;
+        font-weight: 500;
+        border-radius: 8px;
+        white-space: normal;
+        word-wrap: break-word;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+        z-index: 50;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        line-height: 1.4;
+        width: max-content;
+        max-width: min(260px, 90vw);
+        text-align: center;
+    }
+    .tooltip-help .tooltip-text.wide {
+        max-width: min(280px, 90vw);
+    }
+    .tooltip-help:hover .tooltip-text {
+        opacity: 1;
+        transform: translateX(-50%) scale(1);
+    }
+    .tooltip-help.right-aligned .tooltip-text {
+        left: auto;
+        right: 0;
+        transform: translateX(0) scale(0.95);
+    }
+    .tooltip-help.right-aligned:hover .tooltip-text {
+        transform: translateX(0) scale(1);
+    }
+    @media (max-width: 640px) {
+        .tooltip-help .tooltip-text {
+            left: 50%;
+            transform: translateX(-50%) scale(0.95);
+        }
+        .tooltip-help:hover .tooltip-text {
+            transform: translateX(-50%) scale(1);
+        }
+    }
+
+    /* ── Multi-select dropdown ── */
+    .ms-dropdown { position: relative; }
+    .ms-trigger {
+        display: flex; align-items: center; justify-content: space-between;
+        width: 100%; padding: 8px 12px;
+        background: #2a2a2d; border: 1px solid #4a4a4f; border-radius: 8px;
+        color: #fff; font-size: 13px; cursor: pointer; transition: border-color 0.2s; min-height: 38px;
+    }
+    .ms-trigger:hover, .ms-trigger:focus { border-color: #ff2301; }
+    .ms-trigger .ms-count {
+        background: rgba(255, 35, 1, 0.2); color: #ff6b56;
+        font-size: 11px; font-weight: 600; padding: 2px 8px;
+        border-radius: 9999px; margin-left: 8px;
+    }
+    .ms-panel {
+        position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+        background: #2a2a2d; border: 1px solid #4a4a4f; border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4); z-index: 30;
+        max-height: 220px; overflow-y: auto; padding: 4px 0;
+    }
+    .ms-option {
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 12px; cursor: pointer; font-size: 13px; color: #d9d9dd; transition: background 0.15s;
+    }
+    .ms-option:hover { background: rgba(255, 255, 255, 0.05); }
+    .ms-option input[type="checkbox"] {
+        width: 16px; height: 16px; border-radius: 4px;
+        border: 1px solid #4a4a4f; background: #1a1a1c; accent-color: #ff2301; cursor: pointer;
+    }
+
+    /* Flatpickr overrides */
+    .flatpickr-calendar {
+        background: #2a2a2d !important; border-color: #4a4a4f !important;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4) !important;
+    }
+    .flatpickr-day.selected, .flatpickr-day.startRange, .flatpickr-day.endRange {
+        background: #ff2301 !important; border-color: #ff2301 !important;
+    }
+    .flatpickr-day.inRange {
+        background: rgba(255, 35, 1, 0.15) !important;
+        box-shadow: -5px 0 0 rgba(255, 35, 1, 0.15), 5px 0 0 rgba(255, 35, 1, 0.15) !important;
+    }
+    .flatpickr-confirm {
+        background: #ff2301 !important; color: #fff !important;
+        font-weight: 600 !important; border: none !important;
+        border-radius: 0 0 8px 8px !important; padding: 8px !important;
+        cursor: pointer !important; transition: background 0.2s ease !important;
+    }
+    .flatpickr-confirm:hover { background: #e01e00 !important; }
+    .flatpickr-confirm svg { display: none !important; }
+
+    /* Sticky filters */
+    .filters-sticky {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: #1a1a1c;
+    }
+    .filters-panel {
+        transition: max-height 0.2s ease, opacity 0.2s ease;
+    }
+    @media (max-width: 767px) {
+        .filters-panel {
+            max-height: calc(100vh - 140px);
+            overflow-y: auto;
+        }
+    }
+
+    /* Heatmap */
+    .heatmap-table {
+        table-layout: fixed;
+        border-collapse: separate;
+        border-spacing: 2px;
+        width: 100%;
+        min-width: 640px;
+    }
+    .heatmap-table th,
+    .heatmap-table td {
+        padding: 0;
+        width: 24px;
+        height: 24px;
+        min-width: 24px;
+        min-height: 24px;
+    }
+    .heatmap-table th:first-child,
+    .heatmap-table td:first-child {
+        width: 40px;
+        min-width: 40px;
+    }
+    .heatmap-cell {
+        width: 100%;
+        height: 100%;
+        border-radius: 3px;
+        position: relative;
+    }
+    .heatmap-cell[data-count]:hover::after {
+        content: attr(data-count);
+        position: absolute;
+        bottom: calc(100% + 4px);
+        left: 50%;
+        transform: translateX(-50%);
+        background: #2a2a2d;
+        border: 1px solid #4a4a4f;
+        color: #fff;
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        white-space: nowrap;
+        z-index: 10;
+    }
+    .heatmap-label {
+        font-size: 10px;
+        color: #91919a;
+        text-align: right;
+        padding-right: 6px;
+        vertical-align: middle;
+    }
+    .heatmap-hour {
+        font-size: 9px;
+        color: #91919a;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    /* Funnel */
+    .funnel-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 8px;
+    }
+    .funnel-label {
+        width: 100px;
+        font-size: 11px;
+        color: #b8b8be;
+        text-align: right;
+        flex-shrink: 0;
+    }
+    .funnel-bar-wrap {
+        flex: 1;
+        height: 28px;
+        background: #1a1a1c;
+        border-radius: 6px;
+        overflow: hidden;
+        position: relative;
+    }
+    .funnel-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #ff2301, #ff6b56);
+        border-radius: 6px;
+        transition: width 0.6s ease;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding-right: 10px;
+    }
+    .funnel-value {
+        font-size: 12px;
+        font-weight: 600;
+        color: #fff;
+    }
+    .funnel-row {
+        position: relative;
+    }
+    .funnel-row[data-value]:hover::after {
+        content: attr(data-value) " clientes";
+        position: absolute;
+        bottom: calc(100% + 4px);
+        left: 50%;
+        transform: translateX(-50%);
+        background: #2a2a2d;
+        border: 1px solid #4a4a4f;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 500;
+        padding: 4px 8px;
+        border-radius: 6px;
+        white-space: nowrap;
+        z-index: 20;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        pointer-events: none;
+    }
+
+    /* Chart containers */
+    .chart-container {
+        position: relative;
+        height: 260px;
+        width: 100%;
+    }
+    .chart-container.tall {
+        height: 320px;
+    }
+    .chart-container canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100% !important;
+        height: 100% !important;
+    }
+
+    /* KPI cards */
+    .kpi-value {
+        font-family: 'Roboto', sans-serif;
+        font-weight: 700;
+        font-size: 1.75rem;
+        line-height: 1.1;
+    }
+    @media (max-width: 640px) {
+        .kpi-grid .card {
+            padding: 12px;
+        }
+        .kpi-value {
+            font-size: 1.25rem;
+        }
+        .kpi-grid .text-[10px] {
+            font-size: 9px;
+        }
+        .kpi-grid .w-9 {
+            width: 28px;
+            height: 28px;
+        }
+        .kpi-grid .w-9 svg {
+            width: 16px;
+            height: 16px;
+        }
+    }
+
+    [x-cloak] { display: none !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="financeApp()" x-init="init()" class="flex flex-col h-full">
+
+    <!-- ═══════ Filtros Globales Sticky + Colapsables ═══════ -->
+    <div class="filters-sticky pb-3 mb-4 border-b border-neutral-800/50">
+        <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+                <p class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Filtros</p>
+                <div class="tooltip-help">
+                    <svg class="w-3.5 h-3.5 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><circle cx="12" cy="12" r="10" stroke-width="2"/></svg>
+                    <span class="tooltip-text wide">Aplica estos filtros para segmentar todos los KPIs y gráficas del módulo.</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="button" @click="applyFilters()" :disabled="loading"
+                        class="btn-action-primary border border-brand px-3 py-1.5 rounded-lg text-xs text-[#ff2301] font-medium transition-all disabled:opacity-50">
+                    <span x-show="!loading">Actualizar</span>
+                    <span x-show="loading" class="flex items-center gap-1">
+                        <svg class="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        Cargando...
+                    </span>
+                </button>
+                <button type="button"
+                        @click="filtersOpen = !filtersOpen; if (filtersOpen) $nextTick(() => $el.closest('.filters-sticky').scrollIntoView({ behavior: 'smooth', block: 'start' }))"
+                        class="md:hidden flex items-center gap-1 text-xs text-neutral-400 hover:text-white transition-colors border border-neutral-700 px-3 py-1.5 rounded-lg">
+                    <span x-text="filtersOpen ? 'Ocultar' : 'Mostrar'"></span>
+                    <svg class="w-3.5 h-3.5 transition-transform duration-200" :class="filtersOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="filters-panel hidden md:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3"
+             :class="filtersOpen ? '!grid' : ''">
+
+            <!-- Rango de fechas -->
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1 flex items-center gap-1">
+                    Rango de fechas
+                    <div class="tooltip-help">
+                        <svg class="w-3 h-3 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span class="tooltip-text">Periodo sobre el que se calculan los indicadores.</span>
+                    </div>
+                </label>
+                <input type="text" x-ref="dateRange" readonly placeholder="Selecciona fechas..."
+                       class="w-full px-3 py-2 bg-[#2a2a2d] border border-[#4a4a4f] rounded-lg text-white text-sm placeholder-neutral-500 focus:border-[#ff2301] transition-colors cursor-pointer"
+                       style="min-height:38px;">
+            </div>
+
+            <!-- Barbero -->
+            <div class="ms-dropdown" @click.outside="dropdowns.barberos = false">
+                <label class="block text-xs text-neutral-400 mb-1 flex items-center gap-1">
+                    Barbero
+                    <div class="tooltip-help">
+                        <svg class="w-3 h-3 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span class="tooltip-text">Filtra por uno o varios barberos.</span>
+                    </div>
+                </label>
+                <button type="button" class="ms-trigger" @click="dropdowns.barberos = !dropdowns.barberos"
+                        :disabled="is_barber">
+                    <span x-show="!filters.barberos.length" class="truncate">Todos</span>
+                    <span x-show="filters.barberos.length" class="truncate text-neutral-300"
+                          x-text="filters.barberos.length + ' seleccionado' + (filters.barberos.length > 1 ? 's' : '')"></span>
+                    <span x-show="filters.barberos.length" class="ms-count" x-text="filters.barberos.length"></span>
+                    <svg class="w-4 h-4 text-neutral-400 flex-shrink-0 ml-1" :class="dropdowns.barberos ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="transition: transform 0.2s"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div class="ms-panel" x-show="dropdowns.barberos" x-transition>
+                    {% for barber in barbers %}
+                    <label class="ms-option">
+                        <input type="checkbox" :checked="filters.barberos.includes({{ barber.pk }})"
+                               @change="toggleFilter('barberos', {{ barber.pk }})"
+                               :disabled="is_barber && !filters.barberos.includes({{ barber.pk }})">
+                        <span>{{ barber }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Servicios -->
+            <div class="ms-dropdown" @click.outside="dropdowns.servicios = false">
+                <label class="block text-xs text-neutral-400 mb-1 flex items-center gap-1">
+                    Servicios
+                    <div class="tooltip-help">
+                        <svg class="w-3 h-3 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span class="tooltip-text">Filtra por uno o varios servicios prestados.</span>
+                    </div>
+                </label>
+                <button type="button" class="ms-trigger" @click="dropdowns.servicios = !dropdowns.servicios">
+                    <span x-show="!filters.servicios.length" class="truncate">Todos</span>
+                    <span x-show="filters.servicios.length" class="truncate text-neutral-300"
+                          x-text="filters.servicios.length + ' seleccionado' + (filters.servicios.length > 1 ? 's' : '')"></span>
+                    <span x-show="filters.servicios.length" class="ms-count" x-text="filters.servicios.length"></span>
+                    <svg class="w-4 h-4 text-neutral-400 flex-shrink-0 ml-1" :class="dropdowns.servicios ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="transition: transform 0.2s"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div class="ms-panel" x-show="dropdowns.servicios" x-transition>
+                    {% for service in services %}
+                    <label class="ms-option">
+                        <input type="checkbox" :checked="filters.servicios.includes({{ service.pk }})"
+                               @change="toggleFilter('servicios', {{ service.pk }})">
+                        <span>{{ service.name }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Sucursal -->
+            <div class="ms-dropdown" @click.outside="dropdowns.sucursales = false">
+                <label class="block text-xs text-neutral-400 mb-1 flex items-center gap-1">
+                    Sucursal
+                    <div class="tooltip-help">
+                        <svg class="w-3 h-3 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span class="tooltip-text">Selecciona la sucursal que deseas analizar.</span>
+                    </div>
+                </label>
+                <button type="button" class="ms-trigger" @click="dropdowns.sucursales = !dropdowns.sucursales"
+                        :disabled="is_barber">
+                    <span x-show="!filters.sucursales.length" class="truncate">Todas</span>
+                    <span x-show="filters.sucursales.length" class="truncate text-neutral-300"
+                          x-text="filters.sucursales.length + ' seleccionada' + (filters.sucursales.length > 1 ? 's' : '')"></span>
+                    <span x-show="filters.sucursales.length" class="ms-count" x-text="filters.sucursales.length"></span>
+                    <svg class="w-4 h-4 text-neutral-400 flex-shrink-0 ml-1" :class="dropdowns.sucursales ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="transition: transform 0.2s"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div class="ms-panel" x-show="dropdowns.sucursales" x-transition>
+                    {% for suc in barbershops %}
+                    <label class="ms-option">
+                        <input type="checkbox" :checked="filters.sucursales.includes({{ suc.pk }})"
+                               @change="toggleFilter('sucursales', {{ suc.pk }})"
+                               :disabled="is_barber && !filters.sucursales.includes({{ suc.pk }})">
+                        <span>{{ suc.name }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Día de la semana -->
+            <div class="ms-dropdown" @click.outside="dropdowns.dias = false">
+                <label class="block text-xs text-neutral-400 mb-1 flex items-center gap-1">
+                    Día de la semana
+                    <div class="tooltip-help">
+                        <svg class="w-3 h-3 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span class="tooltip-text">Analiza patrones de estacionalidad por día.</span>
+                    </div>
+                </label>
+                <button type="button" class="ms-trigger" @click="dropdowns.dias = !dropdowns.dias">
+                    <span x-show="!filters.dias.length" class="truncate">Todos</span>
+                    <span x-show="filters.dias.length" class="truncate text-neutral-300"
+                          x-text="filters.dias.length + ' seleccionado' + (filters.dias.length > 1 ? 's' : '')"></span>
+                    <span x-show="filters.dias.length" class="ms-count" x-text="filters.dias.length"></span>
+                    <svg class="w-4 h-4 text-neutral-400 flex-shrink-0 ml-1" :class="dropdowns.dias ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="transition: transform 0.2s"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div class="ms-panel" x-show="dropdowns.dias" x-transition>
+                    <template x-for="(label, idx) in diasOptions" :key="idx">
+                        <label class="ms-option">
+                            <input type="checkbox" :checked="filters.dias.includes(idx)"
+                                   @change="toggleFilter('dias', idx)">
+                            <span x-text="label"></span>
+                        </label>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Bloque Horario -->
+            <div>
+                <label class="block text-xs text-neutral-400 mb-1 flex items-center gap-1">
+                    Bloque horario
+                    <div class="tooltip-help">
+                        <svg class="w-3 h-3 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span class="tooltip-text">Filtra por franja horaria para detectar horas pico.</span>
+                    </div>
+                </label>
+                <div class="flex gap-2">
+                    <input type="text" x-ref="timeStart" readonly placeholder="Inicio"
+                           class="w-1/2 px-3 py-2 bg-[#2a2a2d] border border-[#4a4a4f] rounded-lg text-white text-sm placeholder-neutral-500 focus:border-[#ff2301] transition-colors text-center cursor-pointer"
+                           style="min-height:38px;">
+                    <input type="text" x-ref="timeEnd" readonly placeholder="Fin"
+                           class="w-1/2 px-3 py-2 bg-[#2a2a2d] border border-[#4a4a4f] rounded-lg text-white text-sm placeholder-neutral-500 focus:border-[#ff2301] transition-colors text-center cursor-pointer"
+                           style="min-height:38px;">
+                </div>
+            </div>
+        </div>
+
+        <!-- Limpiar filtros -->
+        <div class="mt-3" x-show="filtersOpen">
+            <button type="button" @click="clearFilters()"
+                    class="btn-action-primary text-sm border border-neutral-700 px-4 py-2 rounded-lg transition-all text-white">
+                <span>Limpiar filtros</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ═══════ Contenido Finanzas ═══════ -->
+    <div class="space-y-6 pb-6">
+
+        <!-- KPI Cards -->
+        <div class="kpi-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+            <!-- Ingresos Brutos -->
+            <div class="card border border-neutral-700 rounded-xl p-4">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <p class="text-[10px] text-neutral-400 uppercase tracking-wider font-medium flex items-center gap-1">
+                            Ingresos Brutos
+                            <div class="tooltip-help">
+                                <svg class="w-3 h-3 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                <span class="tooltip-text wide">Suma de ingresos por servicios y productos de intervenciones realizadas.</span>
+                            </div>
+                        </p>
+                        <p class="kpi-value text-white mt-1" x-text="'$' + kpis.ingresos_brutos_fmt">$0</p>
+                    </div>
+                    <div class="w-9 h-9 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0">
+                        <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Volumen -->
+            <div class="card border border-neutral-700 rounded-xl p-4">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <p class="text-[10px] text-neutral-400 uppercase tracking-wider font-medium flex items-center gap-1">
+                            Volumen
+                            <div class="tooltip-help">
+                                <svg class="w-3 h-3 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                <span class="tooltip-text">Total de intervenciones realizadas en el periodo.</span>
+                            </div>
+                        </p>
+                        <p class="kpi-value text-white mt-1" x-text="kpis.volumen_intervenciones">0</p>
+                    </div>
+                    <div class="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                        <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Nuevos Clientes -->
+            <div class="card border border-neutral-700 rounded-xl p-4">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <p class="text-[10px] text-neutral-400 uppercase tracking-wider font-medium flex items-center gap-1">
+                            Nuevos Clientes
+                            <div class="tooltip-help">
+                                <svg class="w-3 h-3 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                <span class="tooltip-text wide">Clientes creados en el rango cuya primera cita fue en la sucursal filtrada.</span>
+                            </div>
+                        </p>
+                        <p class="kpi-value text-white mt-1" x-text="kpis.nuevos_clientes">0</p>
+                    </div>
+                    <div class="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+                        <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ticket Promedio -->
+            <div class="card border border-neutral-700 rounded-xl p-4">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <p class="text-[10px] text-neutral-400 uppercase tracking-wider font-medium flex items-center gap-1">
+                            Ticket Promedio
+                            <div class="tooltip-help">
+                                <svg class="w-3 h-3 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                <span class="tooltip-text">Ingresos totales divididos por volumen de intervenciones.</span>
+                            </div>
+                        </p>
+                        <p class="kpi-value text-white mt-1" x-text="'$' + kpis.ticket_promedio_fmt">$0</p>
+                    </div>
+                    <div class="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+                        <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tasa de Retención -->
+            <div class="card border border-neutral-700 rounded-xl p-4">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <p class="text-[10px] text-neutral-400 uppercase tracking-wider font-medium flex items-center gap-1">
+                            Retención
+                            <div class="tooltip-help">
+                                <svg class="w-3 h-3 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                <span class="tooltip-text wide">Clientes con más de una intervención histórica que asistieron en el periodo.</span>
+                            </div>
+                        </p>
+                        <p class="kpi-value text-white mt-1" x-text="kpis.tasa_retencion + '%'">0%</p>
+                    </div>
+                    <div class="w-9 h-9 rounded-lg bg-pink-500/10 flex items-center justify-center flex-shrink-0">
+                        <svg class="w-5 h-5 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tasa de Ocupación -->
+            <div class="card border border-neutral-700 rounded-xl p-4">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <p class="text-[10px] text-neutral-400 uppercase tracking-wider font-medium flex items-center gap-1">
+                            Ocupación
+                            <div class="tooltip-help">
+                                <svg class="w-3 h-3 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                <span class="tooltip-text wide">Minutos trabajados vs. capacidad total según horarios semanales de los barberos.</span>
+                            </div>
+                        </p>
+                        <p class="kpi-value text-white mt-1" x-text="kpis.tasa_ocupacion + '%'">0%</p>
+                    </div>
+                    <div class="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center flex-shrink-0">
+                        <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráficas -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <!-- Evolución -->
+            <div class="card">
+                <div class="flex items-center gap-2 mb-4">
+                    <h3 class="font-heading font-bold text-white">Evolución de Ingresos y Citas</h3>
+                    <div class="tooltip-help">
+                        <svg class="w-4 h-4 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span class="tooltip-text wide">Comparativa temporal entre dinero entrante y personas atendidas.</span>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="evolucionChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Rendimiento por Barbero -->
+            <div class="card">
+                <div class="flex items-center gap-2 mb-4">
+                    <h3 class="font-heading font-bold text-white">Rendimiento por Barbero</h3>
+                    <div class="tooltip-help">
+                        <svg class="w-4 h-4 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span class="tooltip-text">Ingresos generados por cada barbero en el periodo.</span>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="barberChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Patrones -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <!-- Horas Pico -->
+            <div class="card">
+                <div class="flex items-center gap-2 mb-4">
+                    <h3 class="font-heading font-bold text-white">Horas Pico de la Agenda</h3>
+                    <div class="tooltip-help">
+                        <svg class="w-4 h-4 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span class="tooltip-text wide">Mapa de calor semanal: días y horas con mayor carga de citas.</span>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="heatmap-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <template x-for="h in 24" :key="'h-' + h">
+                                    <th class="heatmap-hour" x-text="(h - 1) + 'h'"></th>
+                                </template>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="(label, dow) in diasOptions" :key="'row-' + dow">
+                                <tr>
+                                    <td class="heatmap-label" x-text="label"></td>
+                                    <template x-for="hour in 24" :key="dow + '-' + hour">
+                                        <td>
+                                            <div class="heatmap-cell"
+                                                 :style="'background-color: ' + heatmapColor(dow, hour - 1)"
+                                                 :data-count="charts.horas_pico.matrix[dow][hour - 1]"></div>
+                                        </td>
+                                    </template>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="flex items-center justify-between mt-3 text-[10px] text-neutral-400">
+                    <span>Bajo</span>
+                    <div class="h-2 w-32 rounded-full" style="background: linear-gradient(90deg, #1a1a1c, #ff2301);"></div>
+                    <span>Alto</span>
+                </div>
+            </div>
+
+            <!-- Embudo de Retención -->
+            <div class="card">
+                <div class="flex items-center gap-2 mb-4">
+                    <h3 class="font-heading font-bold text-white">Embudo de Retención</h3>
+                    <div class="tooltip-help">
+                        <svg class="w-4 h-4 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span class="tooltip-text wide">Distribución de clientes según cantidad de visitas realizadas.</span>
+                    </div>
+                </div>
+                <div class="space-y-2" id="funnelContainer">
+                    <template x-for="(label, idx) in charts.embudo_retencion.labels" :key="idx">
+                        <div class="funnel-row" :data-value="charts.embudo_retencion.values[idx]">
+                            <div class="funnel-label" x-text="label"></div>
+                            <div class="funnel-bar-wrap">
+                                <div class="funnel-bar" :style="'width: ' + funnelWidth(idx) + '%'">
+                                    <span class="funnel-value" x-text="charts.embudo_retencion.values[idx]"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ocupación vs Capacidad -->
+        <div class="card">
+            <div class="flex items-center gap-2 mb-4">
+                <h3 class="font-heading font-bold text-white">Ocupación vs. Capacidad Máxima</h3>
+                <div class="tooltip-help">
+                    <svg class="w-4 h-4 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <span class="tooltip-text wide">Qué tan cerca está el negocio de su límite operativo por mes.</span>
+                </div>
+            </div>
+            <div class="chart-container tall">
+                <canvas id="ocupacionChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function financeApp() {
+    return {
+        loading: false,
+        filtersOpen: true,
+        dropdowns: {
+            barberos: false,
+            servicios: false,
+            sucursales: false,
+            dias: false,
+        },
+        filters: {
+            barberos: [],
+            servicios: [],
+            sucursales: [],
+            dias: [],
+            dateFrom: '{{ default_date_from }}',
+            dateTo: '{{ default_date_to }}',
+            timeStart: '',
+            timeEnd: '',
+        },
+        diasOptions: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
+        kpis: {
+            ingresos_brutos: 0,
+            ingresos_brutos_fmt: '0',
+            volumen_intervenciones: 0,
+            nuevos_clientes: 0,
+            ticket_promedio: 0,
+            ticket_promedio_fmt: '0',
+            tasa_retencion: 0,
+            tasa_ocupacion: 0,
+        },
+        charts: {
+            evolucion: { labels: [], revenue: [], volume: [] },
+            rendimiento_barbero: { labels: [], values: [], counts: [] },
+            horas_pico: { matrix: Array(7).fill(0).map(() => Array(24).fill(0)), max_count: 0 },
+            embudo_retencion: { labels: [], values: [] },
+            ocupacion_tendencia: { labels: [], occupancy: [], capacity: [] },
+        },
+        is_barber: {{ is_barber|yesno:"true,false" }},
+        flatpickrRange: null,
+        flatpickrStart: null,
+        flatpickrEnd: null,
+        chartInstances: {},
+        _renderTimer: null,
+
+        init() {
+            // Locked barber pre-selection
+            {% if is_barber and locked_barber_id %}
+            this.filters.barberos = [{{ locked_barber_id }}];
+            this.filters.sucursales = {{ locked_barbershop_ids|safe }};
+            {% endif %}
+
+            this.$nextTick(() => {
+                try {
+                    this.initFlatpickr();
+                } catch (err) {
+                    console.error('Error inicializando datepickers', err);
+                }
+                this.applyFilters();
+            });
+        },
+
+        initFlatpickr() {
+            const self = this;
+            const makeConfirm = () => confirmDatePlugin({ confirmText: 'Aceptar', showAlways: true });
+
+            this.flatpickrRange = flatpickr(this.$refs.dateRange, {
+                mode: 'range',
+                dateFormat: 'Y-m-d',
+                altInput: true,
+                altFormat: 'd/m/Y',
+                locale: 'es',
+                plugins: [makeConfirm()],
+                defaultDate: [this.filters.dateFrom, this.filters.dateTo],
+                onChange: function(dates) {
+                    if (dates.length === 2) {
+                        self.filters.dateFrom = dates[0].toISOString().slice(0, 10);
+                        self.filters.dateTo = dates[1].toISOString().slice(0, 10);
+                    }
+                }
+            });
+
+            this.flatpickrStart = flatpickr(this.$refs.timeStart, {
+                enableTime: true,
+                noCalendar: true,
+                dateFormat: 'H:i',
+                time_24hr: true,
+                plugins: [makeConfirm()],
+                onChange: function(selected) {
+                    self.filters.timeStart = selected[0] ? selected[0].toTimeString().slice(0, 5) : '';
+                }
+            });
+
+            this.flatpickrEnd = flatpickr(this.$refs.timeEnd, {
+                enableTime: true,
+                noCalendar: true,
+                dateFormat: 'H:i',
+                time_24hr: true,
+                plugins: [makeConfirm()],
+                onChange: function(selected) {
+                    self.filters.timeEnd = selected[0] ? selected[0].toTimeString().slice(0, 5) : '';
+                }
+            });
+        },
+
+        toggleFilter(key, value) {
+            const idx = this.filters[key].indexOf(value);
+            if (idx === -1) {
+                this.filters[key].push(value);
+            } else {
+                this.filters[key].splice(idx, 1);
+            }
+        },
+
+        clearFilters() {
+            this.filters.barberos = this.is_barber ? this.filters.barberos : [];
+            this.filters.servicios = [];
+            this.filters.sucursales = this.is_barber ? this.filters.sucursales : [];
+            this.filters.dias = [];
+            this.filters.timeStart = '';
+            this.filters.timeEnd = '';
+
+            const today = new Date();
+            const sixMonthsAgo = new Date();
+            sixMonthsAgo.setMonth(today.getMonth() - 6);
+            this.filters.dateFrom = sixMonthsAgo.toISOString().slice(0, 10);
+            this.filters.dateTo = today.toISOString().slice(0, 10);
+
+            if (this.flatpickrRange) this.flatpickrRange.setDate([this.filters.dateFrom, this.filters.dateTo]);
+            if (this.flatpickrStart) this.flatpickrStart.clear();
+            if (this.flatpickrEnd) this.flatpickrEnd.clear();
+
+            this.applyFilters();
+        },
+
+        async applyFilters() {
+            this.loading = true;
+            const params = new URLSearchParams();
+            this.filters.barberos.forEach(id => params.append('barber_ids', id));
+            this.filters.servicios.forEach(id => params.append('service_ids', id));
+            this.filters.sucursales.forEach(id => params.append('barbershop_ids', id));
+            this.filters.dias.forEach(d => params.append('days_of_week', d));
+            params.set('date_from', this.filters.dateFrom);
+            params.set('date_to', this.filters.dateTo);
+            if (this.filters.timeStart) params.set('time_start', this.filters.timeStart);
+            if (this.filters.timeEnd) params.set('time_end', this.filters.timeEnd);
+
+            try {
+                const res = await fetch(`{% url 'finance:api_analytics' %}?${params.toString()}`);
+                const data = await res.json();
+                if (data.error) {
+                    console.error(data.error);
+                    return;
+                }
+                this.kpis = data.kpis;
+                this.charts = data.charts;
+                this.$nextTick(() => this.renderCharts());
+            } catch (err) {
+                console.error('Error loading analytics', err);
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        renderCharts() {
+            clearTimeout(this._renderTimer);
+            this._renderTimer = setTimeout(() => {
+                this.$nextTick(() => {
+                    requestAnimationFrame(() => {
+                        this.renderEvolucion();
+                        this.renderBarberChart();
+                        this.renderOcupacionChart();
+                        // Give the layout one extra frame, then resize any chart that may have
+                        // measured a zero-sized container during the first paint.
+                        requestAnimationFrame(() => {
+                            Object.values(this.chartInstances).forEach(chart => {
+                                if (chart && typeof chart.resize === 'function') {
+                                    chart.resize();
+                                }
+                            });
+                        });
+                    });
+                });
+            }, 50);
+        },
+
+        renderEvolucion() {
+            const ctx = document.getElementById('evolucionChart');
+            if (!ctx) return;
+            console.debug('renderEvolucion', this.charts.evolucion);
+            if (this.chartInstances.evolucion) this.chartInstances.evolucion.destroy();
+
+            const step = this.charts.evolucion.labels.length > 31 ? 'month' : (this.charts.evolucion.labels.length > 7 ? 'week' : 'day');
+            const labels = this.charts.evolucion.labels.map(d => {
+                const date = new Date(d + 'T00:00:00');
+                if (step === 'month') {
+                    return date.toLocaleDateString('es', { month: 'short', year: '2-digit' });
+                }
+                if (step === 'week') {
+                    return 'Sem ' + date.toLocaleDateString('es', { day: 'numeric', month: 'short' });
+                }
+                return date.toLocaleDateString('es', { day: 'numeric', month: 'short' });
+            });
+
+            this.chartInstances.evolucion = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Ingresos ($)',
+                            data: this.charts.evolucion.revenue,
+                            borderColor: '#ff2301',
+                            backgroundColor: 'rgba(255, 35, 1, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.3,
+                            yAxisID: 'y',
+                            fill: true,
+                            pointRadius: 3,
+                            pointHoverRadius: 5,
+                        },
+                        {
+                            label: 'Citas',
+                            data: this.charts.evolucion.volume,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.05)',
+                            borderWidth: 2,
+                            tension: 0.3,
+                            yAxisID: 'y1',
+                            fill: false,
+                            pointRadius: 3,
+                            pointHoverRadius: 5,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 0 },
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { labels: { color: '#b8b8be' } },
+                        tooltip: {
+                            backgroundColor: '#2a2a2d',
+                            titleColor: '#fff',
+                            bodyColor: '#d9d9dd',
+                            borderColor: '#4a4a4f',
+                            borderWidth: 1,
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#91919a' },
+                            grid: { color: '#2a2a2d' },
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            beginAtZero: true,
+                            ticks: { color: '#ff6b56', callback: v => '$' + v.toLocaleString() },
+                            grid: { color: '#2a2a2d' },
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            beginAtZero: true,
+                            ticks: { color: '#60a5fa' },
+                            grid: { drawOnChartArea: false },
+                        },
+                    }
+                }
+            });
+        },
+
+        renderBarberChart() {
+            const ctx = document.getElementById('barberChart');
+            if (!ctx) return;
+            console.debug('renderBarberChart', this.charts.rendimiento_barbero);
+            if (this.chartInstances.barber) this.chartInstances.barber.destroy();
+
+            this.chartInstances.barber = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: this.charts.rendimiento_barbero.labels,
+                    datasets: [{
+                        label: 'Ingresos ($)',
+                        data: this.charts.rendimiento_barbero.values,
+                        backgroundColor: '#ff2301',
+                        borderRadius: 6,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 0 },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#2a2a2d',
+                            titleColor: '#fff',
+                            bodyColor: '#d9d9dd',
+                            borderColor: '#4a4a4f',
+                            borderWidth: 1,
+                            callbacks: {
+                                afterLabel: (context) => {
+                                    return 'Citas: ' + (this.charts.rendimiento_barbero.counts[context.dataIndex] || 0);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#91919a' },
+                            grid: { display: false },
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#91919a', callback: v => '$' + v.toLocaleString() },
+                            grid: { color: '#2a2a2d' },
+                        }
+                    }
+                }
+            });
+        },
+
+        renderOcupacionChart() {
+            const ctx = document.getElementById('ocupacionChart');
+            if (!ctx) return;
+            console.debug('renderOcupacionChart', this.charts.ocupacion_tendencia);
+            if (this.chartInstances.ocupacion) this.chartInstances.ocupacion.destroy();
+
+            this.chartInstances.ocupacion = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: this.charts.ocupacion_tendencia.labels,
+                    datasets: [
+                        {
+                            label: 'Ocupación (%)',
+                            data: this.charts.ocupacion_tendencia.occupancy,
+                            borderColor: '#ff2301',
+                            backgroundColor: 'rgba(255, 35, 1, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.3,
+                            fill: true,
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
+                        },
+                        {
+                            label: 'Capacidad (min)',
+                            data: this.charts.ocupacion_tendencia.capacity,
+                            borderColor: '#4a4a4f',
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            tension: 0.3,
+                            fill: false,
+                            pointRadius: 0,
+                            yAxisID: 'y1',
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 0 },
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { labels: { color: '#b8b8be' } },
+                        tooltip: {
+                            backgroundColor: '#2a2a2d',
+                            titleColor: '#fff',
+                            bodyColor: '#d9d9dd',
+                            borderColor: '#4a4a4f',
+                            borderWidth: 1,
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#91919a' },
+                            grid: { color: '#2a2a2d' },
+                        },
+                        y: {
+                            display: true,
+                            position: 'left',
+                            beginAtZero: true,
+                            ticks: { color: '#ff6b56', callback: v => v + '%' },
+                            grid: { color: '#2a2a2d' },
+                            min: 0,
+                            max: 100,
+                        },
+                        y1: {
+                            display: true,
+                            position: 'right',
+                            beginAtZero: true,
+                            ticks: { color: '#91919a' },
+                            grid: { drawOnChartArea: false },
+                        }
+                    }
+                }
+            });
+        },
+
+        heatmapColor(dow, hour) {
+            const count = this.charts.horas_pico.matrix[dow][hour];
+            if (!count) return '#1a1a1c';
+            const max = Math.max(this.charts.horas_pico.max_count, 1);
+            const intensity = count / max;
+            const alpha = Math.max(0.15, intensity);
+            return `rgba(255, 35, 1, ${alpha})`;
+        },
+
+        funnelWidth(idx) {
+            const values = this.charts.embudo_retencion.values;
+            const max = Math.max(...values, 1);
+            const val = values[idx] || 0;
+            return (val / max) * 100;
+        }
+    };
+}
+</script>
+{% endblock %}
