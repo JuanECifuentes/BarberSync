@@ -1181,3 +1181,129 @@ Usa tarjetas de prueba de Stripe (ver §6.4):
 | Landing muestra toggle y precios dinámicos OK | ☐ |
 | Pago de prueba con `4242...` activa la suscripción en local (vía ngrok) | ☐ |
 | Tarea `python manage.py reconcile_subscriptions --async` no encuentra PENDINGs (vacío normal) | ☐ |
+
+## 10. Módulo de Suscripción en Mi Perfil
+
+Esta sección documenta la interfaz responsiva de la sección "Suscripción" accesible desde `/accounts/profile/`, incluyendo la card de suscripción, el modal de historial de pagos con scroll infinito y el flujo de cancelación de recurrencia para Stripe.
+
+### 10.1 Endpoints del Perfil de Suscripción
+
+**`GET /billing/subscription-detail/`** (`apps/billing/views.py::SubscriptionDetailView`)
+- Autenticación: `LoginRequiredMixin`.
+- **Anti-IDOR**: cruza rígidamente la organización del usuario autenticado vía `membership.organization`. Si no pertenece a ninguna organización, retorna **403 Forbidden**.
+- Respuesta JSON (200) si hay suscripción activa (`trialing`, `active`, `past_due`); 404 si no existe:
+  ```json
+  {
+    "id": 1,
+    "plan_name": "Barbero Independiente",
+    "plan_code": "INDEPENDIENTE",
+    "status": "active",
+    "provider": "stripe",
+    "is_stripe": true,
+    "current_period_start": "2026-06-01T00:00:00Z",
+    "current_period_end": "2026-07-01T00:00:00Z",
+    "amount_minor": 1900,
+    "currency": "USD",
+    "interval_count": 1,
+    "canceled_at": null,
+    "can_cancel": true
+  }
+  ```
+- `can_cancel` es `true` exclusivamente cuando `provider == "stripe"` AND `status in (active, trialing)`.
+
+**`GET /billing/invoice-history/?page=N`** (`apps/billing/views.py::InvoiceHistoryView`)
+- Autenticación: `LoginRequiredMixin`.
+- **Anti-IDOR**: el queryset se filtra por `organization=org OR user=request.user`. No usa parámetros externos para identificar al tenant.
+- **Privacidad por diseño**: cada fila devuelta contiene únicamente `id, paid_at, amount_minor, currency, plan_name, status, provider`. No se expone `raw_webhook_data`, `provider_invoice_id` completo, ni datos sensibles de tarjetas o tokens.
+- Paginación: 30 registros por página. `total`, `total_pages`, `has_next` para el scroll infinito.
+
+**`POST /billing/cancel-subscription/`** (`apps/billing/views.py::CancelSubscriptionView`)
+- Autenticación: `LoginRequiredMixin`.
+- **Anti-IDOR**: la suscripción a cancelar se obtiene filtrando por `organization=org + status__in=ACTIVE_STATUSES`.
+- Solo aplicable a suscripciones Stripe. Responde 400 si el proveedor no es `stripe`.
+- Invoca `StripeProvider.cancel_subscription(sub)` que llama a `stripe.Subscription.modify(..., cancel_at_period_end=True)`.
+- Aplica **Borrado Lógico** local: `sub.status = "canceled"`, `sub.canceled_at = now()`. No borra el registro.
+- Invalida la caché de suscripción (`invalidate_subscription(sub)`) para que se refleje en el middleware.
+
+### 10.2 Card de Suscripción (UI)
+
+Ubicada en `templates/accounts/profile.html` entre el formulario de perfil y el grid de Google/Roles. Solo se renderiza si `active_subscription` está presente en el contexto de la vista (`ProfileView.get_context_data`).
+
+**Elementos:**
+- Badge de estado (`Activa` / `Prueba` / `Pago pendiente`) con colores semánticos (verde, azul, amarillo).
+- Nombre del plan adquirido (`active_subscription.plan.name`) y proveedor (`stripe` / `wompi` formato title).
+- Dos tarjetas de periodo: **Inicio del ciclo actual** y **Vencimiento** (ambas desde `current_period_start` / `current_period_end`).
+- Botón **Historial de Pagos** (siempre visible si hay suscripción activa).
+- Botón **Cancelar renovación** (solo visible si `provider == "stripe"` AND `status in (active, trialing)`).
+
+**Contexto inyectado por `ProfileView`** (`apps/accounts/views.py`):
+```python
+from apps.billing.models import Subscription
+from apps.billing.cache_utils import get_org_subscription_status
+
+active_sub = Subscription.objects.filter(
+    organization=org, status__in=Subscription.ACTIVE_STATUSES,
+).select_related("plan", "plan_price").order_by("-created_at").first()
+context["active_subscription"] = active_sub
+context["has_active_subscription"] = get_org_subscription_status(org) if org else False
+```
+
+### 10.3 Modal de Historial de Pagos — Scroll Infinito
+
+**Estructura (HTML + CSS):**
+- Modal flotante con backdrop oscuro (`bg-black/60 backdrop-blur-sm`).
+- Panel `bg-neutral-900`, `max-h-[80vh]`, área de scroll interno `overflow-y-auto`.
+- Diseño mobile-first: `rounded-t-2xl` en móviles, `sm:rounded-2xl` en desktop.
+
+**Comportamiento JS (Vanilla):**
+```javascript
+// Al hacer scroll cerca del final (40px del fondo):
+invoiceScroll.addEventListener('scroll', function() {
+    if (scrollTop + clientHeight >= scrollHeight - 40) {
+        loadInvoicePage();  // Fetch GET /billing/invoice-history/?page=N
+    }
+});
+```
+- Estado global: `invoicePage`, `invoiceHasNext`, `invoiceLoadingFlag` (previene cargas concurrentes).
+- Al abrir: resetea lista y carga la primera página.
+- Al cerrar: oculta modal y limpia scroll.
+- Cada fila renderizada con `document.createElement('div')` — no innerHTML concat (previene XSS con `escapeHtml()` para valores dinámicos).
+- Formateo de moneda: USD con 2 decimales, COP con locale `es-CO`.
+
+**Estados visuales:**
+| Estado | Elemento visible |
+|---|---|
+| Cargando | Spinner animado (`animate-spin`) + "Cargando..." |
+| Vacío (página 1 sin resultados) | Icono documento + "Sin facturas registradas." |
+| Fin del listado | "— Fin del historial —" |
+| Error de red | Toast "Error al cargar el historial." |
+
+### 10.4 Modal de Confirmación de Cancelación
+
+**UX anti-errores:** al pulsar "Cancelar renovación" no se ejecuta la acción inmediatamente. Se abre un modal intermedio que:
+
+1. **Informa la fecha exacta de acceso residual** (extraída de `current_period_end` renderizada en la card).
+2. **Recalca que conservará acceso hasta esa fecha** (texto: "Conservarás acceso hasta el final del período pagado. No se realizarán más cobros automáticos.").
+3. **Requiere confirmación explícita** con dos botones: "Volver" (dismiss) y "Sí, cancelar renovación" (rojo).
+
+Al confirmar:
+- `fetch POST /billing/cancel-subscription/` con token CSRF y `Content-Type: application/json`.
+- Si éxito: toast verde + recarga de la página en 2 segundos (para reflejar `status="canceled"`).
+- Si error: toast rojo con el mensaje del backend, botón se rehabilita.
+- Tecla Escape cierra cualquiera de los dos modales.
+
+### 10.5 Endpoints Afectados / Resumen del Módulo
+
+| Endpoint | Método | Auth | Rol |
+|---|---|---|---|
+| `/accounts/profile/` | GET | `LoginRequiredMixin` | Renderiza card de suscripción (contexto inyectado) |
+| `/billing/subscription-detail/` | GET | `LoginRequiredMixin` | JSON detalle suscripción activa |
+| `/billing/invoice-history/` | GET | `LoginRequiredMixin` | Historial paginado 30×30 (scroll infinito) |
+| `/billing/cancel-subscription/` | POST | `LoginRequiredMixin` | Cancela recurrencia Stripe + borrado lógico |
+
+**Archivos modificados / nuevos:**
+- `apps/billing/views.py` — clases `SubscriptionDetailView`, `InvoiceHistoryView`, `CancelSubscriptionView`.
+- `apps/billing/urls.py` — rutas `subscription-detail/`, `invoice-history/`, `cancel-subscription/`.
+- `apps/accounts/views.py` — `ProfileView.get_context_data` inyecta `active_subscription` + `has_active_subscription`.
+- `templates/accounts/profile.html` — card de suscripción + modales de historial/cancelación + JS vanilla (scroll infinito + cancelación).
+- `DOCUMENTACION_TECNICA.md` — sección 10 completa.

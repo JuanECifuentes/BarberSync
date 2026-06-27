@@ -186,6 +186,15 @@ class Subscription(models.Model):
             start = timezone.now()
         return start + relativedelta(months=self.plan_price.months_in_cycle)
 
+    @property
+    def dynamic_current_period_end(self):
+        """Calcula dinámicamente la fecha de vencimiento a partir del inicio de ciclo y precio."""
+        if self.current_period_end:
+            return self.current_period_end
+        if self.current_period_start:
+            return self.compute_period_end(self.current_period_start)
+        return None
+
     def is_active(self) -> bool:
         return self.status in Subscription.ACTIVE_STATUSES
 

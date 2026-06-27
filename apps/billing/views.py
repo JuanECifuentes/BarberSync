@@ -1,11 +1,13 @@
 import json
 import logging
+import math
 from datetime import datetime
 
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
+from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect
 from django.utils import timezone
@@ -485,6 +487,7 @@ class StripeWebhookView(View):
             sub.plan = plan
             sub.plan_price = plan_price
             sub.provider = provider_name
+            sub.provider_subscription_id = subscription_id or sub.provider_subscription_id
             sub.provider_customer_id = customer_id or sub.provider_customer_id
             sub.status = Subscription.Status.ACTIVE
             sub.current_period_start = current_period_start
@@ -494,6 +497,7 @@ class StripeWebhookView(View):
                     "plan",
                     "plan_price",
                     "provider",
+                    "provider_subscription_id",
                     "provider_customer_id",
                     "status",
                     "current_period_start",
@@ -585,6 +589,226 @@ class StripeWebhookView(View):
             invalidate_subscription(sub)
         except Subscription.DoesNotExist:
             logger.warning("Subscription %s not found for update", subscription_id)
+
+
+# ═════════════════════════════════════════════════════════════════════════
+# Endpoints para Mi Perfil — Suscripción, Historial de Pagos y Cancelación
+# ═════════════════════════════════════════════════════════════════════════
+
+
+class SubscriptionDetailView(LoginRequiredMixin, View):
+    """
+    GET /billing/subscription-detail/
+    Devuelve los datos de la suscripción activa del tenant autenticado
+    para la sección "Suscripción" en Mi Perfil.
+
+    Respuesta:
+    {
+        "plan_name": "Barbero Independiente",
+        "status": "active",
+        "provider": "stripe",
+        "is_stripe": true,
+        "current_period_start": "2026-06-01T00:00:00Z",
+        "current_period_end": "2026-07-01T00:00:00Z",
+        "amount_minor": 1900,
+        "currency": "USD",
+        "cancel_at_period_end": false,
+        "can_cancel": true
+    }
+    Si no hay suscripción activa → 404.
+    """
+
+    def get(self, request):
+        org = self._require_organization(request)
+        sub = (
+            Subscription.objects.filter(
+                organization=org, status__in=Subscription.ACTIVE_STATUSES
+            )
+            .select_related("plan", "plan_price")
+            .order_by("-created_at")
+            .first()
+        )
+        if sub is None:
+            return JsonResponse({"error": "Sin suscripción activa."}, status=404)
+        return JsonResponse(
+            {
+                "id": sub.pk,
+                "plan_name": sub.plan.name,
+                "plan_code": sub.plan.code,
+                "status": sub.status,
+                "provider": sub.provider,
+                "is_stripe": sub.provider == "stripe",
+                "current_period_start": (
+                    sub.current_period_start.isoformat()
+                    if sub.current_period_start
+                    else None
+                ),
+                "current_period_end": (
+                    sub.current_period_end.isoformat()
+                    if sub.current_period_end
+                    else None
+                ),
+                "amount_minor": sub.plan_price.amount_minor,
+                "currency": sub.plan_price.currency,
+                "interval_count": sub.plan_price.interval_count,
+                "canceled_at": (
+                    sub.canceled_at.isoformat() if sub.canceled_at else None
+                ),
+                "can_cancel": sub.provider == "stripe"
+                and sub.status
+                in (
+                    Subscription.Status.ACTIVE,
+                    Subscription.Status.TRIALING,
+                )
+                and not sub.canceled_at,
+            }
+        )
+
+    @staticmethod
+    def _require_organization(request):
+        membership = request.user.memberships.filter(is_active=True).first()
+        if not membership or not membership.organization:
+            return JsonResponse({"error": "Sin organización."}, status=403)
+        return membership.organization
+
+
+class InvoiceHistoryView(LoginRequiredMixin, View):
+    """
+    GET /billing/invoice-history/?page=1
+    Historial de facturas paginado de 30 en 30, estrictamente filtrado
+    por la organización del usuario (anti-IDOR). No expone datos sensibles
+    de tarjetas, tokens de pasarela ni raw_webhook_data.
+    """
+
+    PAGE_SIZE = 30
+
+    def get(self, request):
+        org = self._require_organization(request)
+        try:
+            page = max(1, int(request.GET.get("page", 1)))
+        except (ValueError, TypeError):
+            page = 1
+
+        qs = (
+            Invoice.objects.filter(Q(organization=org) | Q(user=request.user))
+            .select_related("subscription__plan")
+            .order_by("-paid_at", "-created_at")
+        )
+        total = qs.count()
+        total_pages = max(1, math.ceil(total / self.PAGE_SIZE))
+        page = min(page, total_pages)
+        offset = (page - 1) * self.PAGE_SIZE
+
+        invoices = qs[offset : offset + self.PAGE_SIZE]
+        rows = []
+        for inv in invoices:
+            rows.append(
+                {
+                    "id": inv.pk,
+                    "paid_at": (
+                        inv.paid_at.isoformat()
+                        if inv.paid_at
+                        else inv.created_at.isoformat()
+                    ),
+                    "amount_minor": inv.amount_paid_minor,
+                    "currency": inv.currency,
+                    "plan_name": (
+                        inv.subscription.plan.name if inv.subscription else "—"
+                    ),
+                    "status": inv.status,
+                    "provider": inv.provider,
+                }
+            )
+
+        return JsonResponse(
+            {
+                "page": page,
+                "total_pages": total_pages,
+                "total": total,
+                "has_next": page < total_pages,
+                "invoices": rows,
+            }
+        )
+
+    @staticmethod
+    def _require_organization(request):
+        membership = request.user.memberships.filter(is_active=True).first()
+        if not membership or not membership.organization:
+            return JsonResponse({"error": "Sin organización asociada."}, status=403)
+        return membership.organization
+
+
+class CancelSubscriptionView(LoginRequiredMixin, View):
+    """
+    POST /billing/cancel-subscription/
+    Cancela la recurrencia de una suscripción activa de Stripe con
+    cancel_at_period_end=True. El usuario conserva acceso hasta
+    current_period_end.
+
+    Bloquea si:
+    - No hay suscripción activa.
+    - La suscripción no pertenece a la organización del usuario (IDOR).
+    - El proveedor no es Stripe (Wompi = pago único, no cancelar).
+    """
+
+    def post(self, request):
+        org = self._require_organization(request)
+        sub = (
+            Subscription.objects.filter(
+                organization=org, status__in=Subscription.ACTIVE_STATUSES
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        if sub is None:
+            return JsonResponse(
+                {"error": "No tienes una suscripción activa."}, status=404
+            )
+        if sub.provider != "stripe":
+            return JsonResponse(
+                {"error": "Solo las suscripciones Stripe permiten cancelación."},
+                status=400,
+            )
+        provider = BillingProviderFactory.get_provider("stripe")
+        try:
+            cancelled = provider.cancel_subscription(sub)
+        except Exception:
+            logger.exception("Error cancelando Subscription#%s en Stripe", sub.pk)
+            return JsonResponse(
+                {"error": "No se pudo contactar a Stripe. Intenta de nuevo."},
+                status=502,
+            )
+        if not cancelled:
+            return JsonResponse(
+                {"error": "No se pudo cancelar la suscripción en Stripe."},
+                status=502,
+            )
+        sub.canceled_at = timezone.now()
+        sub.save(update_fields=["canceled_at", "updated_at"])
+        invalidate_subscription(sub)
+        logger.info(
+            "Subscription#%s cancelada por user=%s, conserva acceso hasta %s",
+            sub.pk,
+            request.user.pk,
+            sub.current_period_end,
+        )
+        return JsonResponse(
+            {
+                "message": "La renovación automática ha sido cancelada.",
+                "access_until": (
+                    sub.current_period_end.isoformat()
+                    if sub.current_period_end
+                    else None
+                ),
+            }
+        )
+
+    @staticmethod
+    def _require_organization(request):
+        membership = request.user.memberships.filter(is_active=True).first()
+        if not membership or not membership.organization:
+            return JsonResponse({"error": "Sin organización asociada."}, status=403)
+        return membership.organization
 
     def _handle_subscription_deleted(self, payload):
         data = payload.get("data", {}).get("object", {})

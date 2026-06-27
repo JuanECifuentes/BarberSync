@@ -563,6 +563,26 @@ class ProfileView(LoginRequiredMixin, UpdateView):
         context["user_barbershops"] = user_barbershops
         context["has_all_barbershops"] = has_all_barbershops
 
+        # —— Sección Suscripción ————————————————————————————
+        from apps.billing.models import Subscription
+        from apps.billing.cache_utils import get_org_subscription_status
+
+        active_sub = (
+            Subscription.objects.filter(
+                organization=org,
+                status__in=Subscription.ACTIVE_STATUSES,
+            )
+            .select_related("plan", "plan_price")
+            .order_by("-created_at")
+            .first()
+            if org
+            else None
+        )
+        context["active_subscription"] = active_sub
+        context["has_active_subscription"] = (
+            get_org_subscription_status(org) if org else False
+        )
+
         return context
 
     def form_valid(self, form):
@@ -1183,7 +1203,6 @@ class ResendOTPView(View):
             ip_address=ip_address,
             purpose=purpose,
         )
-        
 
         if otp_obj is None:
             if otp_code_or_error == "rate_limit_hourly":
@@ -1846,8 +1865,6 @@ class VerifyPhoneProfileView(LoginRequiredMixin, View):
             purpose="register",
         )
 
-        
-
         if otp_obj is None:
             if otp_code_or_error == "rate_limit_hourly":
                 return JsonResponse(
@@ -2068,7 +2085,11 @@ class PasswordResetRequestView(View):
 
         has_password = user.has_usable_password()
         action_type = "reset" if has_password else "establish"
-        subject = "Restablece tu contraseña – BarberSync" if has_password else "Establece tu contraseña – BarberSync"
+        subject = (
+            "Restablece tu contraseña – BarberSync"
+            if has_password
+            else "Establece tu contraseña – BarberSync"
+        )
 
         from django.core.signing import TimestampSigner
 
@@ -2257,7 +2278,12 @@ class PasswordResetConfirmView(View):
             return render(
                 request,
                 "accounts/password_reset_confirm.html",
-                {"token": token, "token_invalid": False, "errors": errors, "action_type": action_type},
+                {
+                    "token": token,
+                    "token_invalid": False,
+                    "errors": errors,
+                    "action_type": action_type,
+                },
             )
 
         user.set_password(new_password)
