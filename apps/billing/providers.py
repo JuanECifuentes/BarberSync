@@ -38,6 +38,15 @@ class BaseBillingProvider(ABC):
     def get_event_id(self, payload: dict) -> str:
         raise NotImplementedError
 
+    # Métodos de reconciliación (consultas directas a las APIs externas):
+    def fetch_customer_active_subscription(self, customer_id: str) -> dict:
+        """Polling: obtiene la última suscripción activa del customer en la pasarela."""
+        raise NotImplementedError
+
+    def fetch_transaction_by_reference(self, reference: str) -> dict:
+        """Polling: obtiene el estado de la transacción externa por referencia."""
+        raise NotImplementedError
+
 
 class StripeProvider(BaseBillingProvider):
     def __init__(self):
@@ -70,6 +79,17 @@ class StripeProvider(BaseBillingProvider):
         organization = membership.organization if membership else None
         customer_id = self._ensure_customer(user, organization)
 
+        subscription_data = {
+            "metadata": {
+                "plan_code": plan_price.plan.code,
+                "organization_id": organization.pk if organization else "",
+                "user_id": user.pk,
+                "provider": "stripe",
+                "interval": plan_price.interval,
+                "interval_count": str(plan_price.interval_count),
+            }
+        }
+
         session = self.stripe.checkout.Session.create(
             mode="subscription",
             customer=customer_id,
@@ -81,7 +101,9 @@ class StripeProvider(BaseBillingProvider):
                 "organization_id": organization.pk if organization else "",
                 "user_id": user.pk,
                 "provider": "stripe",
+                "interval_count": str(plan_price.interval_count),
             },
+            subscription_data=subscription_data,  # type: ignore[arg-type]
         )
         return {"session_id": session.id, "checkout_url": session.url}
 
@@ -114,6 +136,32 @@ class StripeProvider(BaseBillingProvider):
             "subscription": session.subscription,
             "metadata": session.metadata,
         }
+
+    def fetch_customer_active_subscription(self, customer_id: str) -> dict:
+        if not customer_id:
+            return {}
+        try:
+            subs = self.stripe.Subscription.list(
+                customer=customer_id, status="active", limit=5
+            )
+            data = getattr(subs, "data", None) or (
+                subs.get("data", []) if isinstance(subs, dict) else []
+            )
+            for sub in data:
+                return {
+                    "subscription_id": getattr(sub, "id", None),
+                    "status": getattr(sub, "status", None),
+                    "current_period_start": getattr(sub, "current_period_start", None),
+                    "current_period_end": getattr(sub, "current_period_end", None),
+                    "customer": customer_id,
+                    "metadata": getattr(sub, "metadata", {}) or {},
+                }
+            return {}
+        except Exception:
+            return {}
+
+    def fetch_transaction_by_reference(self, reference: str) -> dict:
+        return {}  # Stripe trabaja con subscription_id, no con referencia de transacción.
 
     def get_event_type(self, payload: dict) -> str:
         return payload.get("type", "")
@@ -229,6 +277,7 @@ class WompiProvider(BaseBillingProvider):
                 "user_id": user.pk,
                 "provider": "wompi",
                 "wompi_reference": reference,
+                "interval_count": str(plan_price.interval_count),
             },
         }
 
@@ -288,6 +337,35 @@ class WompiProvider(BaseBillingProvider):
                 "reference": data.get("reference"),
                 "amount_in_cents": data.get("amount_in_cents"),
                 "currency": data.get("currency"),
+                "metadata": data.get("metadata", {}),
+            }
+        except requests.RequestException:
+            return {}
+
+    def fetch_customer_active_subscription(self, customer_id: str) -> dict:
+        return {}  # Wompi no maneja suscripciones recurrentes; usar fetch_transaction_by_reference.
+
+    def fetch_transaction_by_reference(self, reference: str) -> dict:
+        try:
+            response = requests.get(
+                f"{self.api_url}/transactions",
+                params={"reference": reference},
+                headers=self._headers,
+                timeout=10,
+            )
+            response.raise_for_status()
+            data = response.json().get("data", {})
+            # Wompi responde con un solo dict (transaction) cuando reference == bs_..._...
+            if isinstance(data, list) and data:
+                data = data[0]
+            if not isinstance(data, dict):
+                return {}
+            return {
+                "transaction_id": str(data.get("id", "")),
+                "status": data.get("status", ""),
+                "reference": data.get("reference", ""),
+                "amount_in_cents": data.get("amount_in_cents"),
+                "currency": data.get("currency", ""),
                 "metadata": data.get("metadata", {}),
             }
         except requests.RequestException:

@@ -1,18 +1,32 @@
 import json
 import logging
+from datetime import datetime
 
+from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect
 from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 from django.utils.decorators import method_decorator
 
-from .models import Plan, PlanPrice, ProcessedWebhookEvent, Subscription, Invoice
+from .cache_utils import (
+    get_org_subscription_status,
+    get_user_subscription_status,
+    invalidate_subscription,
+)
+from .models import (
+    Invoice,
+    Plan,
+    PlanPrice,
+    ProcessedWebhookEvent,
+    Subscription,
+)
 from .providers import BillingProviderFactory
 
 logger = logging.getLogger(__name__)
@@ -24,6 +38,7 @@ ALLOWED_PROVIDERS = ["stripe", "wompi"]
 
 def _resolve_provider_and_price(request, plan_code):
     chosen_provider = request.POST.get("chosen_provider", "").strip().lower()
+    chosen_interval = request.POST.get("interval_count", "").strip()
     user = request.user
 
     membership = user.memberships.filter(is_active=True).first()
@@ -33,7 +48,6 @@ def _resolve_provider_and_price(request, plan_code):
     country_config = settings.BILLING_COUNTRY_PROVIDER_MAP.get(country_code.upper(), {})
     default_provider = country_config.get("default", settings.BILLING_DEFAULT_PROVIDER)
     allowed = country_config.get("allowed", [settings.BILLING_DEFAULT_PROVIDER])
-
 
     if chosen_provider and chosen_provider in allowed:
         provider_name = chosen_provider
@@ -48,35 +62,63 @@ def _resolve_provider_and_price(request, plan_code):
     )
 
     plan = Plan.objects.get(code=plan_code, is_active=True)
-    plan_price = (
-        PlanPrice.objects.filter(
-            plan=plan, is_current=True, provider=provider_name, currency=currency
-        )
-        .order_by("-valid_from")
-        .first()
-    )
+
+    interval_count = None
+    if chosen_interval:
+        try:
+            interval_count = int(chosen_interval)
+        except ValueError:
+            interval_count = None
+
+    plan_price = PlanPrice.objects.filter(
+        plan=plan,
+        is_current=True,
+        provider=provider_name,
+        currency=currency,
+    ).order_by("-valid_from", "-interval_count")
+    if interval_count:
+        plan_price = plan_price.filter(interval_count=interval_count)
+
+    plan_price = plan_price.first()
 
     if not plan_price:
-        plan_price = (
-            PlanPrice.objects.filter(plan=plan, is_current=True, provider=provider_name)
-            .order_by("-valid_from")
-            .first()
-        )
+        # Fallback to the provider's price for the requested interval, regardless of currency
+        fallback_qs = PlanPrice.objects.filter(
+            plan=plan, is_current=True, provider=provider_name
+        ).order_by("-valid_from", "-interval_count")
+        if interval_count:
+            plan_price = fallback_qs.filter(interval_count=interval_count).first()
+        if not plan_price:
+            plan_price = fallback_qs.first()
 
     if not plan_price:
-        plan_price = (
-            PlanPrice.objects.filter(plan=plan, is_current=True)
-            .order_by("-valid_from")
-            .first()
+        # Final fallback, ignoring currency and provider but keeping interval_count if possible
+        fallback_qs = PlanPrice.objects.filter(plan=plan, is_current=True).order_by(
+            "-valid_from", "-interval_count"
         )
+        if interval_count:
+            plan_price = fallback_qs.filter(interval_count=interval_count).first()
+        if not plan_price:
+            plan_price = fallback_qs.first()
 
     return provider_name, plan_price, organization
+
+
+def _has_active_subscription(user, organization=None) -> bool:
+    """Verifica con caché si el usuario u organización ya tiene suscripción activa."""
+    if get_user_subscription_status(user):
+        return True
+    if organization is not None and get_org_subscription_status(organization):
+        return True
+    return False
 
 
 class CheckoutView(LoginRequiredMixin, View):
     def post(self, request):
         plan_code = request.POST.get("plan_code")
         if not plan_code:
+            if self._is_ajax(request):
+                return JsonResponse({"error": "Falta plan_code."}, status=400)
             return redirect("root")
 
         try:
@@ -84,33 +126,112 @@ class CheckoutView(LoginRequiredMixin, View):
                 request, plan_code
             )
         except Plan.DoesNotExist:
+            if self._is_ajax(request):
+                return JsonResponse({"error": "Plan inexistente."}, status=400)
             return redirect("root")
 
         if not plan_price:
             logger.error("No PlanPrice found for plan_code=%s", plan_code)
+            if self._is_ajax(request):
+                return JsonResponse({"error": "Precio no disponible."}, status=400)
             return redirect("root")
 
-        provider = BillingProviderFactory.get_provider(provider_name)
-        base_url = getattr(settings, "BILLING_BASE_URL", "").rstrip("/")
-        if base_url:
-            success_url = f"{base_url}/billing/success/"
-            cancel_url = f"{base_url}/billing/cancel/"
-        else:
-            success_url = request.build_absolute_uri("/billing/success/")
-            cancel_url = request.build_absolute_uri("/billing/cancel/")
-
-        try:
-            session_data = provider.create_checkout_session(
-                user=request.user,
-                plan_price=plan_price,
-                success_url=success_url,
-                cancel_url=cancel_url,
+        # ── VALIDACIÓN DE EXCLUSIÓN MUTUA (anti-cobro doble) ──────────────
+        # Se consulta con caché (Redis prod / LocMem dev) el estado de la
+        # suscripción activa del usuario y de la organización. Si ya existe
+        # una membresía vigente, el flujo de checkout se bloquea antes de
+        # contactar a la pasarela externa.
+        if _has_active_subscription(request.user, organization):
+            logger.info(
+                "Checkout bloqueado: usuario %s ya posee suscripción activa (plan=%s).",
+                request.user.pk,
+                plan_code,
             )
-        except Exception:
-            logger.exception("Error creating checkout session for plan %s", plan_code)
-            return redirect("root")
+            if self._is_ajax(request):
+                return JsonResponse(
+                    {
+                        "error": "Ya tienes una suscripción activa.",
+                        "code": "ACTIVE_SUBSCRIPTION_EXISTS",
+                    },
+                    status=400,
+                )
+            return redirect("/?already_subscribed=true#planes")
+
+        # Bloqueo transaccional adicional a nivel de BD con seleccionar y
+        # bloquear fila (SELECT FOR UPDATE) dentro de transacción atómica:
+        with transaction.atomic():
+            existing = (
+                Subscription.objects.filter(organization=organization)
+                .exclude(status__in=["canceled", "expired", "pending"])
+                .first()
+            )
+            if existing:
+                return self._block(request)
+
+            provider = BillingProviderFactory.get_provider(provider_name)
+            base_url = getattr(settings, "BILLING_BASE_URL", "").rstrip("/")
+            if base_url:
+                success_url = f"{base_url}/billing/success/"
+                cancel_url = f"{base_url}/billing/cancel/"
+            else:
+                success_url = request.build_absolute_uri("/billing/success/")
+                cancel_url = request.build_absolute_uri("/billing/cancel/")
+
+            try:
+                session_data = provider.create_checkout_session(
+                    user=request.user,
+                    plan_price=plan_price,
+                    success_url=success_url,
+                    cancel_url=cancel_url,
+                )
+            except Exception:
+                logger.exception(
+                    "Error creating checkout session for plan %s", plan_code
+                )
+                if self._is_ajax(request):
+                    return JsonResponse(
+                        {"error": "No se pudo iniciar el checkout."}, status=502
+                    )
+                return redirect("root")
+
+            # Crea registro PENDING: referencia para la reconciliación
+            # async si el webhook de la pasarela nunca llega.
+            reference = session_data.get("reference") or session_data.get(
+                "session_id", ""
+            )
+            pending = Subscription.objects.create(
+                organization=organization,
+                user=request.user,
+                plan=plan_price.plan,
+                plan_price=plan_price,
+                provider=provider_name,
+                provider_subscription_id=reference,
+                provider_customer_id="",
+                status=Subscription.Status.PENDING,
+            )
+            # Invalida caché para reflejar el cambio de estado inmediatamente.
+            invalidate_subscription(pending)
 
         return redirect(session_data["checkout_url"])
+
+    @staticmethod
+    def _is_ajax(request) -> bool:
+        accept = request.META.get("HTTP_ACCEPT", "")
+        return (
+            "application/json" in accept
+            or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        )
+
+    def _block(self, request):
+        if self._is_ajax(request):
+            return JsonResponse(
+                {
+                    "error": "Ya tienes una suscripción activa.",
+                    "code": "ACTIVE_SUBSCRIPTION_EXISTS",
+                },
+                status=400,
+            )
+        return redirect("/?already_subscribed=true#planes")
 
 
 class BillingSuccessView(LoginRequiredMixin, TemplateView):
@@ -134,6 +255,66 @@ class BillingCancelView(LoginRequiredMixin, TemplateView):
             "El proceso de pago fue cancelado. Puedes intentarlo de nuevo cuando quieras."
         )
         return ctx
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class SubscriptionStatusCheckView(LoginRequiredMixin, View):
+    """
+    GET /billing/subscription-status/
+    Endpoint AJAX consumido por la landing para deshabilitar los botones
+    de compra cuando el usuario ya posee una suscripción activa y evitar
+    intentos duplicados de checkout.
+
+    Respuesta:
+        {
+            "has_active_subscription": bool,
+            "organization_id": int|null
+        }
+    """
+
+    def get(self, request):
+        membership = request.user.memberships.filter(is_active=True).first()
+        organization = membership.organization if membership else None
+        active = _has_active_subscription(request.user, organization)
+        return JsonResponse(
+            {
+                "has_active_subscription": active,
+                "organization_id": organization.pk if organization else None,
+            }
+        )
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class PlanPricingView(View):
+    """
+    GET /billing/plans/
+    Publica la matriz de precios vigentes por plan + proveedor + intervalo
+    (1, 3 y 12 meses) para que la landing page la renderice dinámicamente
+    respetando el principio de Zero Trust Frontend (los montos nunca
+    viajan en formularios POST, solo al cargarse desde BD).
+    """
+
+    def get(self, request):
+        prices = (
+            PlanPrice.objects.filter(is_current=True, plan__is_active=True)
+            .select_related("plan")
+            .order_by("plan__id", "provider", "-interval_count")
+        )
+        result = []
+        for pp in prices:
+            result.append(
+                {
+                    "plan_code": pp.plan.code,
+                    "plan_name": pp.plan.name,
+                    "provider": pp.provider,
+                    "currency": pp.currency,
+                    "interval": pp.interval,
+                    "interval_count": pp.interval_count,
+                    "amount_minor": pp.amount_minor,
+                    "months_in_cycle": pp.months_in_cycle,
+                }
+            )
+        return JsonResponse({"plans": result})
 
 
 @method_decorator(csrf_exempt, name="dispatch")
@@ -195,6 +376,9 @@ class StripeWebhookView(View):
         user_id = metadata.get("user_id")
         customer_id = data.get("customer")
         subscription_id = data.get("subscription")
+        # Stripe envía current_period_start/end unix timestamps (segundos).
+        period_start_ts = data.get("current_period_start")
+        period_end_ts = data.get("current_period_end")
 
         if not plan_code:
             logger.warning("Webhook missing %s: %s", plan_key, payload.get("id"))
@@ -222,11 +406,44 @@ class StripeWebhookView(View):
             logger.error("Plan %s not found", plan_code)
             return
 
-        plan_price = (
-            PlanPrice.objects.filter(plan=plan, is_current=True, provider=provider_name)
-            .order_by("-valid_from")
-            .first()
-        )
+        session_id = data.get("id")
+
+        # Reutiliza el registro PENDING creado en CheckoutView si existe,
+        # para preservar el rastro de auditoría del checkout original.
+        sub = None
+        if subscription_id or session_id:
+            sub = (
+                Subscription.objects.filter(
+                    provider_subscription_id=subscription_id,
+                    status=Subscription.Status.PENDING,
+                ).first()
+                or Subscription.objects.filter(
+                    provider_subscription_id=session_id,
+                    status=Subscription.Status.PENDING,
+                ).first()
+            )
+
+        if sub is not None:
+            plan_price = sub.plan_price
+        else:
+            interval_count = None
+            interval_count_str = metadata.get("interval_count")
+            if interval_count_str:
+                try:
+                    interval_count = int(interval_count_str)
+                except ValueError:
+                    pass
+
+            plan_price_qs = PlanPrice.objects.filter(
+                plan=plan, is_current=True, provider=provider_name
+            ).order_by("-valid_from", "-interval_count")
+            if interval_count:
+                plan_price = plan_price_qs.filter(interval_count=interval_count).first()
+            else:
+                plan_price = None
+            if not plan_price:
+                plan_price = plan_price_qs.first()
+
         if not plan_price:
             logger.error(
                 "No current price for plan %s provider %s", plan_code, provider_name
@@ -242,35 +459,85 @@ class StripeWebhookView(View):
                 status__in=["canceled", "expired"]
             ).update(status="canceled")
 
-        sub = Subscription.objects.create(
-            organization=organization,
-            user=user,
-            plan=plan,
-            plan_price=plan_price,
-            provider=provider_name,
-            provider_subscription_id=subscription_id or "",
-            provider_customer_id=customer_id or "",
-            status=Subscription.Status.ACTIVE,
-        )
+        # Periodo: usar el entregado por la pasarela o calcularlo desde BD.
+        now = timezone.now()
+        if period_start_ts:
+            try:
+                current_period_start = datetime.fromtimestamp(
+                    int(period_start_ts), tz=timezone.get_current_timezone()
+                )
+            except (TypeError, ValueError):
+                current_period_start = now
+        else:
+            current_period_start = now
+
+        if period_end_ts:
+            try:
+                current_period_end = datetime.fromtimestamp(
+                    int(period_end_ts), tz=timezone.get_current_timezone()
+                )
+            except (TypeError, ValueError):
+                current_period_end = None
+        else:
+            current_period_end = None
+
+        if sub is not None:
+            sub.plan = plan
+            sub.plan_price = plan_price
+            sub.provider = provider_name
+            sub.provider_customer_id = customer_id or sub.provider_customer_id
+            sub.status = Subscription.Status.ACTIVE
+            sub.current_period_start = current_period_start
+            sub.current_period_end = current_period_end
+            sub.save(
+                update_fields=[
+                    "plan",
+                    "plan_price",
+                    "provider",
+                    "provider_customer_id",
+                    "status",
+                    "current_period_start",
+                    "current_period_end",
+                    "updated_at",
+                ]
+            )
+        else:
+            sub = Subscription.objects.create(
+                organization=organization,
+                user=user,
+                plan=plan,
+                plan_price=plan_price,
+                provider=provider_name,
+                provider_subscription_id=subscription_id or "",
+                provider_customer_id=customer_id or "",
+                status=Subscription.Status.ACTIVE,
+                current_period_start=current_period_start,
+                current_period_end=current_period_end,
+            )
 
         invoice_id = (
             data.get("payment_intent")
             or f"{provider_name}_{subscription_id or payload.get('id', '')}"
         )
 
-        Invoice.objects.create(
-            organization=organization,
-            user=user,
-            subscription=sub,
-            plan_price_snapshot=plan_price,
-            amount_paid_minor=plan_price.amount_minor,
-            currency=plan_price.currency,
-            provider=provider_name,
+        Invoice.objects.update_or_create(
             provider_invoice_id=invoice_id,
-            status=Invoice.InvoiceStatus.PAID,
-            paid_at=timezone.now(),
-            raw_webhook_data=payload,
+            defaults={
+                "organization": organization,
+                "user": user,
+                "subscription": sub,
+                "plan_price_snapshot": plan_price,
+                "amount_paid_minor": plan_price.amount_minor,
+                "currency": plan_price.currency,
+                "provider": provider_name,
+                "status": Invoice.InvoiceStatus.PAID,
+                "paid_at": timezone.now(),
+                "raw_webhook_data": payload,
+            },
         )
+
+        # Invalida caché de suscripción activa.
+        invalidate_subscription(sub)
 
     def _handle_checkout_completed(self, payload):
         self._activate_subscription(payload, "stripe")
@@ -290,7 +557,32 @@ class StripeWebhookView(View):
                 "canceled": Subscription.Status.CANCELED,
             }
             sub.status = status_map.get(data.get("status"), Subscription.Status.EXPIRED)
-            sub.save(update_fields=["status", "updated_at"])
+            # Sincroniza periodos (renovación de Stripe)
+            ps = data.get("current_period_start")
+            pe = data.get("current_period_end")
+            tz = timezone.get_current_timezone()
+            try:
+                sub.current_period_start = (
+                    datetime.fromtimestamp(int(ps), tz)
+                    if ps
+                    else sub.current_period_start
+                )
+                sub.current_period_end = (
+                    datetime.fromtimestamp(int(pe), tz)
+                    if pe
+                    else sub.current_period_end
+                )
+            except (TypeError, ValueError):
+                pass
+            sub.save(
+                update_fields=[
+                    "status",
+                    "current_period_start",
+                    "current_period_end",
+                    "updated_at",
+                ]
+            )
+            invalidate_subscription(sub)
         except Subscription.DoesNotExist:
             logger.warning("Subscription %s not found for update", subscription_id)
 
@@ -361,12 +653,19 @@ class WompiWebhookView(View):
         plan_code = ""
         organization_id = None
         user_id = None
+        interval_count = None
 
         metadata = data.get("metadata", {})
         if metadata:
             plan_code = metadata.get("plan_code", "")
             organization_id = metadata.get("organization_id")
             user_id = metadata.get("user_id")
+            interval_count_str = metadata.get("interval_count")
+            if interval_count_str:
+                try:
+                    interval_count = int(interval_count_str)
+                except ValueError:
+                    pass
 
         if reference and reference.startswith("bs_"):
             parts = reference.split("_")
@@ -409,11 +708,25 @@ class WompiWebhookView(View):
             logger.error("Wompi: Plan %s not found", plan_code)
             return
 
-        plan_price = (
-            PlanPrice.objects.filter(plan=plan, is_current=True, provider="wompi")
-            .order_by("-valid_from")
-            .first()
-        )
+        # Reutiliza el registro PENDING si la referencia coincide para obtener el precio correcto.
+        sub = Subscription.objects.filter(
+            provider_subscription_id=reference,
+            status=Subscription.Status.PENDING,
+        ).first()
+
+        if sub is not None:
+            plan_price = sub.plan_price
+        else:
+            plan_price_qs = PlanPrice.objects.filter(
+                plan=plan, is_current=True, provider="wompi"
+            ).order_by("-valid_from", "-interval_count")
+            if interval_count:
+                plan_price = plan_price_qs.filter(interval_count=interval_count).first()
+            else:
+                plan_price = None
+            if not plan_price:
+                plan_price = plan_price_qs.first()
+
         if not plan_price:
             logger.error("Wompi: No current price for plan %s", plan_code)
             return
@@ -427,28 +740,61 @@ class WompiWebhookView(View):
                 status__in=["canceled", "expired"]
             ).update(status="canceled")
 
-        sub = Subscription.objects.create(
-            organization=organization,
-            user=user,
-            plan=plan,
-            plan_price=plan_price,
-            provider="wompi",
-            provider_subscription_id=reference,
-            provider_customer_id="",
-            wompi_transaction_id=transaction_id,
-            status=Subscription.Status.ACTIVE,
+        # Wompi NO soporta recurrencia: pagos de 3 y 12 meses se procesan
+        # como pago único por adelantado. Calculamos `current_period_end`
+        # sumando los `months_in_cycle` definidos en PlanPrice.
+        now = timezone.now()
+        period_end = now + relativedelta(months=plan_price.months_in_cycle)
+
+        if sub is not None:
+            sub.plan = plan
+            sub.plan_price = plan_price
+            sub.provider = "wompi"
+            sub.wompi_transaction_id = transaction_id
+            sub.status = Subscription.Status.ACTIVE
+            sub.current_period_start = now
+            sub.current_period_end = period_end
+            sub.save(
+                update_fields=[
+                    "plan",
+                    "plan_price",
+                    "provider",
+                    "wompi_transaction_id",
+                    "status",
+                    "current_period_start",
+                    "current_period_end",
+                    "updated_at",
+                ]
+            )
+        else:
+            sub = Subscription.objects.create(
+                organization=organization,
+                user=user,
+                plan=plan,
+                plan_price=plan_price,
+                provider="wompi",
+                provider_subscription_id=reference,
+                provider_customer_id="",
+                wompi_transaction_id=transaction_id,
+                status=Subscription.Status.ACTIVE,
+                current_period_start=now,
+                current_period_end=period_end,
+            )
+
+        Invoice.objects.update_or_create(
+            provider_invoice_id=f"wompi_{transaction_id}",
+            defaults={
+                "organization": organization,
+                "user": user,
+                "subscription": sub,
+                "plan_price_snapshot": plan_price,
+                "amount_paid_minor": plan_price.amount_minor,
+                "currency": plan_price.currency,
+                "provider": "wompi",
+                "status": Invoice.InvoiceStatus.PAID,
+                "paid_at": timezone.now(),
+                "raw_webhook_data": payload,
+            },
         )
 
-        Invoice.objects.create(
-            organization=organization,
-            user=user,
-            subscription=sub,
-            plan_price_snapshot=plan_price,
-            amount_paid_minor=plan_price.amount_minor,
-            currency=plan_price.currency,
-            provider="wompi",
-            provider_invoice_id=f"wompi_{transaction_id}",
-            status=Invoice.InvoiceStatus.PAID,
-            paid_at=timezone.now(),
-            raw_webhook_data=payload,
-        )
+        invalidate_subscription(sub)

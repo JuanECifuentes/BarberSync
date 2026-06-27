@@ -223,7 +223,7 @@
         </div>
 
         {% if billing_allowed_providers|length > 1 %}
-        <div class="flex justify-center mb-10 reveal" style="transition-delay: 0.05s;">
+        <div class="flex justify-center mb-6 reveal" style="transition-delay: 0.05s;">
             <div class="inline-flex items-center gap-3 rounded-xl bg-neutral-900 border border-neutral-800 p-1.5">
                 {% for prov in billing_allowed_providers %}
                 <button type="button"
@@ -239,11 +239,29 @@
         </div>
         {% endif %}
 
+        {# ── Toggle de intervalo: Mensual / Trimestral / Anual ── #}
+        <div class="flex flex-col items-center mb-10 reveal" style="transition-delay: 0.1s;">
+            <div class="inline-flex items-center gap-2 rounded-xl bg-neutral-900 border border-neutral-800 p-1.5">
+                {% for iv in billing_intervals %}
+                <button type="button"
+                    onclick="selectInterval({{ iv.value }})"
+                    id="interval-btn-{{ iv.value }}"
+                    data-interval="{{ iv.value }}"
+                    class="interval-toggle px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer {% if iv.value == billing_default_interval %}bg-brand text-white shadow-sm{% else %}text-neutral-400 hover:text-white{% endif %}">
+                    {{ iv.label }}
+                    {% if iv.value == 3 %}<span class="ml-1 text-xs text-brand-300">-5%</span>{% endif %}
+                    {% if iv.value == 12 %}<span class="ml-1 text-xs text-brand-300">-15%</span>{% endif %}
+                </button>
+                {% endfor %}
+            </div>
+            <input type="hidden" id="chosen_interval_input" name="interval_count" value="{{ billing_default_interval }}">
+        </div>
+
         <div class="grid md:grid-cols-3 gap-8 items-center">
             <div class="reveal p-8 rounded-2xl bg-neutral-900 border border-neutral-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-neutral-700">
                 <h3 class="font-heading font-bold text-xl text-white mb-2">Barbero Independiente</h3>
                 <p class="text-sm text-neutral-400 mb-6">Para el profesional que trabaja solo y necesita control absoluto.</p>
-                <div class="mb-6"><span class="font-heading font-black text-4xl text-white plan-price-display" data-plan="INDEPENDIENTE">$19</span><span class="text-neutral-400 text-sm">/mes</span></div>
+                <div class="mb-6"><span class="font-heading font-black text-4xl text-white plan-price-display" data-plan="INDEPENDIENTE">$19</span><span class="plan-price-suffix text-neutral-400 text-sm">/mes</span></div>
                 <ul class="space-y-3 mb-8">
                     <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>1 sucursal</li>
                     <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Agenda inteligente</li>
@@ -255,6 +273,7 @@
                     {% csrf_token %}
                     <input type="hidden" name="plan_code" value="INDEPENDIENTE">
                     <input type="hidden" name="chosen_provider" value="{{ billing_default_provider }}" class="chosen-provider-input">
+                    <input type="hidden" name="interval_count" value="{{ billing_default_interval }}" class="chosen-interval-input">
                     <button type="submit" class="block w-full text-center py-3 rounded-xl border border-neutral-700 text-white font-medium hover:bg-neutral-800 hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand/50">Elegir plan</button>
                 </form>
                 {% else %}
@@ -267,7 +286,7 @@
                 </div>
                 <h3 class="font-heading font-bold text-xl text-white mb-2">Barber&iacute;a Local</h3>
                 <p class="text-sm text-neutral-400 mb-6">Para due&ntilde;os de barber&iacute;as que quieren erradicar el ausentismo.</p>
-                <div class="mb-6"><span class="font-heading font-black text-4xl text-white plan-price-display" data-plan="LOCAL">$49</span><span class="text-neutral-400 text-sm">/mes</span></div>
+                <div class="mb-6"><span class="font-heading font-black text-4xl text-white plan-price-display" data-plan="LOCAL">$49</span><span class="plan-price-suffix text-neutral-400 text-sm">/mes</span></div>
                 <ul class="space-y-3 mb-8">
                     <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>1 sucursal</li>
                     <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Hasta 8 barberos</li>
@@ -280,6 +299,7 @@
                     {% csrf_token %}
                     <input type="hidden" name="plan_code" value="LOCAL">
                     <input type="hidden" name="chosen_provider" value="{{ billing_default_provider }}" class="chosen-provider-input">
+                    <input type="hidden" name="interval_count" value="{{ billing_default_interval }}" class="chosen-interval-input">
                     <button type="submit" class="block w-full text-center py-3 rounded-xl bg-brand text-white font-semibold hover:bg-brand-600 hover:-translate-y-0.5 transition-all duration-200 shadow-lg shadow-brand/20 focus:outline-none focus:ring-2 focus:ring-brand/50">Registrarse ahora</button>
                 </form>
                 {% else %}
@@ -289,7 +309,7 @@
             <div class="reveal p-8 rounded-2xl bg-neutral-900 border border-neutral-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-neutral-700">
                 <h3 class="font-heading font-bold text-xl text-white mb-2">Cadenas Multi-sucursal</h3>
                 <p class="text-sm text-neutral-400 mb-6">Para cadenas que necesitan visi&oacute;n centralizada y anal&iacute;tica global.</p>
-                <div class="mb-6"><span class="font-heading font-black text-4xl text-white plan-price-display" data-plan="CADENA">$129</span><span class="text-neutral-400 text-sm">/mes</span></div>
+                <div class="mb-6"><span class="font-heading font-black text-4xl text-white plan-price-display" data-plan="CADENA">$129</span><span class="plan-price-suffix text-neutral-400 text-sm">/mes</span></div>
                 <ul class="space-y-3 mb-8">
                     <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Sucursales ilimitadas (Multi-tenant)</li>
                     <li class="flex items-center gap-3 text-sm text-neutral-300"><svg class="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>Barberos ilimitados</li>
@@ -302,6 +322,7 @@
                     {% csrf_token %}
                     <input type="hidden" name="plan_code" value="CADENA">
                     <input type="hidden" name="chosen_provider" value="{{ billing_default_provider }}" class="chosen-provider-input">
+                    <input type="hidden" name="interval_count" value="{{ billing_default_interval }}" class="chosen-interval-input">
                     <button type="submit" class="block w-full text-center py-3 rounded-xl border border-neutral-700 text-white font-medium hover:bg-neutral-800 hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand/50">Elegir plan</button>
                 </form>
                 {% else %}
@@ -578,8 +599,51 @@
 
     const PLAN_PRICES = {{ plan_prices|safe }};
     const BILLING_DEFAULT_PROVIDER = '{{ billing_default_provider }}';
+    let currentProvider = BILLING_DEFAULT_PROVIDER;
+    let currentInterval = {{ billing_default_interval }};
+
+    function formatPrice(amountMinor, currency) {
+        if (currency === 'COP') {
+            return '$' + (amountMinor / 100).toLocaleString('es-CO');
+        }
+        const major = amountMinor / 100;
+        return '$' + major.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 2});
+    }
+
+    function intervalSuffix(months) {
+        if (months === 1) return '/mes';
+        if (months === 3) return '/3 meses';
+        return '/año';
+    }
+
+    function renderPrices() {
+        document.querySelectorAll('.plan-price-display').forEach(el => {
+            const planCode = el.getAttribute('data-plan');
+            const planData = PLAN_PRICES[planCode];
+            const providerData = planData && planData[currentProvider];
+            const price = providerData && providerData[String(currentInterval)];
+            if (!price) {
+                // Fallback al precio mensual si el intervalo no existe para
+                // esta combinación plan/provider (ej. Stripe trimestral no creado).
+                const fallback = providerData && providerData['1'];
+                if (!fallback) return;
+                el.textContent = formatPrice(fallback.amount_minor, fallback.currency);
+                const suffix = el.nextElementSibling;
+                if (suffix && suffix.classList.contains('plan-price-suffix')) {
+                    suffix.textContent = intervalSuffix(1);
+                }
+                return;
+            }
+            el.textContent = formatPrice(price.amount_minor, price.currency);
+            const suffix = el.nextElementSibling;
+            if (suffix && suffix.classList.contains('plan-price-suffix')) {
+                suffix.textContent = intervalSuffix(currentInterval);
+            }
+        });
+    }
 
     function selectProvider(provider) {
+        currentProvider = provider;
         document.querySelectorAll('.provider-toggle').forEach(btn => {
             btn.classList.remove('bg-brand', 'text-white', 'shadow-sm');
             btn.classList.add('text-neutral-400');
@@ -594,28 +658,31 @@
         });
         const hiddenInput = document.getElementById('chosen_provider_input');
         if (hiddenInput) hiddenInput.value = provider;
-
-        document.querySelectorAll('.plan-price-display').forEach(el => {
-            const planCode = el.getAttribute('data-plan');
-            const planData = PLAN_PRICES[planCode];
-            if (planData && planData[provider]) {
-                const price = planData[provider];
-                const amountMinor = price.amount_minor;
-                const currency = price.currency;
-                let displayPrice;
-                if (currency === 'COP') {
-                    displayPrice = '$' + (amountMinor / 100).toLocaleString('es-CO');
-                } else {
-                    const major = amountMinor / 100;
-                    displayPrice = '$' + major.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 2});
-                }
-                el.textContent = displayPrice;
-            }
-        });
+        renderPrices();
     }
 
-    // Set dynamic prices on page load for the default provider
+    function selectInterval(months) {
+        currentInterval = parseInt(months, 10);
+        document.querySelectorAll('.interval-toggle').forEach(btn => {
+            btn.classList.remove('bg-brand', 'text-white', 'shadow-sm');
+            btn.classList.add('text-neutral-400');
+        });
+        const activeBtn = document.getElementById('interval-btn-' + months);
+        if (activeBtn) {
+            activeBtn.classList.add('bg-brand', 'text-white', 'shadow-sm');
+            activeBtn.classList.remove('text-neutral-400');
+        }
+        document.querySelectorAll('.chosen-interval-input').forEach(input => {
+            input.value = months;
+        });
+        const hiddenInput = document.getElementById('chosen_interval_input');
+        if (hiddenInput) hiddenInput.value = months;
+        renderPrices();
+    }
+
+    // Set dynamic prices on page load for the default provider/interval
     selectProvider(BILLING_DEFAULT_PROVIDER);
+    selectInterval({{ billing_default_interval }});
 
     const revealElements = document.querySelectorAll('.reveal');
     const revealObserver = new IntersectionObserver((entries) => {

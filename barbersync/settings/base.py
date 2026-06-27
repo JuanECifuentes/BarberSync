@@ -233,7 +233,9 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@barbersync.app")
 AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID", default="")
 AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY", default="")
 AWS_SES_REGION_NAME = env("AWS_SES_REGION_NAME", default="us-east-1")
-AWS_SES_REGION_ENDPOINT = env("AWS_SES_REGION_ENDPOINT", default="email.us-east-1.amazonaws.com")
+AWS_SES_REGION_ENDPOINT = env(
+    "AWS_SES_REGION_ENDPOINT", default="email.us-east-1.amazonaws.com"
+)
 AWS_REGION_NAME = AWS_SES_REGION_NAME
 
 
@@ -283,6 +285,13 @@ BILLING_COUNTRY_CURRENCY_MAP = {
     "CO": "COP",
     "US": "USD",
 }
+
+# ──────────────────────────────────────────────
+# Reconciliation TTL —Unix segundos mínimos antes de reconciliar suscripción PENDING
+# ──────────────────────────────────────────────
+BILLING_RECONCILE_MIN_AGE_SECONDS = env.int(
+    "BILLING_RECONCILE_MIN_AGE_SECONDS", default=300
+)
 
 
 # ──────────────────────────────────────────────
