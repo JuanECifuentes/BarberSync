@@ -127,9 +127,10 @@ El enrutamiento entre pasarelas se determina por el país de la `Organization` d
 | `amount_minor` | `PositiveBigIntegerField` | Precio en la **unidad menor** de la moneda (centavos USD, centavos COP) |
 | `currency` | `CharField(3)` | Código ISO 4217 (`USD`, `COP`, `MXN`) |
 | `interval` | `CharField(10)` | `month` o `year` |
+| `interval_count` | `PositiveIntegerField (default=1)` | **Cantidad de intervalos por ciclo.** Valores usados: `1` (mensual), `3` (trimestral), `12` (anual). |
 | `provider` | `CharField(20)` | `stripe` o `wompi` |
-| `provider_price_id` | `CharField(100)` | ID del precio en Stripe, o identificador lógico para Wompi |
-| `is_current` | `BooleanField` | Solo un price `True` por combinación (plan, provider, currency, interval) |
+| `provider_price_id` | `CharField(100)` | ID del precio en Stripe (`price_1…`), o identificador lógico para Wompi |
+| `is_current` | `BooleanField` | Solo un price `True` por combinación (plan, provider, currency, interval, interval_count) |
 | `valid_from` / `valid_to` | `DateTimeField` | Periodo de vigencia del precio |
 
 **Regla CRÍTICA de `amount_minor`:**
@@ -141,6 +142,17 @@ El enrutamiento entre pasarelas se determina por el país de la `Organization` d
 1. `PlanPrice.objects.filter(...).update(is_current=False, valid_to=now())`
 2. Crear un nuevo `PlanPrice` con el nuevo monto y `is_current=True`.
 
+**Matriz de intervalos soportados (`interval` × `interval_count`):**
+| `interval` | `interval_count` | Significado | Implementación |
+|---|---|---|---|
+| `month` | `1` | Mensual | Stripe nativo – Wompi pago único 1 mes |
+| `month` | `3` | Trimestral | Stripe nativo – Wompi pago único por 3 meses por adelantado |
+| `month` | `12` | Anual | Stripe nativo – Wompi pago único por 12 meses por adelantado |
+
+Helper `PlanPrice.months_in_cycle` retorna el total de meses del ciclo (12 para year×1, 3 para month×3, etc.), usado por Wompi para calcular `current_period_end`.
+
+**UniqueConstraint ampliada:** `unique_active_price_per_plan_provider_interval` ahora incluye `interval_count`, garantizando que solo exista **un** `PlanPrice` vigente por combinación `(plan, provider, currency, interval, interval_count)`.
+
 #### `Subscription` (`billing_subscription`)
 | Campo | Tipo | Descripción |
 |---|---|---|
@@ -149,14 +161,24 @@ El enrutamiento entre pasarelas se determina por el país de la `Organization` d
 | `plan` | `FK → Plan` | Plan contratado |
 | `plan_price` | `FK → PlanPrice` | Snapshot del precio al momento de la suscripción |
 | `provider` | `CharField(20)` | Pasarela que procesó el pago |
-| `provider_subscription_id` | `CharField(100)` | ID de suscripción en Stripe, o reference en Wompi |
+| `provider_subscription_id` | `CharField(100)` | ID de suscripción en Stripe, o reference en Wompi, o `session_id` mientras `status=pending` |
 | `provider_customer_id` | `CharField(100)` | ID de customer en Stripe (vacío en Wompi) |
 | `wompi_transaction_id` | `CharField(100)` | ID de transacción en Wompi (vacío en Stripe) |
-| `status` | `CharField(15)` | `trialing`, `active`, `past_due`, `canceled`, `expired` |
+| `status` | `CharField(15)` | `pending`, `trialing`, `active`, `past_due`, `canceled`, `expired` |
 | `trial_end` | `DateTimeField(null)` | Fin del periodo de prueba |
-| `current_period_start/end` | `DateTimeField(null)` | Periodo de facturación actual |
+| `current_period_start/end` | `DateTimeField(null)` | Periodo de facturación actual. En **Wompi** se calcula sumando `plan_price.months_in_cycle` desde el instante del pago (`current_period_end = now + months_in_cycle months`). En **Stripe** se sincroniza desde `data.object.current_period_start/end` (timestamps unix). |
+| `canceled_at` | `DateTimeField(null)` | Marca temporal de cancelación |
 
-**Restricción única:** Solo puede existir una suscripción activa/trialing/past_due por organización (`one_active_subscription_per_org`).
+**Estados:**
+- `pending` — checkout iniciado, webhook aún no recibido (creado en `CheckoutView`, sirve de ancla para la reconciliación).
+- `trialing` / `active` / `past_due` — activos a los fines del middleware.
+- `canceled` / `expired` — históricos.
+
+**Restricción única:** Solo puede existir una suscripción `trialing`/`active`/`past_due` por organización (`one_active_subscription_per_org`). La excepción `pending` permite arrastrar el checkout sin caer en el bloque unique.
+
+**Helper `Subscription.compute_period_end(start=None)`:** retorna `start + relativedelta(months=plan_price.months_in_cycle)`. Usado por Wompi y por la reconciliación.
+
+**Helper `Subscription.is_active()`:** shortcut para validar estados activos.
 
 #### `Invoice` (`billing_invoice`)
 Snapshot inmutable de cada cobro realizado. Referencia directa al `PlanPrice` (`plan_price_snapshot`) para auditoría.
@@ -776,3 +798,512 @@ El endpoint `GET /app/schedule/api/slots/` ahora retorna también `intervalo_ape
     "intervalo_apertura_dias": 15
 }
 ```
+
+## 9. Control de Concurrencia, Reconciliación y Caché de Suscripción
+
+Esta sección documenta la **fase 2** del módulo de facturación: prevención de cobros dobles, planes multi-intervalo (1/3/12 meses), reconciliación ante pérdida de webhooks y optimización de middleware con caché distribuida.
+
+### 9.1 Restricción de Compras Duplicadas (Exclusión Mutua)
+
+**Objetivo:** impedir que un usuario con membresía activa vuelva a ejecutar checkout en Stripe o Wompi.
+
+**Flujo (`apps/billing/views.py::CheckoutView`):**
+
+1. Tras resolver `(provider, plan_price, organization)` se consulta el estado cachedo de suscripción:
+   ```python
+   if _has_active_subscription(request.user, organization):
+       return JsonResponse({"error": "Ya tienes una suscripción activa.",
+                            "code": "ACTIVE_SUBSCRIPTION_EXISTS"}, status=400)
+   ```
+   Para navegadores no-AJAX, redirect a `/?already_subscribed=true#planes`.
+
+2. **Bloque transaccional SQL** con `transaction.atomic()` y validación de "ya existe activa" vía `Subscription.objects.filter(...).exclude(status__in=[canceled, expired, pending]).first()`. Si existe, se bloquea también aquí (concurrencia a nivel de BD).
+
+3. Se invoca al proveedor (`StripeProvider.create_checkout_session` o `WompiProvider.create_checkout_session`) **únicamente** tras pasar los dos bloqueos.
+
+4. Tras la creación exitosa del checkout externo, se crea un `Subscription(status=PENDING)` con `provider_subscription_id = reference|session_id`. Este registro es la **ancla** para la reconciliación síncrona (ver §9.3).
+
+5. El resultado se invalida en caché (`invalidate_subscription(pending)`) para reflejar el cambio de estado.
+
+**Endpoint AJAX de validación previa:**
+- `GET /billing/subscription-status/` → `{"has_active_subscription": bool, "organization_id": int|null}`. Usado por la landing para deshabilitar botones de compra.
+- `GET /billing/plans/` → matriz JSON pública con todos los `PlanPrice` vigentes, agrupada por `plan_code + provider + interval_count`. La landing puede usarla para pintar la matriz de precios sin enviar montos por formulario.
+
+**Códigos HTTP relevantes:**
+
+| Código | Significado |
+|---|---|
+| 200 | (planes, subscription-status) OK |
+| 302 | (checkout no-AJAX) ya tiene suscripción → redirect `/?already_subscribed=true#planes` |
+| 400 | (checkout AJAX) ya tiene suscripción o falta `plan_code` |
+| 502 | (checkout AJAX) la pasarela externa rechazó la creación del checkout |
+
+### 9.2 Planes Multi-Intervalo (1, 3 y 12 meses)
+
+**Cambios en modelos (`apps/billing/models.py`):**
+- `PlanPrice.interval_count` (PositiveIntegerField, default=1) — cantidad de intervalos por ciclo.
+- `PlanPrice.INTERVAL_COUNT_MONTHS` — choices `[1, 3, 12]` para uso en formularios.
+- `PlanPrice.months_in_cycle` (property) — calcula los meses totales del ciclo:
+  - `month × 1 → 1`, `month × 3 → 3`, `month × 12 → 12`, `year × 1 → 12`.
+- `UniqueConstraint unique_active_price_per_plan_provider_interval` ahora incluye `interval_count`.
+
+**Migraciones:**
+- `0004_subscription_pending_and_interval_count.py` — añade `interval_count`, estado `pending` en `Subscription`, índices y nueva constraint.
+- `0005_plan_prices_multi_interval.py` — **data migration** que genera los precios trimestral y anual a partir del mensual vigente, aplicando:
+  - 3 meses → **5% dcto** sobre `mes × 3`.
+  - 12 meses → **15% dcto** sobre `mes × 12`.
+  - COP se redondea a múltiplos de $1.000; USD a centavos.
+  - `provider_price_id` Stripe trimestral/anual queda con placeholder `price_replace_me_<plan>_<currency>_<quarter|year>` que el admin debe sustituir por los IDs reales creados en el Dashboard de Stripe.
+
+**Lógica por pasarela:**
+
+| Pasarela | 1 mes | 3 meses | 12 meses |
+|---|---|---|---|
+| **Stripe** | `Subscription` nativa con `interval=month, interval_count=1`. | `Subscription` nativa con `interval=month, interval_count=3`. | `Subscription` nativa con `interval=month, interval_count=12` (Stripe soporta hasta 12 para `month`). El `subscription_data.metadata` lleva `interval` e `interval_count` para auditoría. |
+| **Wompi** | Pago único por 1 mes. | Pago único por **3 meses por adelantado**. | Pago único por **12 meses por adelantado**. |
+
+**Cálculo de `current_period_end` en Wompi:**
+```python
+now = timezone.now()
+period_end = now + relativedelta(months=plan_price.months_in_cycle)
+```
+Tras confirmación del webhook (`transaction.updated` con `status in ("APPROVED", "PAYED")`) se actualiza el `Subscription` PENDING (o se crea inexistente) con `current_period_start=now`, `current_period_end=period_end`. El acceso del tenant permanece garantizado hasta ese `expires_at`.
+
+**Cálculo en Stripe:**
+- En `checkout.session.completed`: si la pasarela envía `data.object.current_period_start/end` se sincronizan desde los timestamps Unix.
+- En `customer.subscription.updated`: se sincronizan en cada renovación.
+
+**Matriz de precios posterior a la migración 0005 (ejemplo):**
+
+```
+INDEPENDIENTE  stripe  USD month×1   1900       (price_1... nativo)
+INDEPENDIENTE  stripe  USD month×3   5415       (placeholder)
+INDEPENDIENTE  stripe  USD month×12  19380      (placeholder)
+INDEPENDIENTE  wompi   COP month×1   2990000
+INDEPENDIENTE  wompi   COP month×3   8522000
+INDEPENDIENTE  wompi   COP month×12  30498000
+LOCAL          ...     ...           ...
+CADENA         ...     ...           ...
+```
+
+### 9.3 Reconciliación Ante Fallos de Webhooks (Pulling)
+
+**Objetivo:** si un webhook de Stripe o Wompi no llega (red caída, configure mal el endpoint, caída de la pasarela, etc.), el sistema observa la pérdida y sincroniza la suscripción consultando **directamente** la API externa.
+
+**Mecanismo de resiliencia pasiva (`apps/billing/tasks.py`):**
+
+```
+reconcile_subscriptions(max_age_seconds=300)
+├── Itera Subscription.objects.filter(status=pending, created_at__lte=cutoff)
+├── Para cada sub, llama al reconciler de su provider:
+│   ├── Stripe: provider.fetch_customer_active_subscription(customer_id)
+│   │     → GET /v1/subscriptions?customer=...&status=active
+│   │     → si status=="active", activa la sub con periodos de Stripe.
+│   └── Wompi : provider.fetch_transaction_by_reference(reference)
+│         → GET /v1/transactions?reference=...
+│         → si status in ("APPROVED","PAYED"), activa con period_end = now + months_in_cycle.
+├── _activate_subscription_from_remote():
+│   ├── transaction.atomic() con select_for_update (anti race con webhook)
+│   ├── Si la sub ya está activa (webhook llegó entre iteración y commit) → no-op.
+│   ├── Cancela otras suscripciones activas del mismo tenant (one_active_subscription_per_org).
+│   ├── UPDATE Subscription(status=active, ..., current_period_start, current_period_end).
+│   └── Invoice.objects.update_or_create(provider_invoice_id=...) marcando raw_webhook_data={"reconciled": True}.
+└── Devuelve summary {checked, activated, still_pending, errors}.
+```
+
+**Invocación:**
+- Manual (síncrona): `python manage.py reconcile_subscriptions --min-age 300`
+- Asíncrona en django_q: `python manage.py reconcile_subscriptions --async` (encola la tarea `apps.billing.tasks.reconcile_subscriptions`).
+- Programada: añadir un cron cada N minutos:
+  ```cron
+  */10 * * * * cd /app && venv/bin/python manage.py reconcile_subscriptions --async
+  ```
+
+**Variables de entorno nuevas:**
+
+| Variable | Default | Descripción |
+|---|---|---|
+| `BILLING_RECONCILE_MIN_AGE_SECONDS` | `300` | Antigüedad mínima (segundos) de una suscripción `pending` para ser reconciliada. Da margen al webhook normal. |
+
+**Métodos añadidos a los proveedores (`apps/billing/providers.py`):**
+- `StripeProvider.fetch_customer_active_subscription(customer_id) → dict` — usa `stripe.Subscription.list(customer=..., status=active, limit=5)` y retorna la primera suscripción activa con `subscription_id`, `status`, `current_period_start/end`, `customer`, `metadata`.
+- `WompiProvider.fetch_transaction_by_reference(reference) → dict` — `GET {api_url}/transactions?reference=...`, retorna `transaction_id`, `status`, `reference`, `amount_in_cents`, `currency`, `metadata`.
+
+**Comportamiento ante duplicidad:** si tanto el webhook como la reconciliación llegan casi simultáneamente, el segundo ejecuta su comprobación dentro de `transaction.atomic()` + `select_for_update()` y aborta si `status` ya es `active`. Esto garantiza la idempotencia.
+
+### 9.4 Middleware de Acceso Optimizado con Caché
+
+**Problema original:** `apps/billing/middleware.py::SubscriptionAccessMiddleware` ejecutaba dos consultas SQL por cada página interna request.session, golpeando PostgreSQL con cada navegación.
+
+**Solución (`apps/billing/cache_utils.py` + `apps.billing.signals`):**
+
+- Funciones públicas:
+  - `get_user_subscription_status(user)` → bool cacheado por usuario.
+  - `get_org_subscription_status(org)` → bool cacheado por organización.
+  - `invalidate_user(user_id)`, `invalidate_org(org_id)`, `invalidate_subscription(sub)`.
+- Claves usadas:
+  - `barbersync:sub:active:user:{user_id}`
+  - `barbersync:sub:active:org:{organization_id}`
+- **TTL dinámico:** `seconds_until_end_of_day()` calcula los segundos hasta `23:59:59` del día en curso (max 86_400 s, min 60 s). La caché se reinicia automáticamente al cambiar de día calendario, garantizando que cualquier activación / cancelación impacte en menos de 24 h incluso si las señales de invalidación fallan.
+- **Invalidación automática:** señales `post_save` y `post_delete` de `Subscription` (`apps/billing/signals.py`, cargadas desde `BillingConfig.ready()`) borran la clave correspondiente. Garantiza que activaciones por webhook y cancelaciones administrativas afecten al middleware en la próxima petición.
+
+**Backends de caché (`barbersync/settings/base.py`):**
+| Entorno | Variable | Backend |
+|---|---|---|
+| `LOCAL=True` (dev) | — | `django.core.cache.backends.locmem.LocMemCache` (`location=barbersync-local-mem`) |
+| `LOCAL=False` (prod) | `REDIS_URL` | `django_redis.cache.RedisCache` (clave `REDIS_URL` obligatoria) |
+
+**Variable de entorno nueva:**
+
+```bash
+# Cache distribuida (solo se usa si LOCAL=False)
+REDIS_URL=redis://127.0.0.1:6379/1
+```
+
+**Pseudocódigo del middleware optimizado:**
+```python
+if get_user_subscription_status(request.user):
+    return self.get_response(request)
+org = getattr(request, "organization", None)
+if org is not None and get_org_subscription_status(org):
+    return self.get_response(request)
+return redirect("/?expired=true#planes")
+```
+
+### 9.5 Endpoints Afectados / Resumen
+
+| Endpoint | Método | Cambio |
+|---|---|---|
+| `/billing/checkout/` | POST | Validación pre-compra; json 400 si ya activa; crea `Subscription(pending)` |
+| `/billing/success/` | GET | sin cambios |
+| `/billing/cancel/` | GET | sin cambios |
+| `/billing/subscription-status/` | GET (LoginRequiredMixin) | **NUEVO** – validación previa AJAX |
+| `/billing/plans/` | GET (público) | **NUEVO** – matriz de precios 1/3/12 meses |
+| `/billing/webhook/stripe/` | POST | Activación reutiliza `Subscription(pending)` por `subscription_id`; sincroniza `current_period_start/end` |
+| `/billing/webhook/wompi/` | POST | Calcula `current_period_end = now + plan_price.months_in_cycle`; reutiliza PENDING; `Invoice.update_or_create` |
+
+**Comando de gestión nuevo:**
+- `python manage.py reconcile_subscriptions [--min-age N] [--async]`
+
+**Archivos nuevos / modificados:**
+- `apps/billing/models.py` (interval_count, helpers, PENDING status)
+- `apps/billing/migrations/0004_subscription_pending_and_interval_count.py` (schema)
+- `apps/billing/migrations/0005_plan_prices_multi_interval.py` (data seed)
+- `apps/billing/providers.py` (fetch_customer_active_subscription, fetch_transaction_by_reference)
+- `apps/billing/views.py` (validación pre-compra, PENDING, expires_at Wompi, novos endpoints)
+- `apps/billing/urls.py` (routes de `/billing/subscription-status/` y `/billing/plans/`)
+- `apps/billing/cache_utils.py` (NUEVO)
+- `apps/billing/signals.py` (NUEVO)
+- `apps/billing/middleware.py` (caché + TTL dinámico)
+- `apps/billing/tasks.py` (NUEVO – reconciliación)
+- `apps/billing/apps.py` (carga `signals`)
+- `apps/billing/management/commands/reconcile_subscriptions.py` (NUEVO)
+- `barbersync/settings/base.py` (BILLING_RECONCILE_MIN_AGE_SECONDS)
+- `.env` y `.env.example` (REDIS_URL, BILLING_RECONCILE_MIN_AGE_SECONDS, blocs de billing)
+- `apps/core/views.py` (`plan_prices` anidado por intervalo, `billing_intervals`)
+- `templates/landing.html` (toggle Mensual/Trimestral/Anual + inputs ocultos `interval_count`)
+
+### 9.6 Toggle de Intervalo en la Landing Page
+
+La landing ahora expone, además del toggle de proveedor (Wompi/Stripe), un segundo toggle de intervalos con tres botones:
+
+| Botón | `interval_count` | Sufijo mostrado | Badge |
+|---|---|---|---|
+| Mensual | `1` | `/mes` | — |
+| Trimestral | `3` | `/3 meses` | `-5%` |
+| Anual | `12` | `/año` | `-15%` |
+
+**Estructura JSON inyectada por `LandingPageView` (`apps/core/views.py`):**
+```json
+{
+  "INDEPENDIENTE": {
+    "stripe": {
+      "1":  {"amount_minor": 1900,  "currency": "USD", "months_in_cycle": 1},
+      "3":  {"amount_minor": 5415,  "currency": "USD", "months_in_cycle": 3},
+      "12": {"amount_minor": 19380, "currency": "USD", "months_in_cycle": 12}
+    },
+    "wompi": {
+      "1":  {"amount_minor": 2990000,  "currency": "COP", "months_in_cycle": 1},
+      "3":  {"amount_minor": 8522000,  "currency": "COP", "months_in_cycle": 3},
+      "12": {"amount_minor": 30498000, "currency": "COP", "months_in_cycle": 12}
+    }
+  },
+  "LOCAL":    { "...": "..." },
+  "CADENA":    { "...": "..." }
+}
+```
+
+**Comportamiento JS:**
+- `selectProvider(provider)` y `selectInterval(months)` actualizan variables de estado `currentProvider` / `currentInterval`, reescriben los inputs hidden `chosen_provider` e `interval_count` de los tres formularios, y disparan `renderPrices()`.
+- `renderPrices()` recalcula cada `span.plan-price-display` con `formatPrice(amount_minor, currency)` y actualiza el sufijo `span.plan-price-suffix` entre `/mes`, `/3 meses` y `/año`.
+- Si la combinación `(provider, interval)` no existe en BD, hace fallback al precio mensual del mismo provider.
+
+### 9.7 Guía Paso a Paso — Crear Productos y Precios en Stripe
+
+Stripe maneja dos entidades: el **Product** (el concepto: "Barbero Independiente") y los **Prices** (cada variación de cobro: mensual, trimestral, anual). Necesitas **3 Products** y **9 Prices** (3 por plan × los 3 intervalos).
+
+> ⚠️ **Importante:** esta guía es para la instancia en la que vas a probar/cobrar. Usa el **modo Test** durante desarrollo y el **modo Live** al salir a producción. Los `price_1...` que obtengas son distintos entre test y live — actualiza `provider_price_id` en la BD con los valores del entorno correcto.
+
+#### Requisitos previos
+- Cuenta Stripe verificada (es suficiente con modo Test para desarrollo).
+- Tu URL de webhook ya registrada en **Developers → Webhooks → Add endpoint** apuntando a `https://<tu-dominio>/billing/webhook/stripe/` con los eventos `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted` (ver §6.1 y §6.6).
+- `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY` y `STRIPE_WEBHOOK_SECRET` ya configurados en `.env`.
+
+#### Pasos para cada plan
+
+Repite el siguiente flujo para los tres planes: **INDEPENDIENTE**, **LOCAL** y **CADENA**.
+
+**1. Crear el Product**
+- Dashboard Stripe → **Productos** (Catálogo → Productos en el menú lateral).
+- Click **+ Añadir producto**.
+  - **Nombre:** `Barbero Independiente` (o `Barbería Local` / `Cadenas Multi-sucursal`).
+  - **Descripción:** copia la `description` de tu `Plan` en la BD.
+  - **Imágenes / metadata / declaración de impuestos:** opcional. BarberSync no usa IVA diferenciado; deja default.
+- Click **Guardar**. Anota el `prod_...` que aparece en la URL (no se usa directamente pero sirve de referencia).
+
+**2. Crear los 3 precios recurrentes (Monthly / Quarterly / Annual)**
+
+Dentro del Product recién creado → pestaña **Precios** → **+ Añadir precio**:
+
+| Precio # | Tipo de precio | Importe | Moneda | Periodo | Resultado esperado en BD (`provider_price_id`) |
+|---|---|---|---|---|---|
+| 1 | **Estándar / Recurrente** | USD equivalente a `amount_minor/100` | `USD` | **Cada 1 mes** | `price_1… mensual` |
+| 2 | **Estándar / Recurrente** | USD trimestral (≈ mensual × 3 × 0.95) | `USD` | **Cada 3 meses** | `price_1… trimestral` |
+| 3 | **Estándar / Recurrente** | USD anual (≈ mensual × 12 × 0.85) | `USD` | **Cada 12 meses** | `price_1… anual` |
+
+Repite lo mismo en moneda **COP** si también vas a publicar tus precios Stripe en pesos colombianos (la mayoría de comercios colombianos usa Wompi para COP y Stripe sólo para USD, pero Stripe sí soporta COP recurrente).
+
+> 💡 **Atajo Stripe CLI** para crear los precios vía script (opcional, recomendado para entornos nuevos):
+> ```bash
+> # Variables de ejemplo para INDEPENDIENTE en USD
+> MONTHLY=$(stripe prices create \
+>   -d product-data.name="Barbero Independiente" \
+>   -d unit-amount=1900 \
+>   -d currency=usd \
+>   -d type=recurring \
+>   -d recurring.interval=month \
+>   --output json | jq -r .id)
+> QUARTERLY=$(stripe prices create \
+>   -d product-data.name="Barbero Independiente" \
+>   -d unit-amount=5415 \
+>   -d currency=usd \
+>   -d type=recurring \
+>   -d recurring.interval=month \
+>   -d recurring.interval_count=3 \
+>   --output json | jq -r .id)
+> ANNUAL=$(stripe prices create \
+>   -d product-data.name="Barbero Independiente" \
+>   -d unit-amount=19380 \
+>   -d currency=usd \
+>   -d type=recurring \
+>   -d recurring.interval=month \
+>   -d recurring.interval_count=12 \
+>   --output json | jq -r .id)
+> echo "INDEPENDIENTE USD → $MONTHLY  $QUARTERLY  $ANNUAL"
+> ```
+
+**3. Actualizar la base de datos con los IDs `price_1...`**
+
+Conecta al shell de Django y reemplaza los placeholders dejados por la migración `0005`:
+
+```python
+# venv\Scripts\python.exe manage.py shell
+from django.utils import timezone
+from apps.billing.models import Plan, PlanPrice
+
+# —— INDEPENDIENTE (USD / stripe) ——
+plan = Plan.objects.get(code="INDEPENDIENTE")
+PlanPrice.objects.filter(
+    plan=plan, provider="stripe", currency="USD",
+    interval_count=3, is_current=True,
+).update(provider_price_id="price_1XXXX_stripe_independiente_usd_quarter")
+
+PlanPrice.objects.filter(
+    plan=plan, provider="stripe", currency="USD",
+    interval_count=12, is_current=True,
+).update(provider_price_id="price_1XXXX_stripe_independiente_usd_year")
+
+# —— LOCAL (USD / stripe) ——
+plan = Plan.objects.get(code="LOCAL")
+PlanPrice.objects.filter(
+    plan=plan, provider="stripe", currency="USD",
+    interval_count=3, is_current=True,
+).update(provider_price_id="price_1XXXX_stripe_local_usd_quarter")
+PlanPrice.objects.filter(
+    plan=plan, provider="stripe", currency="USD",
+    interval_count=12, is_current=True,
+).update(provider_price_id="price_1XXXX_stripe_local_usd_year")
+
+# —— CADENA (USD / stripe) ——
+plan = Plan.objects.get(code="CADENA")
+PlanPrice.objects.filter(
+    plan=plan, provider="stripe", currency="USD",
+    interval_count=3, is_current=True,
+).update(provider_price_id="price_1XXXX_stripe_cadena_usd_quarter")
+PlanPrice.objects.filter(
+    plan=plan, provider="stripe", currency="USD",
+    interval_count=12, is_current=True,
+).update(provider_price_id="price_1XXXX_stripe_cadena_usd_year")
+```
+
+> ✅ El precio mensual ya tiene un `price_1...` real (asignado inicialmente); no hace falta tocarlo.
+> ✅ Los precios de Wompi son **pago único por adelantado** (no se crean en Wompi) — sólo el registro en `billing_plan_price` controla el monto y el `months_in_cycle`.
+
+**4. Verificar en la landing**
+
+```bash
+venv\Scripts\python.exe manage.py runserver
+# Abre http://127.0.0.1:8000/#planes
+# Prueba a toggle Mensual → Trimestral → Anual:
+#   • Los precios deben cambiar dinámicamente SIN recargar.
+#   • El badge "-5%" / "-15%" ya está pintado en HTML.
+#   • Al hacer submit en "Registrarse ahora", el formulario POST envía
+#     plan_code=LOCAL, chosen_provider=stripe, interval_count=12.
+```
+
+**5. Verificar el webhook completo**
+
+Usa tarjetas de prueba de Stripe (ver §6.4):
+- `4242 4242 4242 4242` → success.
+- Compra plan mensual → llega `checkout.session.completed` → `Subscription(pending)` se promueve a `active`.
+- Compra plan anual → igual flujo pero `current_period_end` queda a 12 meses.
+
+**6. Checklist final**
+
+| Item | OK |
+|---|---|
+| 3 Products creados en Stripe (INDEPENDIENTE / LOCAL / CADENA) | ☐ |
+| 9 Prices creados (3×plan × interval 1/3/12) | ☐ |
+| `provider_price_id` actualizado en BD para los 6 precios trimestral+anual | ☐ |
+| Precios mensuales intactos | ☐ |
+| Webhook endpoint registrado con 3 eventos requeridos | ☐ |
+| `STRIPE_WEBHOOK_SECRET` en `.env` coincide con el del dashboard | ☐ |
+| Landing muestra toggle y precios dinámicos OK | ☐ |
+| Pago de prueba con `4242...` activa la suscripción en local (vía ngrok) | ☐ |
+| Tarea `python manage.py reconcile_subscriptions --async` no encuentra PENDINGs (vacío normal) | ☐ |
+
+## 10. Módulo de Suscripción en Mi Perfil
+
+Esta sección documenta la interfaz responsiva de la sección "Suscripción" accesible desde `/accounts/profile/`, incluyendo la card de suscripción, el modal de historial de pagos con scroll infinito y el flujo de cancelación de recurrencia para Stripe.
+
+### 10.1 Endpoints del Perfil de Suscripción
+
+**`GET /billing/subscription-detail/`** (`apps/billing/views.py::SubscriptionDetailView`)
+- Autenticación: `LoginRequiredMixin`.
+- **Anti-IDOR**: cruza rígidamente la organización del usuario autenticado vía `membership.organization`. Si no pertenece a ninguna organización, retorna **403 Forbidden**.
+- Respuesta JSON (200) si hay suscripción activa (`trialing`, `active`, `past_due`); 404 si no existe:
+  ```json
+  {
+    "id": 1,
+    "plan_name": "Barbero Independiente",
+    "plan_code": "INDEPENDIENTE",
+    "status": "active",
+    "provider": "stripe",
+    "is_stripe": true,
+    "current_period_start": "2026-06-01T00:00:00Z",
+    "current_period_end": "2026-07-01T00:00:00Z",
+    "amount_minor": 1900,
+    "currency": "USD",
+    "interval_count": 1,
+    "canceled_at": null,
+    "can_cancel": true
+  }
+  ```
+- `can_cancel` es `true` exclusivamente cuando `provider == "stripe"` AND `status in (active, trialing)`.
+
+**`GET /billing/invoice-history/?page=N`** (`apps/billing/views.py::InvoiceHistoryView`)
+- Autenticación: `LoginRequiredMixin`.
+- **Anti-IDOR**: el queryset se filtra por `organization=org OR user=request.user`. No usa parámetros externos para identificar al tenant.
+- **Privacidad por diseño**: cada fila devuelta contiene únicamente `id, paid_at, amount_minor, currency, plan_name, status, provider`. No se expone `raw_webhook_data`, `provider_invoice_id` completo, ni datos sensibles de tarjetas o tokens.
+- Paginación: 30 registros por página. `total`, `total_pages`, `has_next` para el scroll infinito.
+
+**`POST /billing/cancel-subscription/`** (`apps/billing/views.py::CancelSubscriptionView`)
+- Autenticación: `LoginRequiredMixin`.
+- **Anti-IDOR**: la suscripción a cancelar se obtiene filtrando por `organization=org + status__in=ACTIVE_STATUSES`.
+- Solo aplicable a suscripciones Stripe. Responde 400 si el proveedor no es `stripe`.
+- Invoca `StripeProvider.cancel_subscription(sub)` que llama a `stripe.Subscription.modify(..., cancel_at_period_end=True)`.
+- Aplica **Borrado Lógico** local: `sub.status = "canceled"`, `sub.canceled_at = now()`. No borra el registro.
+- Invalida la caché de suscripción (`invalidate_subscription(sub)`) para que se refleje en el middleware.
+
+### 10.2 Card de Suscripción (UI)
+
+Ubicada en `templates/accounts/profile.html` entre el formulario de perfil y el grid de Google/Roles. Solo se renderiza si `active_subscription` está presente en el contexto de la vista (`ProfileView.get_context_data`).
+
+**Elementos:**
+- Badge de estado (`Activa` / `Prueba` / `Pago pendiente`) con colores semánticos (verde, azul, amarillo).
+- Nombre del plan adquirido (`active_subscription.plan.name`) y proveedor (`stripe` / `wompi` formato title).
+- Dos tarjetas de periodo: **Inicio del ciclo actual** y **Vencimiento** (ambas desde `current_period_start` / `current_period_end`).
+- Botón **Historial de Pagos** (siempre visible si hay suscripción activa).
+- Botón **Cancelar renovación** (solo visible si `provider == "stripe"` AND `status in (active, trialing)`).
+
+**Contexto inyectado por `ProfileView`** (`apps/accounts/views.py`):
+```python
+from apps.billing.models import Subscription
+from apps.billing.cache_utils import get_org_subscription_status
+
+active_sub = Subscription.objects.filter(
+    organization=org, status__in=Subscription.ACTIVE_STATUSES,
+).select_related("plan", "plan_price").order_by("-created_at").first()
+context["active_subscription"] = active_sub
+context["has_active_subscription"] = get_org_subscription_status(org) if org else False
+```
+
+### 10.3 Modal de Historial de Pagos — Scroll Infinito
+
+**Estructura (HTML + CSS):**
+- Modal flotante con backdrop oscuro (`bg-black/60 backdrop-blur-sm`).
+- Panel `bg-neutral-900`, `max-h-[80vh]`, área de scroll interno `overflow-y-auto`.
+- Diseño mobile-first: `rounded-t-2xl` en móviles, `sm:rounded-2xl` en desktop.
+
+**Comportamiento JS (Vanilla):**
+```javascript
+// Al hacer scroll cerca del final (40px del fondo):
+invoiceScroll.addEventListener('scroll', function() {
+    if (scrollTop + clientHeight >= scrollHeight - 40) {
+        loadInvoicePage();  // Fetch GET /billing/invoice-history/?page=N
+    }
+});
+```
+- Estado global: `invoicePage`, `invoiceHasNext`, `invoiceLoadingFlag` (previene cargas concurrentes).
+- Al abrir: resetea lista y carga la primera página.
+- Al cerrar: oculta modal y limpia scroll.
+- Cada fila renderizada con `document.createElement('div')` — no innerHTML concat (previene XSS con `escapeHtml()` para valores dinámicos).
+- Formateo de moneda: USD con 2 decimales, COP con locale `es-CO`.
+
+**Estados visuales:**
+| Estado | Elemento visible |
+|---|---|
+| Cargando | Spinner animado (`animate-spin`) + "Cargando..." |
+| Vacío (página 1 sin resultados) | Icono documento + "Sin facturas registradas." |
+| Fin del listado | "— Fin del historial —" |
+| Error de red | Toast "Error al cargar el historial." |
+
+### 10.4 Modal de Confirmación de Cancelación
+
+**UX anti-errores:** al pulsar "Cancelar renovación" no se ejecuta la acción inmediatamente. Se abre un modal intermedio que:
+
+1. **Informa la fecha exacta de acceso residual** (extraída de `current_period_end` renderizada en la card).
+2. **Recalca que conservará acceso hasta esa fecha** (texto: "Conservarás acceso hasta el final del período pagado. No se realizarán más cobros automáticos.").
+3. **Requiere confirmación explícita** con dos botones: "Volver" (dismiss) y "Sí, cancelar renovación" (rojo).
+
+Al confirmar:
+- `fetch POST /billing/cancel-subscription/` con token CSRF y `Content-Type: application/json`.
+- Si éxito: toast verde + recarga de la página en 2 segundos (para reflejar `status="canceled"`).
+- Si error: toast rojo con el mensaje del backend, botón se rehabilita.
+- Tecla Escape cierra cualquiera de los dos modales.
+
+### 10.5 Endpoints Afectados / Resumen del Módulo
+
+| Endpoint | Método | Auth | Rol |
+|---|---|---|---|
+| `/accounts/profile/` | GET | `LoginRequiredMixin` | Renderiza card de suscripción (contexto inyectado) |
+| `/billing/subscription-detail/` | GET | `LoginRequiredMixin` | JSON detalle suscripción activa |
+| `/billing/invoice-history/` | GET | `LoginRequiredMixin` | Historial paginado 30×30 (scroll infinito) |
+| `/billing/cancel-subscription/` | POST | `LoginRequiredMixin` | Cancela recurrencia Stripe + borrado lógico |
+
+**Archivos modificados / nuevos:**
+- `apps/billing/views.py` — clases `SubscriptionDetailView`, `InvoiceHistoryView`, `CancelSubscriptionView`.
+- `apps/billing/urls.py` — rutas `subscription-detail/`, `invoice-history/`, `cancel-subscription/`.
+- `apps/accounts/views.py` — `ProfileView.get_context_data` inyecta `active_subscription` + `has_active_subscription`.
+- `templates/accounts/profile.html` — card de suscripción + modales de historial/cancelación + JS vanilla (scroll infinito + cancelación).
+- `DOCUMENTACION_TECNICA.md` — sección 10 completa.

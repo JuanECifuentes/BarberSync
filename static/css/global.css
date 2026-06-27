@@ -30,3 +30,12 @@
         position: relative;
         z-index: 1;
     }
+
+    /* Danger action button overrides (red instead of orange) */
+    .btn-action-primary.btn-action-danger::before {
+        background: #ef4444 !important;
+    }
+    .btn-action-primary.btn-action-danger:not(:disabled):hover {
+        border-color: #ef4444 !important;
+        box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3) !important;
+    }

@@ -595,6 +595,33 @@ WHERE user_id = p_user_id;
 DELETE FROM account_emailaddress
 WHERE user_id = p_user_id;
 
+-- 27.1 Verificación por email (OTP / link de verificación)
+DELETE FROM accounts_email_verification_token
+WHERE user_id = p_user_id;
+
+DELETE FROM accounts_email_link_verification
+WHERE user_id = p_user_id;
+
+-- 27.2 Webhooks de facturación (linterna: ya no asociados a user/org tras el borrado)
+-- billing_webhook_event NO tiene FK a user ni organization (es registro idempotente
+-- global de la pasarela). Se conserva para auditoría legal y troubleshooting; los
+-- registros quedan huérfanos intencionalmente. Si se desea purgar:
+-- DELETE FROM billing_webhook_event
+-- WHERE event_id IN (
+--     SELECT event_id
+--     FROM billing_invoice
+--     WHERE user_id = p_user_id OR organization_id IN (
+--         SELECT id FROM accounts_organization WHERE owner_id = p_user_id
+--     )
+-- );
+-- (Por defecto no se eliminan.)
+
+-- 27.3 Planes y precios del catálogo de billing
+-- billing_plan y billing_plan_price constituyen el catálogo SaaS GLOBAL; no se
+-- eliminan por usuario. Lo único a tocar son sus columnas created_by_id que ya
+-- fueron NULLeadas en el paso 25 (UPDATE billing_plan_price SET created_by_id=NULL
+-- WHERE created_by_id = p_user_id).
+
 -- 28. Eliminar usuario
 DELETE FROM accounts_user
 WHERE id = p_user_id;

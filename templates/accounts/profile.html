@@ -448,6 +448,117 @@
         </div>
     </div>
 
+    <!-- ════════════════ Sección Suscripción ════════════════ -->
+    {% if active_subscription %}
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden shadow-xl shadow-black/50">
+        <div class="px-6 py-4 border-b border-neutral-800 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-brand/10 flex items-center justify-center">
+                <svg class="w-5 h-5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                </svg>
+            </div>
+            <div>
+                <h3 class="font-heading font-bold text-white text-lg">Suscripción</h3>
+                <p class="text-xs text-neutral-400">Tu plan activo y facturación</p>
+            </div>
+            <div class="ml-auto">
+                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold {% if active_subscription.status == 'active' %}bg-green-500/10 text-green-400 border border-green-500/30{% elif active_subscription.status == 'trialing' %}bg-blue-500/10 text-blue-400 border border-blue-500/30{% else %}bg-yellow-500/10 text-yellow-400 border border-yellow-500/30{% endif %}">
+                    {% if active_subscription.status == 'active' %}Activa{% elif active_subscription.status == 'trialing' %}Prueba{% else %}{{ active_subscription.status|title }}{% endif %}
+                </span>
+            </div>
+        </div>
+
+        <div class="p-6 space-y-5">
+            <!-- Plan y detalles -->
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-neutral-800/20 border border-neutral-800/80 p-4 rounded-xl">
+                <div>
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-neutral-500 mb-0.5">Plan Adquirido</p>
+                    <h4 class="font-heading font-bold text-lg text-white">{{ active_subscription.plan.name }}</h4>
+                </div>
+                <div class="flex flex-wrap items-center gap-3">
+                    <!-- Renovación Automática -->
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold {% if active_subscription.canceled_at %}bg-red-500/10 text-red-400 border border-red-500/30{% else %}bg-green-500/10 text-green-400 border border-green-500/30{% endif %}">
+                        {% if active_subscription.canceled_at %}
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            Renovación: Desactivada
+                        {% else %}
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 6.578M3 20v-5h.581"/>
+                            </svg>
+                            Renovación: Activa
+                        {% endif %}
+                    </span>
+
+                    <div class="flex items-center gap-1.5 whitespace-nowrap">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Pasarela:</span>
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-neutral-800 text-neutral-300 border border-neutral-700/80">
+                            {% if active_subscription.provider == 'stripe' %}
+                                <svg class="w-3 h-3 text-[#635BFF]" fill="currentColor" viewBox="0 0 24 24"><path d="M13.962 10.975c0-1.125-.867-1.564-2.31-1.564-2.14 0-4.321.848-6.195 1.954l-.794-3.52c1.954-1.07 4.792-1.84 7.747-1.84 4.542 0 7.42 2.164 7.42 6.012 0 4.97-6.273 6.012-6.273 7.822 0 .614.526.848 1.433.848 1.901 0 4.162-.77 6.136-1.842l.819 3.52c-2.14 1.254-5.143 1.983-7.66 1.983-4.717 0-7.794-2.221-7.794-6.136 0-5.116 6.945-6.398 6.945-8.835z"/></svg>
+                                Stripe
+                            {% elif active_subscription.provider == 'wompi' %}
+                                <span class="w-1.5 h-1.5 rounded-full bg-brand"></span>
+                                Wompi
+                            {% else %}
+                                {{ active_subscription.provider|title }}
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Periodo de facturación -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="bg-neutral-800/40 border border-neutral-800/80 rounded-xl p-4">
+                    <p class="text-xs text-neutral-400 mb-1">Inicio del ciclo actual</p>
+                    <p class="text-sm font-medium text-white">
+                        {% if active_subscription.current_period_start %}
+                            {{ active_subscription.current_period_start|date:"d M Y" }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="bg-neutral-800/40 border border-neutral-800/80 rounded-xl p-4">
+                    <p class="text-xs text-neutral-400 mb-1">Vencimiento</p>
+                    <p class="text-sm font-medium text-white">
+                        {% if active_subscription.dynamic_current_period_end %}
+                            {{ active_subscription.dynamic_current_period_end|date:"d M Y" }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+
+            <!-- Acciones -->
+            <div class="flex flex-wrap gap-3 pt-2">
+                <button type="button" id="btn-invoice-history"
+                        class="btn-action-primary text-sm flex items-center gap-2 border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    <span>Historial de Pagos</span>
+                </button>
+                {% if active_subscription.provider == 'stripe' %}
+                {% if active_subscription.status == 'active' or active_subscription.status == 'trialing' %}
+                {% if not active_subscription.canceled_at %}
+                <button type="button" id="btn-cancel-subscription"
+                        class="btn-action-primary btn-action-danger text-sm flex items-center gap-2 border border-red-500/30 text-red-400 px-4 py-2 rounded-lg transition-all shadow-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                    <span>Cancelar renovación</span>
+                </button>
+                {% endif %}
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Integrations & Roles Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
@@ -657,6 +768,99 @@
             <button type="button" onclick="closeBranchesModal()" class="w-full py-3 bg-brand text-white font-heading font-bold rounded-xl hover:bg-brand-600 transition-colors focus:outline-none focus:ring-2 focus:ring-brand/50">
                 Cerrar
             </button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ──────────────────────────────────────────────── -->
+<!-- Modal: Historial de Pagos (scroll infinito 30x30) -->
+<!-- ──────────────────────────────────────────────── -->
+{% if active_subscription %}
+<div id="invoice-modal" class="branches-modal-overlay hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" id="invoice-modal-backdrop"></div>
+    <div class="branches-modal-panel relative bg-neutral-900 border border-neutral-800 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[80vh] flex flex-col shadow-2xl">
+        <div class="flex items-center justify-between p-4 border-b border-neutral-800 flex-shrink-0">
+            <h3 class="text-lg font-heading font-bold text-white">Historial de Pagos</h3>
+            <button type="button" id="btn-close-invoice-modal" class="text-neutral-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-neutral-800">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="overflow-y-auto flex-1 p-4 space-y-2" id="invoice-modal-scroll">
+            <div id="invoice-list" class="space-y-2"></div>
+            <div id="invoice-loading" class="hidden text-center py-6">
+                <svg class="w-6 h-6 text-brand animate-spin mx-auto" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                <p class="text-xs text-neutral-400 mt-2">Cargando...</p>
+            </div>
+            <div id="invoice-empty" class="hidden text-center py-8">
+                <svg class="w-10 h-10 text-neutral-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                <p class="text-sm text-neutral-500">Sin facturas registradas.</p>
+            </div>
+            <div id="invoice-end" class="hidden text-center py-4">
+                <p class="text-xs text-neutral-600">— Fin del historial —</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ──────────────────────────────────────────────── -->
+<!-- Modal: Confirmación de Cancelación de Suscripción -->
+<!-- ──────────────────────────────────────────────── -->
+<div id="cancel-modal" class="branches-modal-overlay hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" id="cancel-modal-backdrop"></div>
+    <div class="branches-modal-panel relative bg-neutral-900 border border-neutral-800 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md shadow-2xl">
+        <div class="p-6 space-y-5">
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-xl bg-red-500/10 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="font-heading font-bold text-white text-lg">Cancelar renovación</h3>
+                    <p class="text-xs text-neutral-400">Esta acción detendrá los cobros futuros</p>
+                </div>
+            </div>
+
+            <div class="bg-neutral-800/50 border border-neutral-700/60 rounded-xl p-4">
+                <div class="flex items-start gap-3">
+                    <svg class="w-5 h-5 text-brand flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <div>
+                        <p class="text-sm text-white font-medium mb-1">Conservarás acceso hasta el final del período pagado</p>
+                        <p class="text-xs text-neutral-400">
+                            Tu suscripción permanecerá activa hasta el
+                            <strong class="text-white" id="cancel-access-until">
+                                {% if active_subscription.dynamic_current_period_end %}
+                                    {{ active_subscription.dynamic_current_period_end|date:"d M Y" }}
+                                {% else %}
+                                    fin del ciclo actual
+                                {% endif %}
+                            </strong>.
+                            No se realizarán más cobros automáticos.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex gap-3 pt-1">
+                <button type="button" id="btn-cancel-dismiss"
+                        class="flex-1 py-3 rounded-xl border border-neutral-700 text-neutral-300 font-medium text-sm hover:bg-neutral-800 transition-colors">
+                    Volver
+                </button>
+                <button type="button" id="btn-cancel-confirm"
+                        class="py-3 btn-action-primary btn-action-danger text-sm flex items-center gap-2 border border-red-500/30 text-red-400 px-4 py-2 rounded-lg transition-all shadow-sm">
+                    <span>Sí, cancelar renovación</span>
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -1218,6 +1422,229 @@ function dismissToast(toast) {
             submitBtn.disabled = false;
             submitBtn.querySelector('span').textContent = 'Actualizar contraseña';
         });
+    });
+})();
+</script>
+{% endif %}
+
+{% if active_subscription %}
+<script>
+(function() {
+    /* ══════════════════════════════════════════════════════════════════
+       Modal de Historial de Pagos — scroll infinito 30×30
+       ══════════════════════════════════════════════════════════════════ */
+    var invoiceModal = document.getElementById('invoice-modal');
+    var invoiceScroll = document.getElementById('invoice-modal-scroll');
+    var invoiceList = document.getElementById('invoice-list');
+    var invoiceLoading = document.getElementById('invoice-loading');
+    var invoiceEmpty = document.getElementById('invoice-empty');
+    var invoiceEnd = document.getElementById('invoice-end');
+    var btnInvoiceHistory = document.getElementById('btn-invoice-history');
+    var btnCloseInvoice = document.getElementById('btn-close-invoice-modal');
+    var invoiceBackdrop = document.getElementById('invoice-modal-backdrop');
+
+    var invoicePage = 1;
+    var invoiceHasNext = true;
+    var invoiceLoadingFlag = false;
+    var cachedInvoices = [];
+    var cachedPage = 1;
+    var cachedHasNext = true;
+    var formatCurrencyMemo = {};
+
+    function formatCurrency(amountMinor, currency) {
+        if (currency === 'COP') {
+            return '$' + (amountMinor / 100).toLocaleString('es-CO');
+        }
+        return '$' + (amountMinor / 100).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+
+    function renderInvoiceRow(inv) {
+        var div = document.createElement('div');
+        div.className = 'flex items-center gap-3 p-3 bg-neutral-800/40 border border-neutral-700/50 rounded-xl hover:border-neutral-600 transition-colors';
+        var badgeColor = inv.status === 'paid' ? 'bg-green-500/10 text-green-400' : 'bg-yellow-500/10 text-yellow-400';
+        var statusLabel = inv.status === 'paid' ? 'Pagado' : 'Fallido';
+        div.innerHTML =
+            '<div class="flex-1 min-w-0">' +
+            '  <p class="text-sm font-medium text-white truncate">' + escapeHtml(inv.plan_name) + '</p>' +
+            '  <p class="text-xs text-neutral-400">' + escapeHtml(inv.paid_at ? inv.paid_at.split('T')[0] : '—') + ' · ' + escapeHtml(inv.provider) + '</p>' +
+            '</div>' +
+            '<div class="text-right flex-shrink-0">' +
+            '  <span class="text-sm font-semibold text-white">' + formatCurrency(inv.amount_minor, inv.currency) + '</span>' +
+            '  <span class="block text-xs"><span class="inline-flex px-1.5 py-0.5 rounded-full text-xs ' + badgeColor + '">' + statusLabel + '</span></span>' +
+            '</div>';
+        return div;
+    }
+
+    function escapeHtml(text) {
+        return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function loadInvoicePage() {
+        if (invoiceLoadingFlag || !invoiceHasNext) return;
+        invoiceLoadingFlag = true;
+        invoiceLoading.classList.remove('hidden');
+        invoiceEmpty.classList.add('hidden');
+        var csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        fetch('/billing/invoice-history/?page=' + invoicePage, {
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+        })
+        .then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+        })
+        .then(function(data) {
+            invoiceLoading.classList.add('hidden');
+            var invoices = data.invoices || [];
+            if (invoices.length === 0 && invoicePage === 1) {
+                invoiceEmpty.classList.remove('hidden');
+                return;
+            }
+            invoices.forEach(function(inv) {
+                invoiceList.appendChild(renderInvoiceRow(inv));
+                cachedInvoices.push(inv); // Cache item
+            });
+            invoiceHasNext = data.has_next;
+            invoicePage = data.page + 1;
+            
+            // Sync cache indicators
+            cachedPage = invoicePage;
+            cachedHasNext = invoiceHasNext;
+            
+            if (!invoiceHasNext) {
+                invoiceEnd.classList.remove('hidden');
+            }
+            invoiceLoadingFlag = false;
+        })
+        .catch(function() {
+            invoiceLoading.classList.add('hidden');
+            invoiceLoadingFlag = false;
+            showToast('Error al cargar el historial.', 'error');
+        });
+    }
+
+    function openInvoiceModal() {
+        invoiceModal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+        
+        if (cachedInvoices.length > 0) {
+            // Restore from cache directly without making network requests
+            invoiceList.innerHTML = '';
+            cachedInvoices.forEach(function(inv) {
+                invoiceList.appendChild(renderInvoiceRow(inv));
+            });
+            invoicePage = cachedPage;
+            invoiceHasNext = cachedHasNext;
+            
+            invoiceLoading.classList.add('hidden');
+            invoiceEmpty.classList.add('hidden');
+            if (!invoiceHasNext) {
+                invoiceEnd.classList.remove('hidden');
+            } else {
+                invoiceEnd.classList.add('hidden');
+            }
+        } else {
+            // Clear and query first page
+            invoicePage = 1;
+            invoiceHasNext = true;
+            invoiceList.innerHTML = '';
+            invoiceEnd.classList.add('hidden');
+            invoiceEmpty.classList.add('hidden');
+            loadInvoicePage();
+        }
+    }
+
+    function closeInvoiceModal() {
+        invoiceModal.classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+
+    if (btnInvoiceHistory) {
+        btnInvoiceHistory.addEventListener('click', openInvoiceModal);
+    }
+    if (btnCloseInvoice) {
+        btnCloseInvoice.addEventListener('click', closeInvoiceModal);
+    }
+    if (invoiceBackdrop) {
+        invoiceBackdrop.addEventListener('click', closeInvoiceModal);
+    }
+    if (invoiceScroll) {
+        invoiceScroll.addEventListener('scroll', function() {
+            if (invoiceScroll.scrollTop + invoiceScroll.clientHeight >= invoiceScroll.scrollHeight - 40) {
+                loadInvoicePage();
+            }
+        });
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && invoiceModal && !invoiceModal.classList.contains('hidden')) {
+            closeInvoiceModal();
+        }
+    });
+
+    /* ══════════════════════════════════════════════════════════════════
+       Modal de Cancelación de Suscripción Stripe
+       ══════════════════════════════════════════════════════════════════ */
+    var cancelModal = document.getElementById('cancel-modal');
+    var btnCancelSub = document.getElementById('btn-cancel-subscription');
+    var btnCancelDismiss = document.getElementById('btn-cancel-dismiss');
+    var btnCancelConfirm = document.getElementById('btn-cancel-confirm');
+    var cancelBackdrop = document.getElementById('cancel-modal-backdrop');
+
+    function openCancelModal() {
+        cancelModal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+    function closeCancelModal() {
+        cancelModal.classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+
+    if (btnCancelSub) {
+        btnCancelSub.addEventListener('click', openCancelModal);
+    }
+    if (btnCancelDismiss) {
+        btnCancelDismiss.addEventListener('click', closeCancelModal);
+    }
+    if (cancelBackdrop) {
+        cancelBackdrop.addEventListener('click', closeCancelModal);
+    }
+
+    if (btnCancelConfirm) {
+        btnCancelConfirm.addEventListener('click', function() {
+            btnCancelConfirm.disabled = true;
+            btnCancelConfirm.textContent = 'Cancelando...';
+            var csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            fetch('/billing/cancel-subscription/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrf,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({confirm: true})
+            })
+            .then(function(r) {
+                if (!r.ok) return r.json().then(function(d) { throw new Error(d.error || 'Error'); });
+                return r.json();
+            })
+            .then(function(data) {
+                showToast(data.message || 'Suscripción cancelada.', 'success');
+                closeCancelModal();
+                // Recargar después de 2s para mostrar el nuevo estado.
+                setTimeout(function() { location.reload(); }, 2000);
+            })
+            .catch(function(err) {
+                showToast(err.message || 'Error al cancelar.', 'error');
+                btnCancelConfirm.disabled = false;
+                btnCancelConfirm.textContent = 'Sí, cancelar renovación';
+            });
+        });
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && cancelModal && !cancelModal.classList.contains('hidden')) {
+            closeCancelModal();
+        }
     });
 })();
 </script>
