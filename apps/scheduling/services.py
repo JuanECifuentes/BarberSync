@@ -12,6 +12,7 @@ from datetime import datetime, date, time, timedelta
 from decimal import Decimal
 
 from django.conf import settings
+from django.core import signing
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -559,6 +560,13 @@ def _status_color(status: str) -> str:
     }.get(status, "#6b7280")  # gray
 
 
+def _generate_manage_token(appointment):
+    return signing.dumps(
+        {"a": appointment.pk, "c": appointment.client_id},
+        salt="barbersync-appointment-manage",
+    )
+
+
 def notify_appointment_mutation(appointment, action, actor):
     """
     Despacha notificaciones asíncronas para creación, reprogramación o cancelación
@@ -572,7 +580,7 @@ def notify_appointment_mutation(appointment, action, actor):
     # Check if the actor is the same barber assigned to the appointment
     is_barber_acting = False
     if actor and actor.is_authenticated:
-        is_barber_acting = (appointment.barber.membership.user_id == actor.id)
+        is_barber_acting = appointment.barber.membership.user_id == actor.id
 
     # Determine recipient channels
     client_channels = ["email"]
@@ -589,6 +597,9 @@ def notify_appointment_mutation(appointment, action, actor):
     )
 
     if action == "create":
+        manage_token = _generate_manage_token(appointment)
+        manage_url = f"{settings.SITE_URL}/book/appointment/manage/{manage_token}/"
+
         # Notify client
         async_task(
             "apps.notifications.notifications.send_notification",
@@ -604,6 +615,7 @@ def notify_appointment_mutation(appointment, action, actor):
                 "barber_name": str(appointment.barber),
                 "service_names": service_names,
                 "start_time": appointment.start_time,
+                "manage_url": manage_url,
             },
             channels=client_channels,
             appointment_id=appointment.pk,
@@ -709,7 +721,9 @@ def notify_appointment_mutation(appointment, action, actor):
                 notif_type="cancellation",
                 context={
                     "recipient_name": str(appointment.barber),
-                    "client_name": appointment.client.name if appointment.client else "Sin cliente",
+                    "client_name": appointment.client.name
+                    if appointment.client
+                    else "Sin cliente",
                     "barbershop_name": appointment.barbershop.name,
                     "barber_name": str(appointment.barber),
                     "service_names": service_names,

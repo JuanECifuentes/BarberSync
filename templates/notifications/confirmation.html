@@ -30,3 +30,39 @@ Tu cita en <strong>{{ barbershop_name }}</strong> ha sido confirmada con éxito.
     </td>
 </tr>
 {% endblock %}
+
+{% block action %}
+{% if manage_url %}
+<tr>
+    <td style="padding-bottom: 8px; text-align: center;">
+        <!--[if (gte mso 9)|(IE)]>
+        <table align="center" border="0" cellspacing="0" cellpadding="0">
+        <tr>
+        <td align="center" style="padding: 14px 32px; background-color: #1d1d22; border: 1px solid #ff2301; border-radius: 12px; text-align: center;">
+        <a href="{{ manage_url }}" style="color: #ffffff; font-size: 16px; font-weight: 700; text-decoration: none; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; letter-spacing: 0.3px;">Gestionar Cita</a>
+        </td>
+        </tr>
+        </table>
+        <![endif]-->
+        <!--[if !((gte mso 9)|(IE))]><!-->
+        <table align="center" border="0" cellspacing="0" cellpadding="0" style="margin: 0 auto;">
+        <tr>
+        <td style="border-radius: 12px; background: linear-gradient(135deg, #ff2301 0%, #e01e00 100%); box-shadow: 0 4px 14px rgba(255, 35, 1, 0.35);" bgcolor="#ff2301">
+        <a href="{{ manage_url }}" target="_blank" class="button-wrapper-link" style="display: inline-block; padding: 14px 36px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #ffffff; font-size: 16px; font-weight: 700; text-decoration: none; letter-spacing: 0.3px; border-radius: 12px; border: 1px solid #ff2301;">
+            Gestionar Cita
+        </a>
+        </td>
+        </tr>
+        </table>
+        <!--<![endif]-->
+    </td>
+</tr>
+<tr>
+    <td style="padding-bottom: 32px; text-align: center;">
+        <p style="margin: 0; color: #6b7280; font-size: 12px; line-height: 1.5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+            Si necesitas cancelar tu cita, utiliza este botón para acceder de forma segura a tu gestión de turnos.
+        </p>
+    </td>
+</tr>
+{% endif %}
+{% endblock %}
