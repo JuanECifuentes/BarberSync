@@ -6,10 +6,19 @@ Clients authenticate via Google (allauth) to reserve.
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
+from urllib.parse import quote
 
-from django.http import JsonResponse
-from django.shortcuts import get_object_or_404
+from django.conf import settings
+from django.core import signing
+from django.http import (
+    Http404,
+    HttpResponseForbidden,
+    HttpResponseRedirect,
+    JsonResponse,
+)
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
@@ -19,7 +28,7 @@ from django.db.models import Q
 from apps.accounts.models import BarberProfile, Barbershop, Organization
 from apps.clients.models import Client
 from apps.scheduling import services as svc
-from apps.scheduling.models import BarberService, Service, WorkSchedule
+from apps.scheduling.models import Appointment, BarberService, Service, WorkSchedule
 
 
 def _get_barbershop(booking_uid):
@@ -269,7 +278,9 @@ class MyBookingsAPI(View):
 
         # Ensure the organization matches
         if client.organization_id != barbershop.organization_id:
-            return JsonResponse({"error": "Violación de límites de tenant."}, status=403)
+            return JsonResponse(
+                {"error": "Violación de límites de tenant."}, status=403
+            )
 
         # Parse query params
         tab = request.GET.get("tab", "current")
@@ -290,12 +301,15 @@ class MyBookingsAPI(View):
         if tab == "current":
             qs = qs.filter(
                 status__in=["pending", "confirmed", "in_progress"],
-                start_time__gt=timezone.now()
+                start_time__gt=timezone.now(),
             ).order_by("start_time")
         else:
             qs = qs.filter(
-                Q(status__in=["completed", "cancelled", "no_show"]) |
-                Q(status__in=["pending", "confirmed", "in_progress"], start_time__lte=timezone.now())
+                Q(status__in=["completed", "cancelled", "no_show"])
+                | Q(
+                    status__in=["pending", "confirmed", "in_progress"],
+                    start_time__lte=timezone.now(),
+                )
             ).order_by("-start_time")
 
         total_count = qs.count()
@@ -319,6 +333,174 @@ class MyBookingsAPI(View):
         ]
 
         return JsonResponse({"appointments": data, "has_more": has_more})
+
+
+# ─────────────────────────────────────────────
+# Self-service appointment management
+# ─────────────────────────────────────────────
+class AppointmentManageView(View):
+    """
+    Self-service cancellation endpoint accessed via a single-use signed token
+    sent in the confirmation email.
+
+    Security locks:
+      A. 10-minute cutoff: cannot cancel < 10 min before start_time
+      B. Auth required: anonymous users redirected to login with ?next=
+      C. Identity match: logged-in user must be the appointment's client
+      D. Multi-tenant isolation: token-scoped to single appointment only
+    """
+
+    template_name = "booking/manage_appointment.html"
+    signer_salt = "barbersync-appointment-manage"
+    cutoff_minutes = 10
+
+    def _decode_token(self, token):
+        try:
+            data = signing.loads(token, salt=self.signer_salt)
+            appointment_id = data.get("a")
+            if not appointment_id:
+                raise Http404("Token inválido")
+            return int(appointment_id)
+        except signing.BadSignature:
+            raise Http404("Token inválido o expirado")
+
+    def _get_appointment(self, appointment_id):
+        try:
+            return (
+                Appointment.objects.select_related(
+                    "barbershop",
+                    "barbershop__organization",
+                    "barber__membership__user",
+                    "client",
+                    "client__user",
+                )
+                .prefetch_related("services__service")
+                .get(pk=appointment_id)
+            )
+        except Appointment.DoesNotExist:
+            raise Http404("Cita no encontrada")
+
+    def _check_time_window(self, appointment):
+        now = timezone.now()
+        cutoff = appointment.start_time - timedelta(minutes=self.cutoff_minutes)
+        if now >= cutoff:
+            return False
+        return True
+
+    def _check_status(self, appointment):
+        cancellable = [
+            Appointment.Status.PENDING,
+            Appointment.Status.CONFIRMED,
+        ]
+        return appointment.status in cancellable
+
+    def get(self, request, token):
+        appointment_id = self._decode_token(token)
+        appointment = self._get_appointment(appointment_id)
+
+        if not request.user.is_authenticated:
+            manage_path = request.get_full_path()
+            login_url = f"{reverse('account_login')}?next={quote(manage_path)}"
+            return redirect(login_url)
+
+        if not self._check_client_match(request, appointment):
+            return render(
+                request,
+                "booking/manage_forbidden.html",
+                {
+                    "error_title": "Acceso Denegado",
+                    "error_message": "Esta cita no pertenece a tu cuenta.",
+                },
+                status=403,
+            )
+
+        if not self._check_status(appointment):
+            return render(
+                request,
+                "booking/manage_error.html",
+                {
+                    "error_title": "Cita no modificable",
+                    "error_message": "Esta cita ya fue cancelada o completada y no puede gestionarse mediante este enlace.",
+                    "appointment": appointment,
+                },
+            )
+
+        if not self._check_time_window(appointment):
+            return render(
+                request,
+                "booking/manage_error.html",
+                {
+                    "error_title": "Tiempo límite expirado",
+                    "error_message": f"Las cancelaciones autónomas solo están permitidas hasta {self.cutoff_minutes} minutos antes del inicio de la cita. Por favor, comunícate directamente con la barbería.",
+                    "appointment": appointment,
+                },
+            )
+
+        service_names = ", ".join(
+            appointment.services.values_list("service__name", flat=True)
+        )
+
+        return render(
+            request,
+            self.template_name,
+            {
+                "appointment": appointment,
+                "service_names": service_names,
+                "token": token,
+            },
+        )
+
+    def post(self, request, token):
+        appointment_id = self._decode_token(token)
+        appointment = self._get_appointment(appointment_id)
+
+        if not request.user.is_authenticated:
+            return HttpResponseForbidden("Autenticación requerida")
+
+        if not self._check_client_match(request, appointment):
+            return HttpResponseForbidden("Esta cita no pertenece a tu cuenta")
+
+        if not self._check_status(appointment):
+            return render(
+                request,
+                "booking/manage_error.html",
+                {
+                    "error_title": "Cita no modificable",
+                    "error_message": "Esta cita ya no puede ser cancelada mediante este enlace.",
+                    "appointment": appointment,
+                },
+            )
+
+        if not self._check_time_window(appointment):
+            return render(
+                request,
+                "booking/manage_error.html",
+                {
+                    "error_title": "Tiempo límite expirado",
+                    "error_message": f"El plazo para cancelaciones autónomas ({self.cutoff_minutes} min antes) ha expirado.",
+                    "appointment": appointment,
+                },
+            )
+
+        reason = request.POST.get("reason", "Cancelada por el cliente")
+        svc.cancel_appointment(appointment, reason=reason, cancelled_by=request.user)
+
+        svc.notify_appointment_mutation(appointment, "cancel", request.user)
+
+        return render(
+            request,
+            "booking/manage_cancelled.html",
+            {
+                "appointment": appointment,
+                "barbershop_name": appointment.barbershop.name,
+            },
+        )
+
+    def _check_client_match(self, request, appointment):
+        if not appointment.client:
+            return False
+        client_user = getattr(appointment.client, "user", None)
+        return client_user and client_user.pk == request.user.pk
 
 
 # ─────────────────────────────────────────────

@@ -1,0 +1,172 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#ff2301">
+    <title>Gestionar Cita – {{ appointment.barbershop.name }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Roboto:wght@500;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" type="text/css" href="{% static 'css/global.css' %}">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { DEFAULT: '#ff2301', 600: '#e01e00', 700: '#b81800' },
+                        neutral: { 400: '#b8b8be', 500: '#59595D', 600: '#5e5e63', 700: '#4a4a4f', 800: '#3d3d41', 900: '#2a2a2d', 950: '#1a1a1c' }
+                    },
+                    fontFamily: { heading: ['Roboto', 'sans-serif'], body: ['Poppins', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="min-h-screen bg-[#0f0f11] font-body antialiased flex flex-col items-center justify-center px-4 py-12">
+    <div class="w-full max-w-md space-y-8">
+
+        <!-- Logo -->
+        <div class="text-center">
+            <div class="w-16 h-16 bg-brand rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-brand/20">
+                <span class="text-white font-heading font-bold text-3xl">B</span>
+            </div>
+            <h1 class="font-heading font-bold text-2xl text-white">Gestionar Cita</h1>
+            <p class="text-sm text-neutral-400 mt-1">{{ appointment.barbershop.name }}</p>
+        </div>
+
+        <!-- Appointment Summary Card -->
+        <div class="bg-[#1d1d22] border border-[#2e2e38] rounded-2xl p-6 shadow-lg space-y-5">
+            <h2 class="text-lg font-semibold text-white">Detalles de tu reserva</h2>
+
+            <div class="space-y-3">
+                <div class="flex justify-between items-center py-2 border-b border-[#2e2e38]">
+                    <span class="text-sm text-neutral-400">Fecha</span>
+                    <span class="text-sm font-semibold text-white">{{ appointment.start_time|date:"d/m/Y" }}</span>
+                </div>
+                <div class="flex justify-between items-center py-2 border-b border-[#2e2e38]">
+                    <span class="text-sm text-neutral-400">Hora</span>
+                    <span class="text-sm font-semibold text-white">{{ appointment.start_time|time:"H:i" }}</span>
+                </div>
+                <div class="flex justify-between items-center py-2 border-b border-[#2e2e38]">
+                    <span class="text-sm text-neutral-400">Sucursal</span>
+                    <span class="text-sm font-semibold text-white">{{ appointment.barbershop.name }}</span>
+                </div>
+                <div class="flex justify-between items-center py-2 border-b border-[#2e2e38]">
+                    <span class="text-sm text-neutral-400">Barbero</span>
+                    <span class="text-sm font-semibold text-white">{{ appointment.barber }}</span>
+                </div>
+                <div class="flex justify-between items-center py-2 border-b border-[#2e2e38]">
+                    <span class="text-sm text-neutral-400">Servicio{% if "," in service_names %}s{% endif %}</span>
+                    <span class="text-sm font-semibold text-white text-right max-w-[200px]">{{ service_names }}</span>
+                </div>
+                <div class="flex justify-between items-center py-2">
+                    <span class="text-sm text-neutral-400">Estado</span>
+                    <span class="estado-badge inline-block px-3 py-1 text-xs font-semibold rounded-full
+                        {% if appointment.status == 'pending' %}bg-amber-500/20 text-amber-400
+                        {% elif appointment.status == 'confirmed' %}bg-blue-500/20 text-blue-400
+                        {% endif %}">
+                        {{ appointment.get_status_display }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cancel Button -->
+        <form id="cancel-form" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="reason" value="Cancelada por el cliente">
+
+            <button type="button" id="cancel-btn"
+                    class="btn-action-primary btn-primary w-full border border-neutral-700 px-4 py-2 rounded-lg transition-all shadow-sm">
+                <span style="color: white;">Confirmar Cancelación de Turno</span>
+            </button>
+        </form>
+
+        <!-- Safety Text -->
+        <p class="text-center text-xs text-neutral-600 leading-relaxed">
+            Esta acción cancelará definitivamente tu turno.<br>
+            Se notificará automáticamente a la barbería.
+        </p>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div class="bg-[#1d1d22] border border-[#2e2e38] rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
+            <div class="text-center space-y-4">
+                <div class="w-12 h-12 mx-auto bg-red-500/20 rounded-full flex items-center justify-center">
+                    <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-semibold text-white">¿Confirmar cancelación?</h3>
+                <p class="text-sm text-neutral-400">
+                    Tu cita del <strong class="text-white">{{ appointment.start_time|date:"d/m/Y" }}</strong> a las <strong class="text-white">{{ appointment.start_time|time:"H:i" }}</strong> será cancelada.
+                    Esta acción no se puede deshacer.
+                </p>
+                <div class="flex gap-3 pt-2">
+                    <button id="modal-cancel"
+                            class="flex-1 py-2.5 px-4 bg-neutral-800 hover:bg-neutral-700 text-white font-medium rounded-xl
+                                   transition-all duration-300 text-sm border border-neutral-700">
+                        Volver
+                    </button>
+                    <button id="modal-confirm"
+                            class="btn-action-primary btn-primary flex-1 py-2.5 px-4 border border-neutral-700 text-white font-semibold rounded-xl
+                                   transition-all duration-300 text-sm">
+                        <span>Sí, cancelar</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80">
+        <div class="text-center space-y-3">
+            <svg class="animate-spin h-8 w-8 text-brand mx-auto" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            <p class="text-sm text-neutral-400">Procesando cancelación...</p>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            var modal = document.getElementById('confirm-modal');
+            var cancelBtn = document.getElementById('cancel-btn');
+            var modalCancel = document.getElementById('modal-cancel');
+            var modalConfirm = document.getElementById('modal-confirm');
+            var form = document.getElementById('cancel-form');
+            var loading = document.getElementById('loading-overlay');
+
+            cancelBtn.addEventListener('click', function() {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            });
+
+            modalCancel.addEventListener('click', function() {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            });
+
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                }
+            });
+
+            modalConfirm.addEventListener('click', function() {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                loading.classList.remove('hidden');
+                loading.classList.add('flex');
+                form.submit();
+            });
+        })();
+    </script>
+</body>
+</html>
