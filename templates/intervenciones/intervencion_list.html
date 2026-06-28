@@ -488,7 +488,13 @@
 
             <!-- 5. Precio total rango -->
             <div>
-                <label class="block text-xs text-neutral-400 mb-1">Total ($)</label>
+                <label class="block text-xs text-neutral-400 mb-1 flex items-center gap-1">
+                    Total ($)
+                    <div class="tooltip-help bottom-aligned">
+                        <svg class="w-3.5 h-3.5 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><circle cx="12" cy="12" r="10" stroke-width="2"/></svg>
+                        <span class="tooltip-text">Filtra las intervenciones por el monto total facturado.</span>
+                    </div>
+                </label>
                 <div class="flex gap-2">
                     <input type="text" x-model="filters.totalMinDisplay" @input="onPriceInput('totalMin', $event)"
                            placeholder="Mín"
@@ -536,12 +542,18 @@
         </div>
     </div>
 
-    <!-- ═══════ ag-Grid container (desktop only) ═══════ -->
-    <div id="intervencionesGrid" class="ag-theme-alpine hidden md:block flex-1 min-h-0 w-full rounded-xl overflow-hidden border border-neutral-800"></div>
+    <!-- ═══════ Grid y Contenedor de Tarjetas con Loading Overlay ═══════ -->
+    <div class="relative flex-1 flex flex-col min-h-[300px]">
+        <!-- Loading Overlay -->
+        {% include "components/loading_overlay.html" with loading_text="Cargando intervenciones..." %}
 
-    <!-- ═══════ Mobile Cards container (mobile only) ═══════ -->
-    <div id="mobileCardsContainer" class="block md:hidden flex-1 min-h-0 overflow-y-auto space-y-3 pb-4">
-        <p class="text-neutral-400 text-center py-8 text-sm">Cargando...</p>
+        <!-- ═══════ ag-Grid container (desktop only) ═══════ -->
+        <div id="intervencionesGrid" class="ag-theme-alpine hidden md:block flex-1 min-h-0 w-full rounded-xl overflow-hidden border border-neutral-800"></div>
+
+        <!-- ═══════ Mobile Cards container (mobile only) ═══════ -->
+        <div id="mobileCardsContainer" class="block md:hidden flex-1 min-h-0 overflow-y-auto space-y-3 pb-4">
+            <p class="text-neutral-400 text-center py-8 text-sm">Cargando...</p>
+        </div>
     </div>
 
     <!-- ═══════ Drawer: Detalle de Intervención ═══════ -->
@@ -1014,24 +1026,39 @@ function accionesCellRenderer(params) {
 
     const container = document.createElement('div');
     container.style.cssText = 'display:flex;gap:6px;align-items:center;height:100%';
+
+    const editWrapper = document.createElement('div');
+    editWrapper.className = 'tooltip-help left-aligned';
     const editBtn = document.createElement('button');
     editBtn.className = 'grid-action-btn';
-    editBtn.title = 'Editar';
     editBtn.innerHTML = '<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>';
     editBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         document.dispatchEvent(new CustomEvent('edit-intervencion', { detail: params.data }));
     });
+    const editTipText = document.createElement('span');
+    editTipText.className = 'tooltip-text';
+    editTipText.textContent = 'Editar';
+    editWrapper.appendChild(editBtn);
+    editWrapper.appendChild(editTipText);
+
+    const delWrapper = document.createElement('div');
+    delWrapper.className = 'tooltip-help left-aligned';
     const delBtn = document.createElement('button');
     delBtn.className = 'grid-action-btn delete';
-    delBtn.title = 'Eliminar';
     delBtn.innerHTML = '<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>';
     delBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         document.dispatchEvent(new CustomEvent('delete-intervencion', { detail: params.data.id }));
     });
-    container.appendChild(editBtn);
-    container.appendChild(delBtn);
+    const delTipText = document.createElement('span');
+    delTipText.className = 'tooltip-text';
+    delTipText.textContent = 'Eliminar';
+    delWrapper.appendChild(delBtn);
+    delWrapper.appendChild(delTipText);
+
+    container.appendChild(editWrapper);
+    container.appendChild(delWrapper);
     return container;
 }
 
@@ -1190,12 +1217,20 @@ function buildDataSource() {
             if (f.totalMin)           urlParams.set('filter_total_min', f.totalMin);
             if (f.totalMax)           urlParams.set('filter_total_max', f.totalMax);
 
+            if (window.__intervencionesAppInstance) {
+                window.__intervencionesAppInstance.loading = true;
+            }
             fetch(`${API_GRID_URL}?${urlParams.toString()}`)
                 .then(r => r.json())
                 .then(data => {
                     params.successCallback(data.rows, data.lastRow >= 0 ? data.lastRow : -1);
                 })
-                .catch(() => params.failCallback());
+                .catch(() => params.failCallback())
+                .finally(() => {
+                    if (window.__intervencionesAppInstance) {
+                        window.__intervencionesAppInstance.loading = false;
+                    }
+                });
         }
     };
 }
@@ -1352,6 +1387,9 @@ async function refreshMobileCards() {
 async function loadMoreMobileCards() {
     if (_mobileCardsLoading || !_mobileCardsHasMore) return;
     _mobileCardsLoading = true;
+    if (window.__intervencionesAppInstance) {
+        window.__intervencionesAppInstance.loading = true;
+    }
 
     const f = window.__intervencionFilters || {};
     const urlParams = new URLSearchParams();
@@ -1388,6 +1426,9 @@ async function loadMoreMobileCards() {
         }
     }
     _mobileCardsLoading = false;
+    if (window.__intervencionesAppInstance) {
+        window.__intervencionesAppInstance.loading = false;
+    }
 }
 
 function renderMobileCards(rows) {
@@ -1457,13 +1498,19 @@ function buildMobileCardHTML(row) {
             <div class="flex items-center gap-3">
                 <span class="text-xs text-neutral-500">${escapeHtml(row.sucursal || '')}</span>
                 ${canEdit ? `
-                <div class="flex items-center gap-1">
-                    <button type="button" class="grid-action-btn edit-btn" title="Editar" data-id="${row.id}">
-                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                    </button>
-                    <button type="button" class="grid-action-btn delete delete-btn" title="Eliminar" data-id="${row.id}">
-                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                    </button>
+                <div class="flex items-center gap-1.5">
+                    <div class="tooltip-help left-aligned">
+                        <button type="button" class="grid-action-btn edit-btn" data-id="${row.id}">
+                            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                        </button>
+                        <span class="tooltip-text">Editar</span>
+                    </div>
+                    <div class="tooltip-help left-aligned">
+                        <button type="button" class="grid-action-btn delete delete-btn" data-id="${row.id}">
+                            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
+                        <span class="tooltip-text">Eliminar</span>
+                    </div>
                 </div>
                 ` : ''}
             </div>
@@ -1572,6 +1619,7 @@ function initMobileScroll() {
 // ══════════════════════════════════════════
 function intervencionesApp() {
     return {
+        loading: false,
         showModal: false,
         showDeleteConfirm: false,
         deletingId: null,
@@ -1644,6 +1692,7 @@ function intervencionesApp() {
         init() {
             if (this._initialized) return;
             this._initialized = true;
+            window.__intervencionesAppInstance = this;
 
             document.addEventListener('edit-intervencion', (e) => this.openEditModal(e.detail));
             document.addEventListener('delete-intervencion', (e) => this.openDeleteConfirm(e.detail));
@@ -2079,10 +2128,10 @@ function intervencionesApp() {
             if (item.auto) row.setAttribute('data-auto', '1');
 
             const inclBadge = item.incluido
-                ? '<span class="flex-shrink-0 cursor-help" onmouseenter="showGlobalTooltip(this, \'El costo del producto se consideró dentro del precio del servicio.\')" onmouseleave="hideGlobalTooltip()"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-700/60 text-neutral-400 border border-neutral-600">Incluido</span></span>'
+                ? '<div class="tooltip-help"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-700/60 text-neutral-400 border border-neutral-600 cursor-help">Incluido</span><span class="tooltip-text">El costo del producto se consideró dentro del precio del servicio.</span></div>'
                 : '';
             const autoBadge = item.auto
-                ? '<span class="flex-shrink-0 cursor-help" onmouseenter="showGlobalTooltip(this, \'Agregado automáticamente por el servicio\')" onmouseleave="hideGlobalTooltip()"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900/60 text-blue-300 border border-blue-700/50">Auto</span></span>'
+                ? '<div class="tooltip-help"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900/60 text-blue-300 border border-blue-700/50 cursor-help">Auto</span><span class="tooltip-text">Agregado automáticamente por el servicio</span></div>'
                 : '';
 
             const lineTotal = (parseFloat(item.unit_price) || 0) * (parseInt(item.cantidad) || 1);
@@ -2093,12 +2142,10 @@ function intervencionesApp() {
                 const qty = item.cantidad || 1;
                 row.setAttribute('data-unit-price', parseFloat(item.unit_price) || 0);
                 row.innerHTML = `
-                    <span class="relative group/tipdel flex-shrink-0 cursor-help">
-                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/60 text-red-300 border border-red-700/50">Eliminado</span>
-                        <span class="absolute bottom-full left-0 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipdel:opacity-100 group-hover/tipdel:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">
-                            Este producto fue eliminado del catálogo. Se conserva como registro histórico.
-                        </span>
-                    </span>
+                    <div class="tooltip-help">
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/60 text-red-300 border border-red-700/50 cursor-help">Eliminado</span>
+                        <span class="tooltip-text">Este producto fue eliminado del catálogo. Se conserva como registro histórico.</span>
+                    </div>
                     <input type="hidden" class="iprod-select" value="${item.producto_id}">
                     <span class="flex-1 min-w-0 truncate px-3 py-2 bg-neutral-800/50 border border-neutral-700 rounded-lg text-neutral-500 text-sm line-through">${item.nombre || 'Producto eliminado'}</span>
                     <input type="number" min="1" value="${qty}" readonly
@@ -2405,45 +2452,6 @@ function intervencionesApp() {
     };
 }
 
-// Global tooltip logic
-function showGlobalTooltip(el, text) {
-    let tooltip = document.getElementById('global-tooltip');
-    if (!tooltip) {
-        tooltip = document.createElement('div');
-        tooltip.id = 'global-tooltip';
-        tooltip.className = 'fixed px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 pointer-events-none z-[9999] shadow-xl whitespace-normal text-center leading-relaxed transition-opacity duration-200';
-        tooltip.style.maxWidth = '200px';
-        document.body.appendChild(tooltip);
-    }
-    tooltip.textContent = text;
-    const rect = el.getBoundingClientRect();
-    
-    // Position it briefly invisible to get dimensions
-    tooltip.style.display = 'block';
-    
-    requestAnimationFrame(() => {
-        const tooltipWidth = tooltip.offsetWidth;
-        const tooltipHeight = tooltip.offsetHeight;
-        
-        let left = rect.left + (rect.width / 2);
-        let top = rect.top - 8;
-        
-        // Ensure it doesn't go off screen horizontally
-        if (left - (tooltipWidth / 2) < 10) left = (tooltipWidth / 2) + 10;
-        if (left + (tooltipWidth / 2) > window.innerWidth - 10) left = window.innerWidth - (tooltipWidth / 2) - 10;
-        
-        tooltip.style.left = left + 'px';
-        tooltip.style.top = top + 'px';
-        tooltip.style.transform = 'translate(-50%, -100%)';
-        tooltip.style.opacity = '1';
-    });
-}
-
-function hideGlobalTooltip() {
-    const tooltip = document.getElementById('global-tooltip');
-    if (tooltip) {
-        tooltip.style.opacity = '0';
-    }
-}
+// Tooltip JS removed in favor of standard native CSS tooltips.
 </script>
 {% endblock %}

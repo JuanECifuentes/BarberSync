@@ -171,6 +171,106 @@
         }
     </script>
 
+    <!-- Global Body Tooltip -->
+    <div id="global-body-tooltip" class="fixed px-3 py-2 bg-[#2a2a2d] border border-[#4a4a4f] rounded-lg text-[11px] text-white shadow-xl pointer-events-none transition-opacity duration-150 ease-out z-[99999] opacity-0 text-center leading-relaxed font-body font-medium" style="max-width: 220px; display: none;"></div>
+
+    <script>
+        document.documentElement.classList.add('js-active');
+        
+        let activeTooltipEl = null;
+        let tooltipTimeout = null;
+        
+        document.addEventListener('mouseenter', (e) => {
+            const helpEl = e.target.closest('.tooltip-help, [data-tooltip]');
+            if (!helpEl || helpEl === activeTooltipEl) return;
+            
+            activeTooltipEl = helpEl;
+            
+            let tooltipText = '';
+            let isWide = false;
+            
+            const textEl = helpEl.querySelector('.tooltip-text');
+            if (textEl) {
+                tooltipText = textEl.textContent;
+                isWide = textEl.classList.contains('wide');
+            } else if (helpEl.hasAttribute('data-tooltip')) {
+                tooltipText = helpEl.getAttribute('data-tooltip');
+            }
+            
+            if (!tooltipText) {
+                activeTooltipEl = null;
+                return;
+            }
+            
+            const tooltip = document.getElementById('global-body-tooltip');
+            if (!tooltip) return;
+            
+            clearTimeout(tooltipTimeout);
+            
+            tooltip.textContent = tooltipText;
+            tooltip.style.display = 'block';
+            
+            if (isWide) {
+                tooltip.style.maxWidth = '280px';
+            } else {
+                tooltip.style.maxWidth = '220px';
+            }
+            
+            const rect = helpEl.getBoundingClientRect();
+            const tipWidth = tooltip.offsetWidth;
+            const tipHeight = tooltip.offsetHeight;
+            
+            const isBottom = helpEl.classList.contains('bottom-aligned');
+            const isLeft = helpEl.classList.contains('left-aligned');
+            const isRight = helpEl.classList.contains('right-aligned');
+            
+            let left = rect.left + (rect.width / 2);
+            let top = isBottom ? (rect.bottom + 6) : (rect.top - 6 - tipHeight);
+            
+            if (isLeft) {
+                left = rect.left;
+                tooltip.style.transform = 'translate(0, 0)';
+                if (left + tipWidth > window.innerWidth - 10) {
+                    left = window.innerWidth - 10 - tipWidth;
+                }
+            } else if (isRight) {
+                left = rect.right;
+                tooltip.style.transform = 'translate(-100%, 0)';
+                if (left - tipWidth < 10) {
+                    left = 10 + tipWidth;
+                }
+            } else {
+                tooltip.style.transform = 'translate(-50%, 0)';
+                if (left - (tipWidth / 2) < 10) {
+                    left = (tipWidth / 2) + 10;
+                }
+                if (left + (tipWidth / 2) > window.innerWidth - 10) {
+                    left = window.innerWidth - (tipWidth / 2) - 10;
+                }
+            }
+            
+            tooltip.style.left = left + 'px';
+            tooltip.style.top = top + 'px';
+            
+            tooltip.offsetHeight; // force reflow
+            tooltip.style.opacity = '1';
+        }, true);
+        
+        document.addEventListener('mouseleave', (e) => {
+            if (e.target === activeTooltipEl) {
+                activeTooltipEl = null;
+                
+                const tooltip = document.getElementById('global-body-tooltip');
+                if (!tooltip) return;
+                
+                tooltip.style.opacity = '0';
+                tooltipTimeout = setTimeout(() => {
+                    tooltip.style.display = 'none';
+                }, 150);
+            }
+        }, true);
+    </script>
+
     {% block extra_js %}{% endblock %}
 </body>
 </html>

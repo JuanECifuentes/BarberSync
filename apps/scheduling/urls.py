@@ -40,6 +40,16 @@ urlpatterns = [
         views.CategoryCreateAPI.as_view(),
         name="api_category_create",
     ),
+    path(
+        "api/categories/<int:pk>/update/",
+        views.CategoryUpdateAPI.as_view(),
+        name="api_category_update",
+    ),
+    path(
+        "api/categories/<int:pk>/delete/",
+        views.CategoryDeleteAPI.as_view(),
+        name="api_category_delete",
+    ),
     # Calendar & appointment APIs
     path("api/events/", views.CalendarEventsAPI.as_view(), name="api_events"),
     path("api/slots/", views.AvailableSlotsAPI.as_view(), name="api_slots"),

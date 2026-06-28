@@ -89,6 +89,36 @@ Módulo encargado de exponer las vistas e interfaces para que los clientes pueda
   - **ag-Grid / JavaScript:** Usar `toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', hour12: false })` o `strftime("%H:%M")` en Python.
   - **APIs Python (strftime):** Usar `%H:%M` para formato display. Mantener ISO 8601 (`%Y-%m-%dT%H:%M`) para valores internos/API.
 - **Tags unificados – Regla obligatoria:** Todos los tags (ej. conteo de visitas, estados, badges) deben usar el estilo unificado: fondo semitransparente del color correspondiente, texto contrastante, bordes redondeados (`border-radius: 9999px`) y padding compacto (`padding: 6px 10px`, `font-size: 11px`, `font-weight: 600`). Referencia CSS: `.estado-badge`, `.svc-tag`, `.prod-tag` en el módulo de Intervenciones.
+- **Tooltips unificados – Regla obligatoria:** Todo tooltip de ayuda en la interfaz debe utilizar la estructura estandarizada `.tooltip-help` con el icono SVG estándar y seguir las directrices de alineación posicional para evitar recortes por `overflow` en el sidebar o barra de navegación.
+  - **Estructura HTML Estándar:**
+    ```html
+    <div class="tooltip-help [variantes_de_alineacion]">
+        <svg class="w-3.5 h-3.5 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            <circle cx="12" cy="12" r="10" stroke-width="2"/>
+        </svg>
+        <span class="tooltip-text [wide]">Texto descriptivo del tooltip.</span>
+    </div>
+    ```
+  - **Variantes de Posicionamiento (definidas en global.css):**
+    - Sin variante (por defecto): Se muestra centrado por encima del icono.
+    - `.bottom-aligned`: Se muestra por debajo del icono. Obligatorio para elementos en el tope de la pantalla (como filtros de cabeceras pegajosas) para evitar recortarse con la barra de navegación superior.
+    - `.left-aligned`: Alinea el globo a la izquierda del icono (el texto se despliega hacia la derecha). Obligatorio para tooltips cercanos al sidebar o al borde izquierdo del viewport.
+    - `.right-aligned`: Alinea el globo a la derecha del icono (el texto se despliega hacia la izquierda). Obligatorio para tooltips cercanos al borde derecho del viewport.
+    - Se pueden combinar de forma aditiva: ej. `.bottom-aligned.left-aligned`.
+  - **Motor de Renderizado Dinámico en Body (base.html):** Con JavaScript activo (`html.js-active`), los globos estáticos `.tooltip-text` son ocultados mediante CSS (`display: none !important`) para prevenir recortes de desbordamiento en tablas, ag-Grid o modales. En su lugar, un listener global delegado en `base.html` intercepta el evento `mouseenter` y dibuja dinámicamente un tooltip único `#global-body-tooltip` en el nivel superior del documento (`document.body`).
+  - **Evitación del Parpadeo y Hover Unificado:** El script hace tracking del contenedor contenedor principal (`activeTooltipEl`) para evitar que al mover el cursor entre elementos internos (como un icono SVG o paths de vectores de un botón) el tooltip parpadee o se oculte. El tooltip solo se apaga cuando el cursor abandona completamente el contenedor `.tooltip-help`.
+- **Componente Loading Overlay (Carga Estándar) – Regla obligatoria:** Para mostrar estados de carga sobre KPIs, gráficos u otros paneles relativos, se debe incluir el componente reutilizable `loading_overlay.html`.
+  - **Uso en Django Templates:**
+    ```html
+    <div class="relative min-h-[200px]">
+        {% include "components/loading_overlay.html" with loading_text="Cargando datos..." %}
+        <!-- Contenido que se cubre al cargar -->
+    </div>
+    ```
+  - **Parámetros configurables:**
+    - `loading_var`: La variable de estado de Alpine.js que controla la visibilidad (por defecto `"loading"`).
+    - `loading_text`: El texto descriptivo mostrado debajo del spinner (por defecto `"Cargando..."`).
 
 ## 5. Sistema de Facturación y Pagos (`apps/billing`)
 
