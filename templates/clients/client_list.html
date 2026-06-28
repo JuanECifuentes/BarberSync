@@ -358,7 +358,13 @@
 
             <!-- 5. Rango de Gastos -->
             <div>
-                <label class="block text-xs text-neutral-400 mb-1">Gastos ($)</label>
+                <label class="block text-xs text-neutral-400 mb-1 flex items-center gap-1">
+                    Gastos ($)
+                    <div class="tooltip-help bottom-aligned">
+                        <svg class="w-3.5 h-3.5 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><circle cx="12" cy="12" r="10" stroke-width="2"/></svg>
+                        <span class="tooltip-text">Filtra los clientes por el monto acumulado en gastos.</span>
+                    </div>
+                </label>
                 <div class="flex gap-2">
                     <input type="text" x-model="filters.gastosMinDisplay" @input="onPriceInput('gastosMin', $event)" placeholder="Mín"
                            class="w-1/2 px-3 py-2 bg-[#2a2a2d] border border-[#4a4a4f] rounded-lg text-white text-sm placeholder-neutral-500 focus:border-[#ff2301] transition-colors" style="min-height:38px;">
@@ -371,12 +377,10 @@
             <div>
                 <label class="block text-xs text-neutral-400 mb-1 flex items-center gap-1">
                     Fecha Asistencia
-                    <span class="relative group cursor-help">
-                        <svg class="w-3.5 h-3.5 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-neutral-800 border border-neutral-600 text-neutral-300 text-xs rounded-lg whitespace-nowrap opacity-0 invisible pointer-events-none group-hover:opacity-100 group-hover:visible transition-all duration-200 z-20 shadow-xl leading-relaxed">
-                            Filtra clientes que tengan al menos una intervención en el rango de fechas seleccionado
-                        </span>
-                    </span>
+                    <div class="tooltip-help bottom-aligned">
+                        <svg class="w-3.5 h-3.5 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><circle cx="12" cy="12" r="10" stroke-width="2"/></svg>
+                        <span class="tooltip-text">Filtra clientes que tengan al menos una intervención en el rango de fechas seleccionado.</span>
+                    </div>
                 </label>
                 <input type="text" x-ref="filterFechaRange" readonly placeholder="Rango de fechas..."
                        class="w-full px-3 py-2 bg-[#2a2a2d] border border-[#4a4a4f] rounded-lg text-white text-sm placeholder-neutral-500 focus:border-[#ff2301] transition-colors cursor-pointer" style="min-height:38px;">
@@ -413,8 +417,14 @@
         </div>
     </div>
 
-    <!-- ═══════ ag-Grid container ═══════ -->
-    <div id="clientesGrid" class="ag-theme-alpine flex-1 min-h-0 w-full rounded-xl overflow-hidden border border-neutral-800"></div>
+    <!-- ═══════ Grid Container con Loading Overlay ═══════ -->
+    <div class="relative flex-1 flex flex-col min-h-[300px]">
+        <!-- Loading Overlay -->
+        {% include "components/loading_overlay.html" with loading_text="Cargando clientes..." %}
+
+        <!-- ═══════ ag-Grid container ═══════ -->
+        <div id="clientesGrid" class="ag-theme-alpine flex-1 min-h-0 w-full rounded-xl overflow-hidden border border-neutral-800"></div>
+    </div>
 
     <!-- ═══════ Modal Crear / Editar Cliente ═══════ -->
     <template x-if="showModal">
@@ -429,7 +439,7 @@
                 </div>
                 <div class="space-y-4">
                     <div>
-                        <label class="block text-sm font-medium text-neutral-300 mb-1">Nombre *</label>
+                        <label class="block text-sm font-medium text-neutral-300 mb-1">Nombre</label>
                         <input type="text" x-model="form.name" placeholder="Nombre completo"
                                class="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-brand focus:border-brand transition-colors">
                     </div>
@@ -686,7 +696,7 @@ function fichaCellRenderer(params) {
     container.style.cssText = 'display:flex;gap:6px;align-items:center;height:100%';
     const btn = document.createElement('button');
     btn.className = 'grid-action-btn ficha';
-    btn.title = params.data.tiene_ficha ? 'Ver ficha clínica' : 'Crear ficha clínica';
+    btn.setAttribute('data-tooltip', params.data.tiene_ficha ? 'Ver ficha clínica' : 'Crear ficha clínica');
     btn.innerHTML = '<svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"/></svg>';
     btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -706,7 +716,8 @@ function accionesCellRenderer(params) {
     container.style.cssText = 'display:flex;gap:6px;align-items:center;height:100%';
     const editBtn = document.createElement('button');
     editBtn.className = 'grid-action-btn';
-    editBtn.title = 'Editar';
+    editBtn.setAttribute('data-tooltip', 'Editar');
+    editBtn.classList.add('left-aligned');
     editBtn.innerHTML = '<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>';
     editBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -717,7 +728,8 @@ function accionesCellRenderer(params) {
     if (IS_ADMIN) {
         const delBtn = document.createElement('button');
         delBtn.className = 'grid-action-btn delete';
-        delBtn.title = 'Desactivar';
+        delBtn.setAttribute('data-tooltip', 'Desactivar');
+        delBtn.classList.add('left-aligned');
         delBtn.innerHTML = '<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>';
         delBtn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -768,6 +780,9 @@ function buildDataSource() {
             if (f.fechaHasta)    urlParams.set('filter_fecha_hasta', f.fechaHasta);
             if (f.sucursales?.length) urlParams.set('filter_sucursales', f.sucursales.join(','));
 
+            if (window.__clientesAppInstance) {
+                window.__clientesAppInstance.loading = true;
+            }
             fetch(`${API_GRID_URL}?${urlParams.toString()}`)
                 .then(r => r.json())
                 .then(data => {
@@ -780,7 +795,12 @@ function buildDataSource() {
                         document.dispatchEvent(new CustomEvent('kpi-update', { detail: data.kpis }));
                     }
                 })
-                .catch(() => params.failCallback());
+                .catch(() => params.failCallback())
+                .finally(() => {
+                    if (window.__clientesAppInstance) {
+                        window.__clientesAppInstance.loading = false;
+                    }
+                });
         }
     };
 }
@@ -820,6 +840,7 @@ document.addEventListener('DOMContentLoaded', () => {
    ══════════════════════════════════════════ */
 function clientesApp() {
     return {
+        loading: false,
         showModal: false,
         showDeleteConfirm: false,
         showFichaModal: false,
@@ -872,6 +893,7 @@ function clientesApp() {
         flatpickrRangeInstance: null,
 
         init() {
+            window.__clientesAppInstance = this;
             document.addEventListener('edit-client', (e) => this.openEditModal(e.detail));
             document.addEventListener('delete-client', (e) => this.openDeleteConfirm(e.detail));
             document.addEventListener('open-ficha', (e) => this.openFichaModal(e.detail.id, e.detail.name));

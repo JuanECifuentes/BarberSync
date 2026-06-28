@@ -513,11 +513,9 @@
                                         <span class="text-xs text-neutral-400">${{ svc.price|money }}</span>
                                         <!-- Personalizar button (only visible when checked) -->
                                         <button type="button" onclick="event.preventDefault(); event.stopPropagation(); openCustomizePanel({{ svc.pk }})"
-                                            class="svc-customize-btn hidden border border-neutral-700 px-2 py-1 rounded-md text-[10px] text-neutral-400 hover:text-white hover:border-brand transition-all relative group"
+                                            class="svc-customize-btn hidden border border-neutral-700 px-2 py-1 rounded-md text-[10px] text-neutral-400 hover:text-white hover:border-brand transition-all left-aligned"
+                                            data-tooltip="Personalizar precio y/o duración"
                                             data-svc-id="{{ svc.pk }}">
-                                            <span class="absolute right-full top-1/2 -translate-y-1/2 mr-2 w-max max-w-[200px] px-3 py-1.5 bg-neutral-800 border border-neutral-700 text-neutral-200 text-[11px] text-center rounded-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-[9999] shadow-lg">
-                                                Personalizar precio y/o duración
-                                            </span>
                                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
                                             </svg>

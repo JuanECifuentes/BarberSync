@@ -674,12 +674,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Tooltip helper (? icon with hover tooltip)
             const tooltipIcon = (text) => `
-                <span class="relative inline-flex ml-1.5 group/tip">
-                    <svg class="w-3.5 h-3.5 text-neutral-500 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span class="inline-flex ml-1.5 align-middle cursor-help" data-tooltip="${text.replace(/"/g, '&quot;')}">
+                    <svg class="w-3.5 h-3.5 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01"/>
                         <circle cx="12" cy="12" r="10" stroke-width="2"/>
                     </svg>
-                    <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-200 pointer-events-none z-50 shadow-xl text-center leading-relaxed">${text}</span>
                 </span>`;
 
             // Format time helper (AM/PM)
@@ -726,9 +725,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="flex justify-between text-sm">
                                 <span class="flex items-center gap-1.5 text-neutral-300">
                                     ${p.name} x${p.cantidad}
-                                    ${p.is_deleted ? `<span class="relative group/tipdel"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/60 text-red-300 border border-red-700/50 cursor-help">Eliminado</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipdel:opacity-100 group-hover/tipdel:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">${deletedTooltip}</span></span>` : ''}
-                                    ${!p.is_deleted && p.auto ? `<span class="relative group/tipauto"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900/60 text-blue-300 border border-blue-700/50 cursor-help">Auto</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipauto:opacity-100 group-hover/tipauto:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">${autoTooltip}</span></span>` : ''}
-                                    ${p.incluido_en_precio ? `<span class="relative group/tipincl"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-700/60 text-neutral-400 border border-neutral-600 cursor-help">Incluido</span><span class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2 w-max max-w-[200px] px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-neutral-300 opacity-0 invisible group-hover/tipincl:opacity-100 group-hover/tipincl:visible transition-all duration-200 pointer-events-none z-[100] shadow-xl whitespace-normal text-center leading-relaxed">${incluidoTooltip}</span></span>` : ''}
+                                    ${p.is_deleted ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/60 text-red-300 border border-red-700/50 cursor-help" data-tooltip="${deletedTooltip}">Eliminado</span>` : ''}
+                                    ${!p.is_deleted && p.auto ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900/60 text-blue-300 border border-blue-700/50 cursor-help" data-tooltip="${autoTooltip}">Auto</span>` : ''}
+                                    ${p.incluido_en_precio ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-700/60 text-neutral-400 border border-neutral-600 cursor-help" data-tooltip="${incluidoTooltip}">Incluido</span>` : ''}
                                 </span>
                                 <span class="${priceColorClass} font-medium${p.incluido_en_precio ? ' opacity-60' : ''}">$${Math.round(parseFloat(p.subtotal)).toLocaleString('de-DE')}</span>
                             </div>`;
@@ -791,50 +790,35 @@ document.addEventListener('DOMContentLoaded', function() {
             let emailButtonsHtml = '';
             if (props.client_email) {
                 const mailtoHtml = props.client_email_verified
-                    ? `<div class="relative group/tip">
-                        <a href="mailto:${encodeURIComponent(props.client_email)}" class="p-1.5 bg-neutral-800 text-blue-400 rounded-md border border-neutral-600 hover:text-white hover:border-blue-400 hover:scale-105 transition-all duration-150 shadow-sm flex items-center justify-center">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 00-2-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                        </a>
-                        <span class="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-neutral-800 border border-neutral-600 rounded text-[10px] text-neutral-300 opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-200 pointer-events-none z-50 shadow-xl text-center leading-relaxed">Enviar correo</span>
-                      </div>`
+                    ? `<a href="mailto:${encodeURIComponent(props.client_email)}" class="p-1.5 bg-neutral-800 text-blue-400 rounded-md border border-neutral-600 hover:text-white hover:border-blue-400 hover:scale-105 transition-all duration-150 shadow-sm flex items-center justify-center left-aligned" data-tooltip="Enviar correo">
+                           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 00-2-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                       </a>`
                     : '';
                 const copyHtml = `
-                    <div class="relative group/tip">
-                        <button type="button" id="copy-email-btn" onclick="copyToClipboard('${(props.client_email || '').replace(/'/g, "\\'")}', 'copy-email-btn')" class="p-1.5 bg-neutral-800 text-neutral-400 rounded-md border border-neutral-600 hover:text-white hover:border-neutral-400 hover:scale-105 transition-all duration-150 shadow-sm flex items-center justify-center">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
-                        </button>
-                        <span id="copy-email-btn-tip" class="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-neutral-800 border border-neutral-600 rounded text-[10px] text-neutral-300 opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-200 pointer-events-none z-50 shadow-xl text-center leading-relaxed">Copiar correo</span>
-                    </div>`;
+                    <button type="button" id="copy-email-btn" onclick="copyToClipboard('${(props.client_email || '').replace(/'/g, "\\'")}', 'copy-email-btn')" class="p-1.5 bg-neutral-800 text-neutral-400 rounded-md border border-neutral-600 hover:text-white hover:border-neutral-400 hover:scale-105 transition-all duration-150 shadow-sm flex items-center justify-center left-aligned" data-tooltip="Copiar correo">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+                    </button>`;
                 emailButtonsHtml = `<div class="flex items-center gap-1.5 flex-shrink-0">${copyHtml}${mailtoHtml}</div>`;
             }
 
             let phoneButtonsHtml = '';
             if (props.client_phone) {
                 const waHtml = props.client_phone_verified && props.client_country_code
-                    ? `<div class="relative group/tip">
-                        <a href="https://api.whatsapp.com/send?phone=${encodeURIComponent(props.client_country_code + props.client_phone.replace(/\D/g, ''))}" target="_blank" rel="noopener noreferrer" class="p-1.5 bg-neutral-800 text-green-400 rounded-md border border-neutral-600 hover:text-white hover:border-green-400 hover:scale-105 transition-all duration-150 shadow-sm flex items-center justify-center">
-                            <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.521.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.521-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                        </a>
-                        <span class="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-neutral-800 border border-neutral-600 rounded text-[10px] text-neutral-300 opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-200 pointer-events-none z-50 shadow-xl text-center leading-relaxed">Enviar WhatsApp</span>
-                      </div>`
+                    ? `<a href="https://api.whatsapp.com/send?phone=${encodeURIComponent(props.client_country_code + props.client_phone.replace(/\D/g, ''))}" target="_blank" rel="noopener noreferrer" class="p-1.5 bg-neutral-800 text-green-400 rounded-md border border-neutral-600 hover:text-white hover:border-green-400 hover:scale-105 transition-all duration-150 shadow-sm flex items-center justify-center left-aligned" data-tooltip="Enviar WhatsApp">
+                           <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.521.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.521-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                       </a>`
                     : '';
                 const copyHtml = `
-                    <div class="relative group/tip">
-                        <button type="button" id="copy-phone-btn" onclick="copyToClipboard('${(props.client_phone || '').replace(/'/g, "\\'")}', 'copy-phone-btn')" class="p-1.5 bg-neutral-800 text-neutral-400 rounded-md border border-neutral-600 hover:text-white hover:border-neutral-400 hover:scale-105 transition-all duration-150 shadow-sm flex items-center justify-center">
-                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
-                        </button>
-                        <span id="copy-phone-btn-tip" class="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-neutral-800 border border-neutral-600 rounded text-[10px] text-neutral-300 opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-200 pointer-events-none z-50 shadow-xl text-center leading-relaxed">Copiar teléfono</span>
-                    </div>`;
+                    <button type="button" id="copy-phone-btn" onclick="copyToClipboard('${(props.client_phone || '').replace(/'/g, "\\'")}', 'copy-phone-btn')" class="p-1.5 bg-neutral-800 text-neutral-400 rounded-md border border-neutral-600 hover:text-white hover:border-neutral-400 hover:scale-105 transition-all duration-150 shadow-sm flex items-center justify-center left-aligned" data-tooltip="Copiar teléfono">
+                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+                    </button>`;
                 phoneButtonsHtml = `<div class="flex items-center gap-1.5 flex-shrink-0">${copyHtml}${waHtml}</div>`;
             }
 
             const rescheduleBtnHtml = props.status === 'pending'
-                ? `<div class="relative group/tip flex-shrink-0">
-                    <button onclick="toggleRescheduleSection(true)" type="button" class="p-1.5 bg-neutral-800 text-blue-400 rounded-md border border-neutral-600 hover:text-white hover:border-blue-400 hover:scale-105 transition-all duration-150 shadow-sm flex items-center justify-center">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    </button>
-                    <span class="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-neutral-800 border border-neutral-600 rounded text-[10px] text-neutral-300 opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-200 pointer-events-none z-50 shadow-xl text-center leading-relaxed">Modificar horario</span>
-                  </div>`
+                ? `<button onclick="toggleRescheduleSection(true)" type="button" class="p-1.5 bg-neutral-800 text-blue-400 rounded-md border border-neutral-600 hover:text-white hover:border-blue-400 hover:scale-105 transition-all duration-150 shadow-sm flex items-center justify-center left-aligned" data-tooltip="Modificar horario">
+                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                   </button>`
                 : '';
 
             document.getElementById('modal-body-top').innerHTML = `
@@ -845,10 +829,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="text-sm text-white font-medium truncate">${props.client_name || '<span class="text-neutral-500 italic">Sin Registrar</span>'}</div>
                             ${!props.client_id && props.status !== 'cancelled' ? `
                             <div class="relative group/tip flex-shrink-0">
-                                <button onclick="openAssignClientModal(${aptId})" type="button" class="p-1.5 bg-neutral-800 text-neutral-400 rounded-md border border-neutral-600 hover:text-white hover:border-neutral-400 hover:scale-105 transition-all duration-150 shadow-sm flex items-center justify-center">
+                                <button onclick="openAssignClientModal(${aptId})" type="button" class="p-1.5 bg-neutral-800 text-neutral-400 rounded-md border border-neutral-600 hover:text-white hover:border-neutral-400 hover:scale-105 transition-all duration-150 shadow-sm flex items-center justify-center" data-tooltip="Asignar cliente">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                                 </button>
-                                <span class="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-neutral-800 border border-neutral-600 rounded text-[10px] text-neutral-300 opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-200 pointer-events-none z-50 shadow-xl text-center leading-relaxed">Asignar cliente</span>
                             </div>` : ''}
                         </div>
                     </div>
@@ -890,14 +873,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div id="cal-notes-section" class="space-y-2">
                     <div class="flex items-center justify-between">
                         <span class="text-neutral-400 text-xs uppercase tracking-wide font-semibold">Notas de la cita</span>
-                        <div class="relative group/tip">
-                            <button type="button" onclick="toggleEditNotes(${aptId})"
-                                    id="cal-edit-notes-btn"
-                                    class="p-1.5 bg-neutral-800 text-neutral-400 rounded-md border border-neutral-600 hover:text-white hover:border-neutral-400 hover:scale-105 transition-all duration-150 shadow-sm flex items-center justify-center">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                            </button>
-                            <span class="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-neutral-800 border border-neutral-600 rounded text-[10px] text-neutral-300 opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-200 pointer-events-none z-50 shadow-xl text-center leading-relaxed">Editar notas</span>
-                        </div>
+                        <button type="button" onclick="toggleEditNotes(${aptId})"
+                                id="cal-edit-notes-btn"
+                                class="p-1.5 bg-neutral-800 text-neutral-400 rounded-md border border-neutral-600 hover:text-white hover:border-neutral-400 hover:scale-105 transition-all duration-150 shadow-sm flex items-center justify-center left-aligned"
+                                data-tooltip="Editar notas">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        </button>
                     </div>
                     <div id="cal-notes-display" class="text-sm text-neutral-300 italic min-h-[1.5em]">${props.notes ? props.notes.replace(/\n/g, '<br>') : '<span class="text-neutral-500 italic text-xs">Sin notas</span>'}</div>
                     <div id="cal-notes-edit" class="hidden space-y-2">

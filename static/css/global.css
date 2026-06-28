@@ -88,7 +88,13 @@
         transform: translateX(-50%) scale(1);
     }
 
-    /* Right alignment (tooltip extends to the left) */
+    /* Hide absolute tooltips when JS is active, letting the global body-level tooltip take over */
+    html.js-active .tooltip-help .tooltip-text,
+    html.js-active [data-tooltip]::after,
+    html.js-active [data-tooltip]::before {
+        display: none !important;
+    }
+
     .tooltip-help.right-aligned .tooltip-text {
         left: auto;
         right: 0;
@@ -277,4 +283,18 @@
         -webkit-text-fill-color: #fff !important;
         -webkit-box-shadow: 0 0 0px 1000px #2a2a2d inset !important;
         transition: background-color 5000s ease-in-out 0s;
+    }
+
+    /* Unified checkbox styling across the application to force brand orange color */
+    input[type="checkbox"] {
+        accent-color: #ff2301 !important;
+    }
+    input[type="checkbox"]:checked {
+        background-color: #ff2301 !important;
+        border-color: #ff2301 !important;
+        color: #ff2301 !important;
+    }
+    input[type="checkbox"]:focus {
+        --tw-ring-color: #ff2301 !important;
+        border-color: #ff2301 !important;
     }

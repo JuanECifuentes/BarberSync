@@ -106,7 +106,8 @@ Módulo encargado de exponer las vistas e interfaces para que los clientes pueda
     - `.left-aligned`: Alinea el globo a la izquierda del icono (el texto se despliega hacia la derecha). Obligatorio para tooltips cercanos al sidebar o al borde izquierdo del viewport.
     - `.right-aligned`: Alinea el globo a la derecha del icono (el texto se despliega hacia la izquierda). Obligatorio para tooltips cercanos al borde derecho del viewport.
     - Se pueden combinar de forma aditiva: ej. `.bottom-aligned.left-aligned`.
-  - **Gestión de Stacking Context:** El contenedor de tooltip `.tooltip-help` cambia a `z-index: 50` al recibir `:hover` (elevando su contexto por encima de cabeceras y paneles), y el globo interno `.tooltip-text` utiliza un `z-index: 9999` para asegurar el dibujado sobre librerías de terceros (gráficos, tablas).
+  - **Motor de Renderizado Dinámico en Body (base.html):** Con JavaScript activo (`html.js-active`), los globos estáticos `.tooltip-text` son ocultados mediante CSS (`display: none !important`) para prevenir recortes de desbordamiento en tablas, ag-Grid o modales. En su lugar, un listener global delegado en `base.html` intercepta el evento `mouseenter` y dibuja dinámicamente un tooltip único `#global-body-tooltip` en el nivel superior del documento (`document.body`).
+  - **Evitación del Parpadeo y Hover Unificado:** El script hace tracking del contenedor contenedor principal (`activeTooltipEl`) para evitar que al mover el cursor entre elementos internos (como un icono SVG o paths de vectores de un botón) el tooltip parpadee o se oculte. El tooltip solo se apaga cuando el cursor abandona completamente el contenedor `.tooltip-help`.
 - **Componente Loading Overlay (Carga Estándar) – Regla obligatoria:** Para mostrar estados de carga sobre KPIs, gráficos u otros paneles relativos, se debe incluir el componente reutilizable `loading_overlay.html`.
   - **Uso en Django Templates:**
     ```html
