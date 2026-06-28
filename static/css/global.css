@@ -152,3 +152,129 @@
             transform: translateX(-50%) scale(1);
         }
     }
+
+    /* ── Flatpickr global styling overrides ── */
+    .flatpickr-calendar {
+        background: #2a2a2d !important;
+        border: 1px solid #4a4a4f !important;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+    }
+    .flatpickr-calendar.arrowUp::after {
+        border-bottom-color: #2a2a2d !important;
+    }
+    .flatpickr-calendar.arrowUp::before {
+        border-bottom-color: #4a4a4f !important;
+    }
+    .flatpickr-calendar.arrowDown::after {
+        border-top-color: #2a2a2d !important;
+    }
+    .flatpickr-calendar.arrowDown::before {
+        border-top-color: #4a4a4f !important;
+    }
+    .flatpickr-day {
+        color: #fff !important;
+    }
+    .flatpickr-day:hover,
+    .flatpickr-day:focus {
+        background: rgba(255, 255, 255, 0.05) !important;
+    }
+    .flatpickr-day.selected, 
+    .flatpickr-day.startRange, 
+    .flatpickr-day.endRange {
+        background: #ff2301 !important;
+        border-color: #ff2301 !important;
+        color: #fff !important;
+    }
+    .flatpickr-day.inRange {
+        background: rgba(255, 35, 1, 0.15) !important;
+        box-shadow: -5px 0 0 rgba(255, 35, 1, 0.15), 5px 0 0 rgba(255, 35, 1, 0.15) !important;
+    }
+    .flatpickr-day.prevMonthDay, 
+    .flatpickr-day.nextMonthDay {
+        color: #59595d !important;
+    }
+    .flatpickr-confirm {
+        background: #ff2301 !important;
+        color: #fff !important;
+        font-weight: 600 !important;
+        border: none !important;
+        border-radius: 0 0 8px 8px !important;
+        padding: 8px !important;
+        cursor: pointer !important;
+        transition: background 0.2s ease !important;
+    }
+    .flatpickr-confirm:hover {
+        background: #e01e00 !important;
+    }
+    .flatpickr-confirm svg {
+        display: none !important;
+    }
+    .flatpickr-months .flatpickr-month {
+        color: #fff !important;
+    }
+    .flatpickr-months .flatpickr-prev-month,
+    .flatpickr-months .flatpickr-next-month {
+        color: #fff !important;
+        fill: #fff !important;
+    }
+    .flatpickr-weekday {
+        color: #b8b8be !important;
+    }
+
+    /* Flatpickr Timepicker overrides */
+    .flatpickr-time {
+        border-top: 1px solid #4a4a4f !important;
+        background: #2a2a2d !important;
+    }
+    .flatpickr-time .numInputWrapper span {
+        border-color: #4a4a4f !important;
+    }
+    .flatpickr-time .numInputWrapper span:hover {
+        background: #ff2301 !important;
+    }
+    .flatpickr-time .numInputWrapper span:hover::after {
+        border-top-color: #fff !important;
+        border-bottom-color: #fff !important;
+    }
+    .flatpickr-time input {
+        color: #fff !important;
+        background: transparent !important;
+    }
+    .flatpickr-time input:hover, 
+    .flatpickr-time input:focus {
+        background: rgba(255, 255, 255, 0.05) !important;
+        color: #fff !important;
+    }
+    .flatpickr-time .flatpickr-am-pm {
+        color: #fff !important;
+    }
+    .flatpickr-time .flatpickr-am-pm:hover, 
+    .flatpickr-time .flatpickr-am-pm:focus {
+        background: rgba(255, 255, 255, 0.05) !important;
+    }
+    .flatpickr-time .flatpickr-time-separator {
+        color: #b8b8be !important;
+    }
+    .flatpickr-calendar.noCalendar {
+        height: auto !important;
+    }
+
+    /* Input focus and autofill dark theme protection */
+    .filters-panel input {
+        background-color: #2a2a2d !important;
+        color: #fff !important;
+    }
+    .filters-panel input:focus {
+        background-color: #2a2a2d !important;
+        border-color: #ff2301 !important;
+        outline: none !important;
+        box-shadow: 0 0 0 2px rgba(255, 35, 1, 0.15) !important;
+    }
+    /* Webkit Autocomplete override to prevent blue background */
+    .filters-panel input:-webkit-autofill,
+    .filters-panel input:-webkit-autofill:hover,
+    .filters-panel input:-webkit-autofill:focus {
+        -webkit-text-fill-color: #fff !important;
+        -webkit-box-shadow: 0 0 0px 1000px #2a2a2d inset !important;
+        transition: background-color 5000s ease-in-out 0s;
+    }
