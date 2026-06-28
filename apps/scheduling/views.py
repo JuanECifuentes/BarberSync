@@ -511,6 +511,9 @@ class ServiceListView(LoginRequiredMixin, TemplateView):
             grouped_products[cat_name].append(prod)
         ctx["grouped_products"] = grouped_products
 
+        membership = self.request.user.membership
+        ctx["is_admin"] = bool(membership and membership.role in (Membership.Role.OWNER, Membership.Role.ADMIN))
+
         return ctx
 
 
@@ -785,6 +788,10 @@ class CategoryCreateAPI(LoginRequiredMixin, View):
 
     def post(self, request):
         barbershop = request.barbershop
+        membership = request.user.membership
+        if not membership or membership.role not in (Membership.Role.OWNER, Membership.Role.ADMIN):
+            return JsonResponse({"error": "No autorizado"}, status=403)
+
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
@@ -800,6 +807,62 @@ class CategoryCreateAPI(LoginRequiredMixin, View):
             updated_by=request.user,
         )
         return JsonResponse({"ok": True, "id": cat.pk, "name": cat.name}, status=201)
+
+
+class CategoryUpdateAPI(LoginRequiredMixin, View):
+    """API for updating a service category."""
+
+    def post(self, request, pk):
+        barbershop = request.barbershop
+        membership = request.user.membership
+        if not membership or membership.role not in (Membership.Role.OWNER, Membership.Role.ADMIN):
+            return JsonResponse({"error": "No autorizado"}, status=403)
+
+        try:
+            category = CategoriaServicio.objects.get(pk=pk, barbershop=barbershop, is_active=True)
+        except CategoriaServicio.DoesNotExist:
+            return JsonResponse({"error": "Categoría no encontrada"}, status=404)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "JSON inválido"}, status=400)
+
+        name = data.get("name", "").strip()
+        if not name:
+            return JsonResponse({"error": "Nombre requerido"}, status=400)
+
+        category.name = name
+        category.description = data.get("description", "")
+        category.updated_by = request.user
+        category.save(update_fields=["name", "description", "updated_by"])
+
+        return JsonResponse({"ok": True})
+
+
+class CategoryDeleteAPI(LoginRequiredMixin, View):
+    """API for soft deleting a service category and unlinking its services."""
+
+    def post(self, request, pk):
+        barbershop = request.barbershop
+        membership = request.user.membership
+        if not membership or membership.role not in (Membership.Role.OWNER, Membership.Role.ADMIN):
+            return JsonResponse({"error": "No autorizado"}, status=403)
+
+        try:
+            category = CategoriaServicio.objects.get(pk=pk, barbershop=barbershop, is_active=True)
+        except CategoriaServicio.DoesNotExist:
+            return JsonResponse({"error": "Categoría no encontrada"}, status=404)
+
+        # Unlink associated services (set category_id = Null)
+        Service.objects.filter(category=category, barbershop=barbershop).update(category=None)
+
+        # Logical delete
+        category.is_active = False
+        category.updated_by = request.user
+        category.save(update_fields=["is_active", "updated_by"])
+
+        return JsonResponse({"ok": True})
 
 
 # ─────────────────────────────────────────────
