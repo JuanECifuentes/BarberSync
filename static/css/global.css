@@ -39,3 +39,116 @@
         border-color: #ef4444 !important;
         box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3) !important;
     }
+
+    /* ── Tooltip helper ── */
+    .tooltip-help {
+        position: relative;
+        display: inline-flex;
+        cursor: help;
+    }
+
+    /* Ensure hovered tooltips stack above other page components (like sticky headers/footers) */
+    .tooltip-help:hover {
+        z-index: 50;
+    }
+
+    .tooltip-help .tooltip-text {
+        position: absolute;
+        bottom: calc(100% + 8px);
+        left: 50%;
+        transform: translateX(-50%) scale(0.95);
+        padding: 8px 12px;
+        background: #2a2a2d;
+        border: 1px solid #4a4a4f;
+        color: #fff;
+        font-size: 11px;
+        font-family: 'Poppins', sans-serif;
+        font-weight: 500;
+        border-radius: 8px;
+        white-space: normal;
+        word-wrap: break-word;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+        z-index: 9999;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        line-height: 1.4;
+        width: max-content;
+        max-width: min(260px, 90vw);
+        text-align: center;
+    }
+
+    .tooltip-help .tooltip-text.wide {
+        max-width: min(280px, 90vw);
+    }
+
+    /* Hover state: show tooltip */
+    .tooltip-help:hover .tooltip-text {
+        opacity: 1;
+        transform: translateX(-50%) scale(1);
+    }
+
+    /* Right alignment (tooltip extends to the left) */
+    .tooltip-help.right-aligned .tooltip-text {
+        left: auto;
+        right: 0;
+        transform: scale(0.95);
+    }
+    .tooltip-help.right-aligned:hover .tooltip-text {
+        transform: scale(1);
+    }
+
+    /* Left alignment (tooltip extends to the right) */
+    .tooltip-help.left-aligned .tooltip-text {
+        left: 0;
+        right: auto;
+        transform: scale(0.95);
+    }
+    .tooltip-help.left-aligned:hover .tooltip-text {
+        transform: scale(1);
+    }
+
+    /* Bottom alignment (tooltip displays below the icon) */
+    .tooltip-help.bottom-aligned .tooltip-text {
+        bottom: auto;
+        top: calc(100% + 8px);
+        transform: translateX(-50%) scale(0.95);
+    }
+    .tooltip-help.bottom-aligned:hover .tooltip-text {
+        transform: translateX(-50%) scale(1);
+    }
+
+    /* Bottom + Right alignment */
+    .tooltip-help.bottom-aligned.right-aligned .tooltip-text {
+        bottom: auto;
+        top: calc(100% + 8px);
+        left: auto;
+        right: 0;
+        transform: scale(0.95);
+    }
+    .tooltip-help.bottom-aligned.right-aligned:hover .tooltip-text {
+        transform: scale(1);
+    }
+
+    /* Bottom + Left alignment */
+    .tooltip-help.bottom-aligned.left-aligned .tooltip-text {
+        bottom: auto;
+        top: calc(100% + 8px);
+        left: 0;
+        right: auto;
+        transform: scale(0.95);
+    }
+    .tooltip-help.bottom-aligned.left-aligned:hover .tooltip-text {
+        transform: scale(1);
+    }
+
+    /* Responsive adjustments for mobile screens */
+    @media (max-width: 640px) {
+        .tooltip-help:not(.left-aligned):not(.right-aligned) .tooltip-text {
+            left: 50%;
+            transform: translateX(-50%) scale(0.95);
+        }
+        .tooltip-help:not(.left-aligned):not(.right-aligned):hover .tooltip-text {
+            transform: translateX(-50%) scale(1);
+        }
+    }
