@@ -360,10 +360,31 @@ def create_appointment(
 @transaction.atomic
 def cancel_appointment(appointment: Appointment, reason: str = "", cancelled_by=None):
     """Cancel an appointment and update audit trail."""
+    user = cancelled_by if (cancelled_by and cancelled_by.is_authenticated) else None
     appointment.status = Appointment.Status.CANCELLED
     appointment.cancelled_reason = reason
-    appointment.updated_by = cancelled_by
+    appointment.updated_by = user
     appointment.save()
+
+    # Cancel the associated intervention and restore stock if needed
+    if hasattr(appointment, "intervencion") and appointment.intervencion:
+        intervencion = appointment.intervencion
+        if intervencion.estado != Intervencion.Estado.CANCELADA:
+            intervencion.estado = Intervencion.Estado.CANCELADA
+            intervencion.updated_by = user
+            intervencion.save()
+
+            # Restore stock
+            for ip in intervencion.productos_usados.select_related("producto").all():
+                product = Product.objects.select_for_update().get(pk=ip.producto_id)
+                StockMovement.objects.create(
+                    product=product,
+                    quantity=ip.cantidad,
+                    reason=StockMovement.Reason.ADJUSTMENT,
+                    notes=f"Reversión Intervención #{intervencion.pk} (Cita cancelada)",
+                    resulting_stock=0,
+                    updated_by=user,
+                )
 
 
 @transaction.atomic
